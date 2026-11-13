@@ -2,6 +2,10 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
+## Unreleased
+
+- **Older firmwares (e.g. 6.50):** the theme script is now injected there too. Their React Native JS executor has another name and an extra argument, so nothing ran before (no theme, no 🎨 ZhiThemes menu). Not yet confirmed on 6.50; parts of the older Home may still not follow the theme.
+
 ## 0.1.0-alpha — first release
 
 Alpha: made on firmware **9.60** and confirmed working on **13.60**. Other firmwares are untested; reports are welcome (see [docs/LOGS.md](docs/LOGS.md)).

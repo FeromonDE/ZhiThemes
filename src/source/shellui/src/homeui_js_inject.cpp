@@ -62,7 +62,10 @@ later version. See LICENSE and NOTICE.  */
 namespace {
 
 constexpr const char *kNamespace = "ReactNative.JavaScriptCore.Executor";
-constexpr const char *kClass = "JSJavaScriptExecutor";
+/* the executor's name on newer firmwares, then on older ones (the first one
+   found wins; the same names as AniketosHEN) */
+constexpr const char *kClasses[] = {"JSJavaScriptExecutor",
+                                    "JSCJavaScriptExecutor"};
 /* Apps the theme script runs in, by the title id in their bundle path */
 struct ThemedApp {
   const char *title_id;
@@ -166,8 +169,14 @@ SavedToken g_focus_tokens[2] = {{kTokenStroke, {}, false},
 bool g_tokens_dumped = false;
 
 MonoClass *g_executor_class = nullptr;
+/* EvalScript(source, url); older firmwares have EvalScript(source, url,
+   isJsModule): every call passes a third argument, false (a plain script),
+   which the two-argument form never reads */
 MonoMethod *g_eval_script = nullptr;
+bool g_eval_plain = false;
 MonoClassField *g_name_field = nullptr;
+/* the executor's name, when there is no _name field */
+MonoMethod *g_name_getter = nullptr;
 
 void (*g_run_script_orig)(MonoObject *, MonoObject *) = nullptr;
 void (*g_console_log_orig)(MonoString *, int, void *, void *) = nullptr;
@@ -280,6 +289,12 @@ std::string bundle_identity(MonoObject *self, MonoObject *bundle) {
     MonoString *name = nullptr;
     mono_field_get_value(self, g_name_field, &name);
     id = Mono_to_String(name);
+  }
+  if (id.empty() && self && g_name_getter) {
+    MonoObject *exc = nullptr;
+    MonoObject *name = mono_runtime_invoke(g_name_getter, self, nullptr, &exc);
+    if (!exc && name)
+      id = Mono_to_String(reinterpret_cast<MonoString *>(name));
   }
   return id;
 }
@@ -2536,8 +2551,8 @@ void eval_theme(MonoObject *self, const char *app, unsigned hub_id = 0) {
                                                                                : std::string("[]")) + ";\n" +
                              ascii_js(script);
   MonoDomain *domain = mono_domain_get();
-  void *args[2] = {mono_string_new(domain, source.c_str()),
-                   mono_string_new(domain, kScriptUrl)};
+  void *args[3] = {mono_string_new(domain, source.c_str()),
+                   mono_string_new(domain, kScriptUrl), &g_eval_plain};
   MonoObject *exc = nullptr;
   mono_runtime_invoke(g_eval_script, self, args, &exc);
   if (exc) {
@@ -2685,8 +2700,8 @@ void deliver_hub_name() {
   const std::string src = ascii_js("globalThis.__themeName && globalThis.__themeName('" +
                                    js_quote(name) + "');");
   MonoDomain *domain = mono_domain_get();
-  void *args[2] = {mono_string_new(domain, src.c_str()),
-                   mono_string_new(domain, "theme-name.js")};
+  void *args[3] = {mono_string_new(domain, src.c_str()),
+                   mono_string_new(domain, "theme-name.js"), &g_eval_plain};
   MonoObject *exc = nullptr;
   mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
   if (exc) {
@@ -2914,8 +2929,8 @@ void deliver_hub_data() {
     const std::string src = ascii_js("globalThis.__themeData && globalThis.__themeData('" +
                                      js_quote(kv.first) + "', '" + js_quote(kv.second) + "');");
     MonoDomain *domain = mono_domain_get();
-    void *args[2] = {mono_string_new(domain, src.c_str()),
-                     mono_string_new(domain, "theme-data.js")};
+    void *args[3] = {mono_string_new(domain, src.c_str()),
+                     mono_string_new(domain, "theme-data.js"), &g_eval_plain};
     MonoObject *exc = nullptr;
     mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
     if (exc) {
@@ -2942,7 +2957,7 @@ void deliver_hub_request(unsigned ctx) {
     MonoDomain *domain = mono_domain_get();
     const std::string rf = std::string("globalThis.__themeHubFocus && globalThis.__themeHubFocus(") +
                            (g_hub_focus.load() ? "1" : "0") + ");";
-    void *args[2] = {mono_string_new(domain, rf.c_str()), mono_string_new(domain, "theme-hubfocus.js")};
+    void *args[3] = {mono_string_new(domain, rf.c_str()), mono_string_new(domain, "theme-hubfocus.js"), &g_eval_plain};
     MonoObject *exc = nullptr;
     mono_runtime_invoke(g_eval_script, executor, args, &exc);
     static int rf_logged = 0;
@@ -2966,7 +2981,7 @@ void deliver_hub_request(unsigned ctx) {
   const std::string src = ascii_js("globalThis.__themeTrophyAsk && globalThis.__themeTrophyAsk('" +
                                    js_quote(id) + "');");
   MonoDomain *domain = mono_domain_get();
-  void *args[2] = {mono_string_new(domain, src.c_str()), mono_string_new(domain, "theme-ask.js")};
+  void *args[3] = {mono_string_new(domain, src.c_str()), mono_string_new(domain, "theme-ask.js"), &g_eval_plain};
   MonoObject *exc = nullptr;
   mono_runtime_invoke(g_eval_script, executor, args, &exc);
   static int logged = 0;
@@ -3491,8 +3506,8 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const std::string src = "globalThis.__ztStats && globalThis.__ztStats('" +
                               js_quote(zt_stats_json()) + "');";
       MonoDomain *domain = mono_domain_get();
-      void *args[2] = {mono_string_new(domain, src.c_str()),
-                       mono_string_new(domain, "theme-stats.js")};
+      void *args[3] = {mono_string_new(domain, src.c_str()),
+                       mono_string_new(domain, "theme-stats.js"), &g_eval_plain};
       MonoObject *exc = nullptr;
       mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
       static int logged = 0;
@@ -3516,8 +3531,8 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const std::string src = ascii_js("globalThis.__ztThemeMenu && globalThis.__ztThemeMenu('" +
                               js_quote(json) + "');");
       MonoDomain *domain = mono_domain_get();
-      void *args[2] = {mono_string_new(domain, src.c_str()),
-                       mono_string_new(domain, "theme-menu.js")};
+      void *args[3] = {mono_string_new(domain, src.c_str()),
+                       mono_string_new(domain, "theme-menu.js"), &g_eval_plain};
       MonoObject *exc = nullptr;
       mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
       static int logged = 0;
@@ -3729,15 +3744,49 @@ void install_homeui_js_hooks(MonoImage *react_pui, MonoImage *pui) {
   }
   zt_boot_fine("js: old frame files");
 
-  g_executor_class = mono_class_from_name(react_pui, kNamespace, kClass);
+  const char *kClass = nullptr;
+  for (const char *name : kClasses) {
+    g_executor_class = mono_class_from_name(react_pui, kNamespace, name);
+    if (g_executor_class) {
+      kClass = name;
+      break;
+    }
+  }
   zt_boot_fine("js: executor class");
   if (!g_executor_class) {
-    zt_log("js: %s.%s not found", kNamespace, kClass);
+    zt_log("js: no JS executor in %s (tried %s, %s)", kNamespace, kClasses[0],
+           kClasses[1]);
     return;
   }
   g_eval_script =
       mono_class_get_method_from_name(g_executor_class, "EvalScript", 2);
+  int eval_params = g_eval_script ? 2 : 0;
+  if (!g_eval_script) {
+    /* only (string, string, bool): anything else is not the call we make */
+    MonoMethod *three =
+        mono_class_get_method_from_name(g_executor_class, "EvalScript", 3);
+    MonoMethodSignature *sig =
+        three && mono_method_signature ? mono_method_signature(three) : nullptr;
+    bool shape = sig != nullptr;
+    void *iter = nullptr;
+    for (const char *want : {"System.String", "System.String", "System.Boolean"}) {
+      MonoType *type = shape ? mono_signature_get_params(sig, &iter) : nullptr;
+      char *tname = type ? mono_type_get_name(type) : nullptr;
+      shape = tname && strcmp(tname, want) == 0;
+      if (tname && mono_free)
+        mono_free(tname);
+    }
+    if (three && !shape)
+      zt_log("js: %s.EvalScript/3 is not (string, string, bool)", kClass);
+    if (shape) {
+      g_eval_script = three;
+      eval_params = 3;
+    }
+  }
   g_name_field = mono_class_get_field_from_name(g_executor_class, "_name");
+  if (!g_name_field)
+    g_name_getter = find_method(g_executor_class, "get_Name", 0);
+  zt_log("js: executor %s.%s, EvalScript/%d", kNamespace, kClass, eval_params);
   const uint64_t run_script =
       Get_Address_of_Method(react_pui, kNamespace, kClass, "RunScript", 1);
   zt_boot_fine("js: methods found");
