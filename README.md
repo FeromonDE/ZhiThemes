@@ -6,11 +6,24 @@
 
 This is not an app that looks like the PS5 menu. ZhiThemes changes the **real ShellUI**, the actual Home you use every day: your games row, your folders (yes, **folders**), the top bar, the game hub, Settings and Trophies. You keep using your PS5 like always, it just looks the way you want.
 
+
+
+> [!WARNING]
+> **Firmware compatibility notice**
+>
+> ZhiThemes currently does not work correctly on firmware versions below **9.00**.
+>
+> I'm currently fixing several bugs and improving stability. A new version is coming soon!
+>
+> **Supported firmware:** 9.00 – 13.60.
+
+
+
 > **No system files are changed.** Everything happens in memory. Reboot without the payload and your PS5 is 100% stock again.
 
 <p align="center"><img src="docs/images/loop.gif" alt="ZhiThemes themes running on a PS5" width="100%"></p>
 
-> **Alpha** (0.1.x). Made on firmware **9.60** and confirmed working on **13.60**. Other firmwares are untested. If you try one, please send a debug log (see [docs/LOGS.md](docs/LOGS.md)).
+> **Alpha** (0.1.x). Currently supported on PS5 firmware versions **9.00 to 13.60**. If you encounter any issues, please send a debug log (see [docs/LOGS.md](docs/LOGS.md)).
 
 ## What it can do
 
@@ -169,3 +182,19 @@ Big thanks to [AniketosHEN](https://git.etawen.dev/Alex0/AniketosHEN) by xS3Cx a
 ZhiThemes is free software under the **GNU GPL v3** ([LICENSE](LICENSE)), with one additional term (GPL-3.0 section 7(b)): **forks and redistributions must keep the author attribution "ZhiThemes by Zhi"** in the payload's welcome message, the editor, the logs and the documentation. See [NOTICE](NOTICE).
 
 Not affiliated with or endorsed by Sony Interactive Entertainment. "PlayStation" and "PS5" are trademarks of their owners. Use at your own risk.
+
+## Firmware compatibility
+
+Current firmware compatibility for ZhiThemes:
+
+### Supported
+
+- [x] PS5 Firmware 9.00 – 13.60
+
+### Not supported
+
+- [ ] PS5 Firmware below 9.00
+
+> [!NOTE]
+> Compatibility and stability improvements are still in progress.
+> Several bugs are currently being fixed, and a new version is coming soon.
