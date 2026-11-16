@@ -7956,7 +7956,8 @@
       if (key !== 'trophies' || !THEME.fakeTrophies) return;
       var v;
       try { v = JSON.parse(String(text)); } catch (e) { log('trophies: bad data ' + e); return; }
-      if (v && v.id) (T.trophyCache = T.trophyCache || {})[v.id] = v;
+      if (v && v.id && trophyValue(v)) (T.trophyCache = T.trophyCache || {})[v.id] = v;
+      else if (v && v.none && v.id && cachedTrophies(v.id)) v = cachedTrophies(v.id);
       /* only the focused game's are shown (a prefetched one waits in the cache) */
       if (v && v.id && T.focusedId && v.id !== T.focusedId) return;
       T.trophies = v;
@@ -9603,13 +9604,100 @@
      Then the theme calls the same fetch the hook uses:
      fetchTrophyProgressData({npTitleId}) = module 2559 default (a promise
      with the mapped trophy title, gamehub ~755945). */
+  function trophyValue(v) {
+    return !!(v && !v.none && Array.isArray(v.e) && v.e.length >= 4);
+  }
+  function cachedTrophies(id) {
+    var v = T.trophyCache && T.trophyCache[id];
+    return trophyValue(v) ? v : null;
+  }
+  /* Observe exports of loaded modules; never execute arbitrary factories to
+     guess a new firmware's module numbers. */
+  function trophyFetchExport(exp, legacy) {
+    var seen = [];
+    var visit = function (o, owner, key, depth) {
+      if (!o || depth > 3 || (typeof o !== 'object' && typeof o !== 'function') || seen.indexOf(o) >= 0) return null;
+      seen.push(o);
+      if (typeof o === 'function') {
+        var name = String(o.name || '');
+        if (key === 'fetchTrophyProgressData' || name === 'fetchTrophyProgressData' ||
+            (legacy && key === 'default'))
+          return { fn: o, owner: owner, label: key || name || 'module' };
+        return null;
+      }
+      try {
+        if (typeof o.fetchTrophyProgressData === 'function')
+          return { fn: o.fetchTrophyProgressData, owner: o, label: 'fetchTrophyProgressData' };
+      } catch (e) {}
+      var names;
+      try { names = Object.keys(o); } catch (e) { return null; }
+      for (var i = 0; i < names.length && i < 64; i++) {
+        var k = names[i], value;
+        try { value = o[k]; } catch (e) { continue; }
+        var found = visit(value, o, k, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    };
+    if (legacy && typeof exp === 'function') return { fn: exp, owner: null, label: 'module' };
+    return visit(exp, null, '', 0);
+  }
+  function observeTrophyFetch(exp, id) {
+    if (APP !== 'hub' || !THEME.fakeTrophies || T.trophyFetcher) return;
+    var found = trophyFetchExport(exp, false);
+    if (!found) return;
+    T.trophyFetcher = found;
+    log('trophies fetch provider: module ' + id + ' / ' + found.label);
+    var waiting = Object.keys(T.trophyFetchWait || {});
+    T.trophyFetchWait = {};
+    if (waiting.length) setTimeout(function () {
+      if (typeof globalThis.__themeTrophyAsk === 'function')
+        globalThis.__themeTrophyAsk(waiting.join(','));
+      else {
+        var tid = hubTitleId();
+        if (tid) fetchTrophies(tid);
+      }
+    }, 0);
+  }
+  function trophyFetcher() {
+    if (T.trophyFetcher) return T.trophyFetcher;
+    if (!T.require) return null;
+    /* The webpack cache contains already executed modules only. */
+    var cache = T.require.c || {}, now = Date.now();
+    if (!T.trophyFetchScan || now - T.trophyFetchScan >= 2000) {
+      T.trophyFetchScan = now;
+      for (var id in cache) {
+        try { observeTrophyFetch(cache[id] && cache[id].exports, id); } catch (e) {}
+        if (T.trophyFetcher) return T.trophyFetcher;
+      }
+    }
+    /* Compatibility with 9.60, including a nested/named export in 2559.
+       Other firmware versions use the observed export above. */
+    if (!T.trophyLegacyChecked) {
+      T.trophyLegacyChecked = true;
+      try {
+        var mod = T.require(2559);
+        var found = trophyFetchExport(mod, false) || trophyFetchExport(mod, true);
+        if (found) {
+          T.trophyFetcher = found;
+          log('trophies fetch provider: module 2559 / ' + found.label);
+          return found;
+        }
+        log('trophies fetch: 2559 has no provider; waiting for fetchTrophyProgressData (exports: ' +
+            (mod && typeof mod === 'object' ? Object.keys(mod).join(',').slice(0, 180) : typeof mod) + ')');
+      } catch (e) { log('trophies fetch: legacy module unavailable; waiting for a loaded provider'); }
+    }
+    return null;
+  }
+  function waitForTrophyFetcher(id) {
+    (T.trophyFetchWait = T.trophyFetchWait || {})[id] = true;
+  }
   var NP_SUFFIXES = ['_00', ''];
   function fetchTrophies(titleId) {
     if (!titleId || !T.require || T.trophyGotFor === titleId) return;
-    var mod;
-    try { mod = T.require(2559); } catch (e) { log('trophies fetch: module 2559 ' + e); return; }
-    var fn = mod && (mod.default || mod);
-    if (typeof fn !== 'function') { log('trophies fetch: no function in 2559'); return; }
+    var provider = trophyFetcher();
+    if (!provider) { waitForTrophyFetcher(titleId); return; }
+    var fn = function (args) { return provider.fn.call(provider.owner, args); };
     var i = 0;
     var next = function () {
       if (i >= NP_SUFFIXES.length || T.trophyGotFor === titleId || hubTitleId() !== titleId) return;
@@ -9643,10 +9731,9 @@
   function trophiesFor(titleId, after) {
     var end = function () { if (after) { var a = after; after = null; a(); } };
     if (!titleId || !T.require) return end();
-    var mod;
-    try { mod = T.require(2559); } catch (e) { log('trophies for ' + titleId + ': ' + e); return end(); }
-    var fn = mod && (mod.default || mod);
-    if (typeof fn !== 'function') return end();
+    var provider = trophyFetcher();
+    if (!provider) { waitForTrophyFetcher(titleId); return end(); }
+    var fn = function (args) { return provider.fn.call(provider.owner, args); };
     var i = 0;
     var next = function () {
       if (i >= NP_SUFFIXES.length) return end();
@@ -11083,7 +11170,7 @@
   function trophiesForFocused() {
     var id = T.focusedId;
     if (!id) return;
-    var c = T.trophyCache && T.trophyCache[id];
+    var c = cachedTrophies(id);
     if (c) {
       if (T.trophies !== c) {
         T.trophies = c;
@@ -11096,7 +11183,7 @@
   function askTrophies(ids) {
     var now = Date.now();
     ids = ids.filter(function (id) {
-      if (!id || (T.trophyCache && T.trophyCache[id]) || now - (trophyAsked[id] || 0) < 20000) return false;
+      if (!id || cachedTrophies(id) || now - (trophyAsked[id] || 0) < 20000) return false;
       trophyAsked[id] = now;
       return true;
     });
@@ -11483,6 +11570,7 @@
       /* some modules export text or numbers: 'in' only works on objects */
       if (!exp || (typeof exp !== 'object' && typeof exp !== 'function'))
         return;
+      observeTrophyFetch(exp, id);
       /* ZhiThemes off: the Home stays stock, only Options > ZhiThemes */
       if (STOCK) {
         findReact(exp);

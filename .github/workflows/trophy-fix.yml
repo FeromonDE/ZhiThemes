@@ -1,0 +1,73 @@
+name: ZhiThemes trophy fix
+on:
+  push:
+    branches: [fix/trophy-widget]
+permissions:
+  contents: read
+jobs:
+  elf:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 cmake ninja-build python3-pyelftools librsvg2-bin unzip
+      - name: Prepare PS5 SDK
+        run: |
+          curl -fsSL --retry 2 https://github.com/ps5-payload-dev/sdk/releases/download/v0.45/ps5-payload-sdk.zip -o "$RUNNER_TEMP/sdk.zip"
+          unzip -q "$RUNNER_TEMP/sdk.zip" -d "$RUNNER_TEMP"
+          curl -fsSL --retry 2 https://github.com/ps5-payload-dev/pacbrew-repo/releases/download/v0.41.1/ps5-payload-dev.tar.gz -o "$RUNNER_TEMP/ports.tar.gz"
+          tar -xzf "$RUNNER_TEMP/ports.tar.gz" -C "$RUNNER_TEMP/ps5-payload-sdk" --strip-components=2 opt/ps5-payload-sdk/target/user/homebrew
+          echo "PS5_PAYLOAD_SDK=$RUNNER_TEMP/ps5-payload-sdk" >> "$GITHUB_ENV"
+          echo "LLVM_CONFIG=/usr/bin/llvm-config-18" >> "$GITHUB_ENV"
+      - name: Test theme
+        run: |
+          node --check theme/theme.js
+          node theme/test_trophies.js
+          node theme/test_reflection.js
+          node theme/test_editor_safety.js
+          for app in home hub settings trophy; do
+            THEME_APP="$app" HARNESS_HOOKS=1 HARNESS_ANIM=1 node theme/theme_harness.js theme/theme.js > "$RUNNER_TEMP/harness.json"
+            python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["errors"] == 0' "$RUNNER_TEMP/harness.json"
+          done
+      - name: Build only ZhiThemes ELF
+        run: |
+          export PATH="/usr/lib/llvm-18/bin:$PS5_PAYLOAD_SDK/bin:/usr/bin:$PATH"
+          python3 theme/make_factory.py theme/theme.js theme/theme_factory.js
+          python3 theme/gen_theme_header.py theme/theme_factory.js src/source/shellui/include/theme_default_js.hpp kThemeDefaultJs
+          python3 theme/gen_theme_header.py theme/editor.html src/source/shellui/include/theme_web_page.hpp kThemeWebPage
+          python3 theme/gen_particles_header.py theme/particles src/source/shellui/include/zt_particle_textures.hpp
+          "$PS5_PAYLOAD_SDK/bin/prospero-cmake" -S src/source -B src/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build src/build --target zhithemes -j 2
+          mkdir -p release
+          cp src/build/bin/ZhiThemes.elf release/ZhiThemes.elf
+      - name: Verify ELF and embedded theme
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from elftools.elf.elffile import ELFFile
+          root = Path('.')
+          outer = root/'release/ZhiThemes.elf'
+          inner = root/'src/build/bin/zt_shellui.elf'
+          for path in (outer, inner):
+              with path.open('rb') as f:
+                  elf = ELFFile(f)
+                  assert elf.elfclass == 64 and elf['e_machine'] == 'EM_X86_64'
+                  assert any(s['p_type'] == 'PT_LOAD' and s['p_flags'] & 1 and s['p_vaddr'] <= elf['e_entry'] < s['p_vaddr'] + s['p_memsz'] for s in elf.iter_segments())
+          module = inner.read_bytes()
+          assert module in outer.read_bytes()
+          assert (root/'theme/theme_factory.js').read_bytes() in module
+          assert (root/'theme/editor.html').read_bytes() in module
+          print('Verified ELF64, executable entry, embedded module, trophy fix and editor.')
+          PY
+          sha256sum release/ZhiThemes.elf > release/ZhiThemes.elf.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZhiThemes-build377
+          path: |
+            release/ZhiThemes.elf
+            release/ZhiThemes.elf.sha256
+          retention-days: 30
+          if-no-files-found: error

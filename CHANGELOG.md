@@ -2,7 +2,13 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 376
+## Unreleased — build 377
+
+- Find the trophy progress fetcher by its export in loaded modules instead of depending on module 2559.
+- Retry waiting trophy requests when their provider becomes available.
+- Cache successful trophy data only; empty loading replies cannot hide an existing widget permanently.
+
+## Build 376
 
 - Theme replacements are staged; failed uploads, extraction or final renames preserve the previous theme.
 - Native and web ZIP readers verify CRC, exact output size and extraction limits.
