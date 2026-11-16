@@ -85,6 +85,7 @@ bool copy_file(const std::string &from, const std::string &to, long long *bytes)
   }
   std::vector<char> buf(1 << 16);
   bool ok = true;
+  long long copied = 0;
   for (;;) {
     const ssize_t n = read(in, buf.data(), buf.size());
     if (n < 0)
@@ -95,12 +96,15 @@ bool copy_file(const std::string &from, const std::string &to, long long *bytes)
       ok = false;
       break;
     }
-    *bytes += n;
+    copied += n;
   }
   close(in);
-  close(out);
+  if (fsync(out) != 0) ok = false;
+  if (close(out) != 0) ok = false;
   if (!ok)
     unlink(to.c_str());
+  else
+    *bytes += copied;
   return ok;
 }
 
@@ -111,22 +115,30 @@ struct Count {
 
 /* cp -r from to (to is made); .part / .tmp left out */
 void copy_tree(const std::string &from, const std::string &to, Count &c, int depth = 0) {
-  if (depth > 8)
+  struct stat root;
+  if (depth > 8 || lstat(from.c_str(), &root) != 0 || !S_ISDIR(root.st_mode)) {
+    ++c.failed;
     return;
-  mkdir(to.c_str(), 0777);
+  }
+  if (mkdir(to.c_str(), 0777) != 0 && errno != EEXIST) { ++c.failed; return; }
   DIR *d = opendir(from.c_str());
-  if (!d)
+  if (!d) {
+    ++c.failed;
     return;
+  }
   std::vector<std::string> names;
   while (dirent *e = readdir(d))
     if (strcmp(e->d_name, ".") != 0 && strcmp(e->d_name, "..") != 0)
       names.push_back(e->d_name);
   closedir(d);
   for (const std::string &n : names) {
+    if (from == ZT_THEMES && n.rfind(".zt-stage-", 0) == 0) continue;
     const std::string a = from + "/" + n, b = to + "/" + n;
     struct stat st = {};
-    if (stat(a.c_str(), &st) != 0)
+    if (lstat(a.c_str(), &st) != 0) {
+      ++c.failed;
       continue;
+    }
     if (S_ISDIR(st.st_mode)) {
       copy_tree(a, b, c, depth + 1);
     } else if (S_ISREG(st.st_mode)) {
@@ -138,7 +150,7 @@ void copy_tree(const std::string &from, const std::string &to, Count &c, int dep
         c.files++;
       else
         c.failed++;
-    }
+    } else ++c.failed; /* do not follow links outside the backup tree */
   }
 }
 
@@ -170,6 +182,9 @@ void walk(const std::string &dir, long long &bytes, int &files, int depth = 0) {
 int clear_tree(const std::string &dir, int depth = 0) {
   if (depth > 8)
     return 0;
+  struct stat root;
+  if (lstat(dir.c_str(), &root) != 0) return 0;
+  if (!S_ISDIR(root.st_mode)) return unlink(dir.c_str()) == 0 ? 1 : 0;
   int n = 0;
   DIR *d = opendir(dir.c_str());
   if (!d)
@@ -182,7 +197,7 @@ int clear_tree(const std::string &dir, int depth = 0) {
   for (const std::string &name : names) {
     const std::string p = dir + "/" + name;
     struct stat st = {};
-    if (stat(p.c_str(), &st) != 0)
+    if (lstat(p.c_str(), &st) != 0)
       continue;
     if (S_ISDIR(st.st_mode))
       n += clear_tree(p, depth + 1);
@@ -228,8 +243,16 @@ std::string to_usb(const std::string &what, const std::vector<std::pair<std::str
     return usb_present() ? "cannot write to the USB stick" : "no USB stick found";
   const std::string base = usb + "/ZhiThemes/" + what;
   mkdir(base.c_str(), 0777);
-  const std::string dir = base + "/" + stamp();
-  if (mkdir(dir.c_str(), 0777) != 0 && errno != EEXIST)
+  const std::string named = base + "/" + stamp();
+  std::string dir = named;
+  int suffix = 0;
+  bool made = false;
+  for (;;) {
+    if (mkdir(dir.c_str(), 0777) == 0) { made = true; break; }
+    if (errno != EEXIST || ++suffix > 100) break;
+    dir = named + "_" + std::to_string(suffix);
+  }
+  if (!made)
     return "cannot make " + dir + " (errno " + std::to_string(errno) + ")";
   for (const auto &it : items) {
     struct stat st = {};
@@ -259,7 +282,7 @@ void *tool_thread(void *arg) {
   const time_t t0 = time(nullptr);
   if (tool == "backup") {
     zt_menu_notify("backing up the themes to the USB stick...");
-    err = to_usb("Backup", {{ZT_THEMES, "Themes"}, {ZT_FAVORITES_FILE, "favorites.txt"},
+    err = to_usb("Backup", {{ZT_THEMES, "Themes"}, {ZT_ASSETS, "Assets"}, {ZT_FAVORITES_FILE, "favorites.txt"},
                             {ZT_DIR "/active_theme.txt", "active_theme.txt"}},
                  &where, c);
   } else if (tool == "logs") {

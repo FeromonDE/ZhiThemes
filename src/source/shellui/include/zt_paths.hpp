@@ -10,7 +10,9 @@ later version. See LICENSE and NOTICE.  */
    (/data/ZhiThemes) when built as the standalone ZhiThemes module. */
 #pragma once
 
-#if defined(ZHITHEMES) && ZHITHEMES
+#if defined(ZT_TEST_ROOT)
+#define ZT_DIR ZT_TEST_ROOT
+#elif defined(ZHITHEMES) && ZHITHEMES
 #define ZT_DIR "/user/data/ZhiThemes"
 #else
 #define ZT_DIR "/user/data/OnionHEN"

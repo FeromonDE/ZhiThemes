@@ -66,6 +66,12 @@ std::string zt_theme_rename(const std::string &name, const std::string &to);
 std::string zt_theme_delete(const std::string &name);
 /* empties a theme's folder (before a pack replaces it) */
 std::string zt_theme_clear(const std::string &name);
+/* Pack installs use a hidden staging theme. Only commit replaces the
+   destination; failed uploads/extraction can discard the stage safely. */
+bool zt_theme_install_stage(const std::string &stage);
+std::string zt_theme_install_begin(const std::string &name, std::string *stage);
+std::string zt_theme_install_commit(const std::string &stage, bool personal = true);
+std::string zt_theme_install_abort(const std::string &stage);
 /* deletes the files listed in `list` (lines "<wallpapers|icons|fonts>/<file>")
    from that theme's folder; *removed = how many */
 std::string zt_theme_clean(const std::string &name, const std::string &list, int *removed);

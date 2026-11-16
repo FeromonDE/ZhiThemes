@@ -202,7 +202,7 @@ std::string read_text(const char *path) {
 struct Entry {
   std::string name;
   uint16_t method = 0;
-  uint32_t csize = 0, usize = 0, local = 0;
+  uint32_t csize = 0, usize = 0, local = 0, crc = 0;
 };
 
 bool zip_list(int fd, off_t size, std::vector<Entry> &out) {
@@ -228,16 +228,21 @@ bool zip_list(int fd, off_t size, std::vector<Entry> &out) {
   if (!read_at(fd, c.data(), csize, at))
     return false;
   size_t p = 0;
+  uint64_t unpacked = 0;
   for (uint16_t n = 0; n < count; ++n) {
     if (p + 46 > c.size() || le32(&c[p]) != 0x02014b50)
       return false;
     Entry e;
+    if (le16(&c[p + 8]) & 1) return false; /* encrypted ZIP */
     e.method = le16(&c[p + 10]);
+    e.crc = le32(&c[p + 16]);
     e.csize = le32(&c[p + 20]);
     e.usize = le32(&c[p + 24]);
     const uint16_t nlen = le16(&c[p + 28]), xlen = le16(&c[p + 30]), clen = le16(&c[p + 32]);
     e.local = le32(&c[p + 42]);
-    if (p + 46 + nlen > c.size())
+    unpacked += e.usize;
+    if (e.usize > (2ull << 30) || unpacked > (8ull << 30)) return false;
+    if (p + 46 + (size_t)nlen + xlen + clen > c.size())
       return false;
     e.name.assign((const char *)&c[p + 46], nlen);
     p += 46 + (size_t)nlen + xlen + clen;
@@ -250,32 +255,40 @@ bool zip_list(int fd, off_t size, std::vector<Entry> &out) {
 /* the entry's bytes to `sink` a piece at a time (big videos never whole in memory) */
 template <typename Sink> bool zip_read(int fd, const Entry &e, Sink sink) {
   unsigned char h[30];
-  if (!read_at(fd, h, sizeof(h), e.local) || le32(h) != 0x04034b50)
+  if (e.usize > (2ull << 30) || !read_at(fd, h, sizeof(h), e.local) ||
+      le32(h) != 0x04034b50 || (le16(h + 6) & 1) || le16(h + 8) != e.method)
     return false;
   off_t at = (off_t)e.local + 30 + le16(h + 26) + le16(h + 28);
   std::vector<unsigned char> in(256u << 10);
   uint32_t left = e.csize;
+  uint64_t produced = 0;
+  uLong crc = crc32(0, nullptr, 0);
+  auto emit = [&](const char *data, size_t size) {
+    if (size > (uint64_t)e.usize - produced) return false;
+    produced += size;
+    crc = crc32(crc, (const Bytef *)data, (uInt)size);
+    return sink(data, size);
+  };
   if (e.method == 0) {
+    if (e.csize != e.usize) return false;
     while (left) {
       const size_t n = left < in.size() ? left : in.size();
-      if (!read_at(fd, in.data(), n, at) || !sink((const char *)in.data(), n))
-        return false;
+      if (!read_at(fd, in.data(), n, at) || !emit((const char *)in.data(), n)) return false;
       at += (off_t)n;
       left -= (uint32_t)n;
     }
-    return true;
+    return produced == e.usize && crc == e.crc;
   }
-  if (e.method != 8)
-    return false;
+  if (e.method != 8) return false;
   z_stream zs = {};
-  if (inflateInit2(&zs, -15) != Z_OK)
-    return false;
+  if (inflateInit2(&zs, -15) != Z_OK) return false;
   std::vector<unsigned char> out(256u << 10);
   bool ok = true, done = false;
   while (ok && !done) {
     if (zs.avail_in == 0 && left) {
       const size_t n = left < in.size() ? left : in.size();
       ok = read_at(fd, in.data(), n, at);
+      if (!ok) break;
       at += (off_t)n;
       left -= (uint32_t)n;
       zs.next_in = in.data();
@@ -284,15 +297,13 @@ template <typename Sink> bool zip_read(int fd, const Entry &e, Sink sink) {
     zs.next_out = out.data();
     zs.avail_out = (uInt)out.size();
     const int r = inflate(&zs, Z_NO_FLUSH);
-    if (r != Z_OK && r != Z_STREAM_END)
-      ok = false;
+    if (r != Z_OK && r != Z_STREAM_END) ok = false;
     const size_t made = out.size() - zs.avail_out;
-    if (ok && made && !sink((const char *)out.data(), made))
-      ok = false;
+    if (ok && made && !emit((const char *)out.data(), made)) ok = false;
     done = r == Z_STREAM_END;
-    if (ok && !done && !left && zs.avail_in == 0 && made == 0)
-      ok = false; /* cut short */
+    if (ok && !done && !left && zs.avail_in == 0 && made == 0) ok = false;
   }
+  ok = ok && done && !left && !zs.avail_in && produced == e.usize && crc == e.crc;
   inflateEnd(&zs);
   return ok;
 }
@@ -388,8 +399,8 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
   *name = n;
   const std::string active = zt_theme_name();
   const bool there = access(zt_theme_file(n).c_str(), F_OK) == 0;
-  const std::string before = n == active ? read_text(zt_theme_file(active).c_str()) : std::string();
-  std::string err = there ? zt_theme_clear(n) : zt_theme_new(n, std::string());
+  std::string stage;
+  std::string err = zt_theme_install_begin(n, &stage);
   if (!err.empty()) {
     close(fd);
     return err;
@@ -402,24 +413,29 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
     if (file != orig)
       for (size_t at = 0; (at = text.find(orig, at)) != std::string::npos; at += file.size())
         text.replace(at, orig.size(), file);
-    const std::string dir = zt_theme_dir_of(n, kind.c_str());
+    const std::string dir = zt_theme_dir_of(stage, kind.c_str());
     zt_mkdirs(dir);
     const std::string dest = dir + "/" + file;
     if (!zip_file(fd, e, dest)) {
       zt_log("install: %s FAILED (method %u, %u bytes)", e.name.c_str(), e.method, e.csize);
-      continue;
+      close(fd);
+      zt_theme_install_abort(stage);
+      return "cannot extract " + e.name;
     }
     zt_dedupe(dest);
     ++files;
   }
   close(fd);
-  if (!write_text(zt_theme_file(n), text))
-    return "cannot write " + zt_theme_file(n);
-  if (n == active) {
-    if (!before.empty())
-      zt_carry_personal(before, zt_theme_file(n));
-  } else if (!(err = zt_theme_use(n)).empty())
+  if (!write_text(zt_theme_file(stage), text)) {
+    zt_theme_install_abort(stage);
+    return "cannot write staged theme";
+  }
+  err = zt_theme_install_commit(stage);
+  if (!err.empty()) {
+    zt_theme_install_abort(stage);
     return err;
+  }
+  if (n != active && !(err = zt_theme_use(n)).empty()) return err;
   zt_log("install: %s -> theme %s (%s, %d of %zu files%s)", path.c_str(), n.c_str(),
          zip ? "pack" : "text", files, assets.size(), there ? ", replaced the old one" : "");
   return "";

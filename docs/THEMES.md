@@ -120,6 +120,9 @@ assets/fonts/…               the fonts you uploaded (system fonts are on every
 - **PS5 default (ZhiThemes off):** the Home, game pages, Settings and Trophies go back to the stock look; only this menu item stays, so you can pick a theme again. Picking a theme, installing one, or *Use* / *Apply* in the editor turns ZhiThemes back on;
 - **Install from USB:** the `.ztheme` / `.zip` files in `ZhiThemes/`, `ZhiThemes/Themes/` or `Themes/` on a USB drive, and the `.ztheme` files at its root. The theme is installed and used; the file stays on the drive. After that it shows *(installed)* (picking it only uses that theme) and *Update from USB* when the file on the drive changes (installed over the old one);
 - **Install from the Install folder:** files copied to `/data/ZhiThemes/Install/` while ZhiThemes runs (deleted once installed).
+- **Tools → Back up themes to USB:** saves Themes/, the complete Assets/ folder (custom tiles, backgrounds, folder icons, avatars and cache), favorites.txt and active_theme.txt under ZhiThemes/Backup/<timestamp>/ on the drive. Incomplete .part/.tmp files and directory links are not followed; copy failures are reported.
+
+Theme replacements are prepared in a hidden temporary folder. Upload or ZIP errors leave the current theme intact; the new files replace it only after preparation succeeds. ZIP entries are checked for CRC and exact size (up to 2 GiB per entry and 8 GiB per pack).
 
 **Safe mode:** an empty file `ZhiThemes/no_theme` (or `no_theme.txt`) on a USB drive keeps ZhiThemes off while the drive is plugged in, for when a theme breaks the Home. Take the drive out and pick a theme (or send ZhiThemes again).
 

@@ -2,6 +2,14 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
+## Unreleased — build 376
+
+- Theme replacements are staged; failed uploads, extraction or final renames preserve the previous theme.
+- Native and web ZIP readers verify CRC, exact output size and extraction limits.
+- Theme deletion and cache cleanup do not traverse directory symlinks.
+- Apply keeps edits made during a save marked as unsaved.
+- USB theme backups include the complete Assets folder and use distinct snapshot directories.
+
 ## 0.1.0-alpha — first release
 
 Alpha: made on firmware **9.60** and confirmed working on **13.60**. Other firmwares are untested; reports are welcome (see [docs/LOGS.md](docs/LOGS.md)).

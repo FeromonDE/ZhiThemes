@@ -52,6 +52,8 @@ Run it again after every change to `theme/`.
 cd theme
 node --check theme.js
 node test_reflection.js                        # one-image renderer, async cache, bounded ripples
+node test_editor_safety.js                     # Apply snapshots and staged installs
+python3 test_io_safety.py                      # ZIP, cleanup and complete USB backup (g++, zlib)
 THEME_APP=home node theme_harness.js theme.js     # also: hub, settings, trophy
 python3 editor_mock_server.py editor.html theme.js 4444   # then open http://localhost:4444
 ```
@@ -63,6 +65,8 @@ The native PNG reflection generator also has a host test (needs g++ and zlib hea
 ```bash
 g++ -std=c++20 -O1 -ffunction-sections -fdata-sections -I src/source/shellui/include theme/test_reflection_pixels.cpp -Wl,--gc-sections -lz -o /tmp/zt-reflection-test
 /tmp/zt-reflection-test /tmp/zt-reflection-test-data
+g++ -std=c++20 -O1 -ffunction-sections -fdata-sections -I src/source/shellui/include theme/test_storage_safety.cpp -Wl,--gc-sections -Wl,--wrap=rename -o /tmp/zt-storage-test
+/tmp/zt-storage-test
 ```
 
 ## Versions

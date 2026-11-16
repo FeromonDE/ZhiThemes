@@ -363,7 +363,7 @@ void handle(int fd) {
        the rest to Assets/ */
     const bool theme_kind = sub == "fonts" || sub == "icons" || sub == "wallpapers";
     const std::string theme = query_value(query, "theme");
-    if (!theme.empty() && !zt_theme_name_ok(theme))
+    if (!theme.empty() && !zt_theme_name_ok(theme) && !zt_theme_install_stage(theme))
       ok_name = false;
     if (!ok_name || want == 0 || want > kMaxUpload) {
       if (want <= kMaxUpload)
@@ -436,7 +436,7 @@ void handle(int fd) {
     /* ?name=<theme> writes that theme (a pack installed as a new
        theme); without it the active one */
     const std::string name = query_value(query, "name");
-    if (!name.empty() && !zt_theme_name_ok(name))
+    if (!name.empty() && !zt_theme_name_ok(name) && !zt_theme_install_stage(name))
       return reply(fd, 400, "Bad Request", "text/plain", "invalid theme name");
     const std::string file = zt_theme_file(name);
     /* &personal=1 (an installed pack): the folders and custom tile choices
@@ -472,6 +472,20 @@ void handle(int fd) {
     if (text.empty())
       return reply(fd, 404, "Not Found", "text/plain", "no such theme");
     return reply(fd, 200, "OK", "text/plain; charset=utf-8", text);
+  }
+  if (method == "POST" && path == "/themes/install/start") {
+    std::string stage;
+    const std::string err = zt_theme_install_begin(query_value(query, "name"), &stage);
+    if (!err.empty()) return reply(fd, 400, "Bad Request", "text/plain", err);
+    return reply(fd, 200, "OK", "application/json", "{\"stage\":\"" + stage + "\"}");
+  }
+  if (method == "POST" && (path == "/themes/install/commit" || path == "/themes/install/abort")) {
+    const std::string stage = query_value(query, "stage");
+    const bool commit = path == "/themes/install/commit";
+    const std::string err = commit ? zt_theme_install_commit(stage) : zt_theme_install_abort(stage);
+    if (!err.empty()) return reply(fd, 400, "Bad Request", "text/plain", err);
+    if (commit) zt_stock_set(false);
+    return reply(fd, 200, "OK", "application/json", zt_themes_json());
   }
   if (method == "POST" && path.rfind("/themes/", 0) == 0) {
     const std::string name = query_value(query, "name");

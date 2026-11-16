@@ -6720,15 +6720,17 @@
   /* the PS5 is used with the page still in front (no focus event) */
   setInterval(syncVisible, 4000);
   function apply() {
+    var sent;
     status('saving…');
     return syncFromPs5().catch(function () { return []; })
       .then(function (took) {
         if (took.length && took[0] !== 'all') status('saving (kept from the PS5: ' + took.join(', ') + ')…');
-        return request('POST', '/theme.js', source);
+        sent = source;
+        return request('POST', '/theme.js', sent);
       })
-      .then(function () { loaded = source; status('reloading the Home…'); return request('POST', '/reload'); })
+      .then(function () { loaded = sent; status('reloading the Home…'); return request('POST', '/reload'); })
       .then(function () {
-        status('applied', 'ok');
+        status(source === sent ? 'applied' : 'applied; newer edits are not saved yet', source === sent ? 'ok' : '');
         var n = 0, t = setInterval(function () { refreshLog(); refreshLayout(); if (++n >= 6) clearInterval(t); }, 1500);
       }).catch(fail);
   }
@@ -6923,29 +6925,68 @@
   }
   /* every file of a ZIP: {name: Uint8Array}; stored or deflated entries */
   function unzip(buf) {
-    var dv = new DataView(buf), u8 = new Uint8Array(buf), end = -1;
-    for (var i = buf.byteLength - 22; i >= 0 && i >= buf.byteLength - 65557; i--)
-      if (dv.getUint32(i, true) === 0x06054b50) { end = i; break; }
-    if (end < 0) return Promise.reject(new Error('not a ZIP file'));
-    var count = dv.getUint16(end + 10, true), at = dv.getUint32(end + 16, true), dec = new TextDecoder(), jobs = [], out = {};
-    for (var n = 0; n < count; n++) {
-      if (dv.getUint32(at, true) !== 0x02014b50) return Promise.reject(new Error('broken ZIP file'));
-      var method = dv.getUint16(at + 10, true), csize = dv.getUint32(at + 20, true);
-      var nlen = dv.getUint16(at + 28, true), xlen = dv.getUint16(at + 30, true), clen = dv.getUint16(at + 32, true);
-      var local = dv.getUint32(at + 42, true), name = dec.decode(u8.subarray(at + 46, at + 46 + nlen));
-      var start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
-      var data = u8.subarray(start, start + csize);
-      at += 46 + nlen + xlen + clen;
-      if (/\/$/.test(name)) continue;
-      if (method === 0) out[name] = data;
-      else if (method === 8 && typeof DecompressionStream === 'function')
-        jobs.push((function (nm, d) {
-          return new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw')))
-            .arrayBuffer().then(function (b) { out[nm] = new Uint8Array(b); });
-        })(name, data));
-      else return Promise.reject(new Error('unsupported compression in ' + name));
+    var dv = new DataView(buf), u8 = new Uint8Array(buf), end = -1, entries = [], out = Object.create(null);
+    try {
+      for (var i = buf.byteLength - 22; i >= 0 && i >= buf.byteLength - 65557; i--)
+        if (dv.getUint32(i, true) === 0x06054b50) { end = i; break; }
+      if (end < 0) throw new Error('not a ZIP file');
+      var count = dv.getUint16(end + 10, true), at = dv.getUint32(end + 16, true);
+      var centralEnd = at + dv.getUint32(end + 12, true), dec = new TextDecoder(), total = 0;
+      if (centralEnd > end || centralEnd - at > 16 * 1024 * 1024) throw new Error('broken ZIP directory');
+      for (var n = 0; n < count; n++) {
+        if (at + 46 > centralEnd || dv.getUint32(at, true) !== 0x02014b50) throw new Error('broken ZIP file');
+        var flags = dv.getUint16(at + 8, true), method = dv.getUint16(at + 10, true);
+        var crc = dv.getUint32(at + 16, true), csize = dv.getUint32(at + 20, true), size = dv.getUint32(at + 24, true);
+        var nlen = dv.getUint16(at + 28, true), xlen = dv.getUint16(at + 30, true), clen = dv.getUint16(at + 32, true);
+        var local = dv.getUint32(at + 42, true);
+        if (at + 46 + nlen + xlen + clen > centralEnd || local + 30 > buf.byteLength ||
+            dv.getUint32(local, true) !== 0x04034b50 || flags & 1 || dv.getUint16(local + 6, true) & 1 ||
+            dv.getUint16(local + 8, true) !== method) throw new Error('broken or encrypted ZIP entry');
+        var name = dec.decode(u8.subarray(at + 46, at + 46 + nlen));
+        var start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+        total += size;
+        if (start + csize > buf.byteLength || size > 2 * 1024 * 1024 * 1024 || total > 8 * 1024 * 1024 * 1024)
+          throw new Error('ZIP entry is truncated or too large');
+        at += 46 + nlen + xlen + clen;
+        if (/\/$/.test(name)) continue;
+        if (method !== 0 && (method !== 8 || typeof DecompressionStream !== 'function'))
+          throw new Error('unsupported compression in ' + name);
+        entries.push({ name: name, method: method, crc: crc, size: size, data: u8.subarray(start, start + csize) });
+      }
+    } catch (e) { return Promise.reject(e); }
+    var index = 0;
+    function next() {
+      if (index >= entries.length) return Promise.resolve(out);
+      var e = entries[index++];
+      var decoded;
+      if (e.method === 0) decoded = Promise.resolve(e.data);
+      else {
+        var reader = new Blob([e.data]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+        var chunks = [], made = 0;
+        var read = function () {
+          return reader.read().then(function (r) {
+            if (r.done) {
+              var all = new Uint8Array(made), pos = 0;
+              chunks.forEach(function (c) { all.set(c, pos); pos += c.length; });
+              return all;
+            }
+            if (r.value.length > e.size - made) {
+              reader.cancel().catch(function () {});
+              throw new Error('ZIP size mismatch in ' + e.name);
+            }
+            made += r.value.length; chunks.push(r.value);
+            return read();
+          });
+        };
+        decoded = read();
+      }
+      return decoded.then(function (data) {
+        if (data.length !== e.size || crc32(data) !== e.crc) throw new Error('ZIP size or checksum mismatch in ' + e.name);
+        out[e.name] = data;
+        return next();
+      });
     }
-    return Promise.all(jobs).then(function () { return out; });
+    return next();
   }
   function textValue(v) { return String(v || '').replace(/^'|'$/g, ''); }
   /* the files of a theme's values that are uploads ([{kind, name}]) */
@@ -7231,23 +7272,27 @@
     return fetchThemes().catch(function () { return themesInfo; }).then(function () {
       var n = askThemeName('Install as the theme:', themeSafe(suggested) || 'New-theme');
       if (!n) { status('install cancelled'); return; }
-      var replace = false, there = themeFound(n);
+      var there = themeFound(n);
       if (there) {
         if (confirm('A theme called ' + there + ' is already on the PS5.\nOK = replace it (its old files go)\nCancel = keep both, the new one as ' + uniqueTheme(n))) {
-          replace = true;
           n = there;
         } else n = uniqueTheme(n);
       }
-      var renamed = {};
-      var first = replace ? request('POST', '/themes/clear?name=' + enc(n))
-                          : request('POST', '/themes/new?name=' + enc(n) + '&from=');
-      return first
-        .then(function () { return uploadAssets(files, n, renamed); })
-        .then(function () {
-          Object.keys(renamed).forEach(function (o) { text = text.split(o).join(renamed[o]); });
-          status('saving ' + n + '…'); return request('POST', '/theme.js?personal=1&name=' + enc(n), text);
+      var renamed = {}, stage = '';
+      return request('POST', '/themes/install/start?name=' + enc(n))
+        .then(function (t) {
+          var next = JSON.parse(t).stage;
+          if (typeof next !== 'string' || !/^\.zt-stage-[A-Za-z0-9_]+$/.test(next)) throw new Error('invalid install response');
+          stage = next;
+          return uploadAssets(files, stage, renamed);
         })
         .then(function () {
+          Object.keys(renamed).forEach(function (o) { text = text.split(o).join(renamed[o]); });
+          status('saving ' + n + '…'); return request('POST', '/theme.js?name=' + enc(stage), text);
+        })
+        .then(function () { return request('POST', '/themes/install/commit?stage=' + enc(stage)); })
+        .then(function () {
+          stage = '';
           if (n === themesInfo.active) {
             loaded = source; /* nothing to keep: the page reloads */
             return request('POST', '/reload').then(function () {
@@ -7257,6 +7302,10 @@
           }
           loaded = source = '';
           return useThemeNamed(n);
+        }).catch(function (e) {
+          if (!stage) throw e;
+          return request('POST', '/themes/install/abort?stage=' + enc(stage)).catch(function () {})
+            .then(function () { throw e; });
         });
     });
   }

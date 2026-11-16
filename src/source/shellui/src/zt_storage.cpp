@@ -48,6 +48,7 @@ const char *theme_default_text();
 namespace {
 
 std::mutex g_theme_lock;
+std::mutex g_install_lock;
 std::string g_theme = "Default"; /* the active theme */
 
 /* the personal values: they follow the user from theme to theme (never in
@@ -217,7 +218,10 @@ void move_dir(const std::string &from, const std::string &to, int &moved) {
 void remove_tree(const std::string &path, int depth = 0) {
   if (depth > 6)
     return;
-  if (!is_dir(path)) {
+  struct stat st;
+  if (lstat(path.c_str(), &st) != 0)
+    return;
+  if (!S_ISDIR(st.st_mode)) {
     unlink(path.c_str());
     return;
   }
@@ -529,11 +533,104 @@ std::string zt_theme_delete(const std::string &name) {
 std::string zt_theme_clear(const std::string &name) {
   if (!zt_theme_name_ok(name))
     return "invalid name";
-  for (const char *k : kThemeKinds)
+  struct stat root;
+  if (lstat((std::string(ZT_THEMES "/") + name).c_str(), &root) == 0 && !S_ISDIR(root.st_mode))
+    return "theme folder is not a directory";
+  for (const char *k : kThemeKinds) {
+    const std::string dir = zt_theme_dir_of(name, k);
+    struct stat st;
+    if (lstat(dir.c_str(), &st) == 0 && S_ISLNK(st.st_mode)) {
+      unlink(dir.c_str());
+      continue;
+    }
     for (const std::string &n : list_dir(zt_theme_dir_of(name, k)))
       unlink((zt_theme_dir_of(name, k) + "/" + n).c_str());
+  }
   make_theme_dirs(name);
   zt_log("storage: files of theme %s cleared", name.c_str());
+  return "";
+}
+
+namespace {
+bool stage_name(const std::string &name) {
+  if (name.rfind(".zt-stage-", 0) != 0 || name.size() <= 10 || name.size() > 60) return false;
+  for (size_t i = 10; i < name.size(); ++i)
+    if (!isalnum((unsigned char)name[i]) && name[i] != '_') return false;
+  return true;
+}
+std::string stage_target_file(const std::string &stage) { return ZT_THEMES "/" + stage + ".target"; }
+bool entry_exists(const std::string &path) { struct stat st; return lstat(path.c_str(), &st) == 0; }
+void discard_stage(const std::string &stage) {
+  unlink(zt_theme_file(stage).c_str());
+  remove_tree(ZT_THEMES "/" + stage);
+  unlink(stage_target_file(stage).c_str());
+}
+}
+
+bool zt_theme_install_stage(const std::string &stage) {
+  return stage_name(stage) && zt_theme_name_ok(trim(read_all(stage_target_file(stage).c_str())));
+}
+
+std::string zt_theme_install_begin(const std::string &name, std::string *stage) {
+  if (!zt_theme_name_ok(name)) return "invalid theme name";
+  std::lock_guard<std::mutex> lock(g_install_lock);
+  static unsigned sequence = 0;
+  for (int attempt = 0; attempt < 10; ++attempt) {
+    char id[64];
+    snprintf(id, sizeof(id), ".zt-stage-%lx_%x_%x", (unsigned long)time(nullptr), (unsigned)getpid(), ++sequence);
+    const std::string dir = ZT_THEMES "/" + std::string(id);
+    if (mkdir(dir.c_str(), 0700) != 0) {
+      if (errno == EEXIST) continue;
+      return "cannot create install staging folder";
+    }
+    make_theme_dirs(id);
+    if (!write_all(stage_target_file(id).c_str(), name)) {
+      discard_stage(id);
+      return "cannot prepare theme installation";
+    }
+    *stage = id;
+    return "";
+  }
+  return "cannot allocate install staging folder";
+}
+
+std::string zt_theme_install_abort(const std::string &stage) {
+  if (!stage_name(stage)) return "invalid install stage";
+  std::lock_guard<std::mutex> lock(g_install_lock);
+  if (entry_exists(ZT_THEMES "/" + stage + ".old") || entry_exists(zt_theme_file(stage) + ".old"))
+    return "previous theme backup retained for recovery";
+  discard_stage(stage);
+  return "";
+}
+
+std::string zt_theme_install_commit(const std::string &stage, bool personal) {
+  std::lock_guard<std::mutex> lock(g_install_lock);
+  if (!zt_theme_install_stage(stage)) return "invalid install stage";
+  const std::string name = trim(read_all(stage_target_file(stage).c_str()));
+  const std::string file = zt_theme_file(name), dir = ZT_THEMES "/" + name;
+  const std::string part = zt_theme_file(stage), staged_dir = ZT_THEMES "/" + stage;
+  const std::string old_file = part + ".old", old_dir = staged_dir + ".old";
+  if (!entry_exists(part) || !is_dir(staged_dir) || entry_exists(old_file) || entry_exists(old_dir))
+    return "incomplete installation or previous recovery pending";
+  if (personal) zt_carry_personal(read_all(zt_theme_file().c_str()), part);
+  const bool had_file = entry_exists(file), had_dir = entry_exists(dir);
+  if (had_dir && rename(dir.c_str(), old_dir.c_str()) != 0) return "cannot preserve previous theme folder";
+  if (had_file && rename(file.c_str(), old_file.c_str()) != 0) {
+    if (had_dir) rename(old_dir.c_str(), dir.c_str());
+    return "cannot preserve previous theme file";
+  }
+  bool installed_dir = rename(staged_dir.c_str(), dir.c_str()) == 0;
+  if (!installed_dir || rename(part.c_str(), file.c_str()) != 0) {
+    bool restored = true;
+    if (installed_dir && rename(dir.c_str(), staged_dir.c_str()) != 0) restored = false;
+    if (had_file && rename(old_file.c_str(), file.c_str()) != 0) restored = false;
+    if (had_dir && rename(old_dir.c_str(), dir.c_str()) != 0) restored = false;
+    return restored ? "installation failed; previous theme restored" : "installation failed; previous backup retained for recovery";
+  }
+  remove_tree(old_dir);
+  unlink(old_file.c_str());
+  unlink(stage_target_file(stage).c_str());
+  zt_log("storage: staged install committed as %s", name.c_str());
   return "";
 }
 
@@ -541,6 +638,9 @@ std::string zt_theme_clean(const std::string &name, const std::string &list, int
   *removed = 0;
   if (!zt_theme_name_ok(name) || !exists(zt_theme_file(name)))
     return "no theme " + name;
+  struct stat root;
+  if (lstat((std::string(ZT_THEMES "/") + name).c_str(), &root) != 0 || !S_ISDIR(root.st_mode))
+    return "theme folder is not a directory";
   size_t at = 0;
   while (at < list.size()) {
     size_t end = list.find('\n', at);
@@ -558,6 +658,9 @@ std::string zt_theme_clean(const std::string &name, const std::string &list, int
     ok = ok && !file.empty() && file.size() < 200 && file[0] != '.' && file.find('/') == std::string::npos;
     if (!ok)
       continue;
+    struct stat parent;
+    if (lstat(zt_theme_dir_of(name, kind.c_str()).c_str(), &parent) != 0 || !S_ISDIR(parent.st_mode))
+      return "theme asset folder is not a directory";
     const std::string path = zt_theme_dir_of(name, kind.c_str()) + "/" + file;
     if (unlink(path.c_str()) == 0)
       ++*removed;
@@ -617,6 +720,20 @@ void zt_dedupe(const std::string &file) {
 void zt_storage_migrate() {
   zt_mkdirs(ZT_ASSETS);
   zt_mkdirs(ZT_THEME_BACKUPS);
+  /* A disconnected browser may never send abort. Remove abandoned stages,
+     but retain any old-theme backups left by an interrupted commit. */
+  if (DIR *d = opendir(ZT_THEMES)) {
+    while (dirent *e = readdir(d)) {
+      const std::string f = e->d_name;
+      if (!ends(f, ".target")) continue;
+      const std::string stage = f.substr(0, f.size() - 7);
+      struct stat st;
+      if (stage_name(stage) && lstat((std::string(ZT_THEMES "/") + f).c_str(), &st) == 0 &&
+          time(nullptr) - st.st_mtime > 86400)
+        zt_theme_install_abort(stage);
+    }
+    closedir(d);
+  }
   int moved = 0;
   /* the user's files */
   for (const char *k : {"customtile", "custombg", "folders", "avatars", "cache", "backgrounds"})
