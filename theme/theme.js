@@ -7953,7 +7953,7 @@
         } catch (e) { log('installed games: bad data ' + e); }
         return;
       }
-      if (key !== 'trophies' || !THEME.fakeTrophies) return;
+      if (!THEME.fakeTrophies || (key !== 'trophies' && !/^trophies-[A-Z]{4}\d{5}$/.test(key))) return;
       var v;
       try { v = JSON.parse(String(text)); } catch (e) { log('trophies: bad data ' + e); return; }
       if (v && v.id && trophyValue(v)) (T.trophyCache = T.trophyCache || {})[v.id] = v;
@@ -7963,6 +7963,7 @@
       T.trophies = v;
       if (!T.done['trophies received']) done('trophies received: ' + String(text).slice(0, 120));
       setTimeout(function () {
+        if (T.trophies !== v || (v && v.id && T.focusedId && v.id !== T.focusedId)) return;
         trophyListeners.forEach(function (f) { try { f(v); } catch (e) {} });
       }, 0);
     };
@@ -9575,10 +9576,14 @@
     return [o.platinum | 0, o.gold | 0, o.silver | 0, o.bronze | 0];
   }
   function sendTrophyData(msg) {
+    if (!msg || !/^[A-Z]{4}\d{5}$/.test(String(msg.id || ''))) return;
+    if (msg.none && cachedTrophies(msg.id)) msg = cachedTrophies(msg.id);
     var text = JSON.stringify(msg);
     if (text === T.trophySent) return;
     T.trophySent = text;
-    try { console.log('THEME-DATA trophies ' + text); } catch (e) {}
+    /* The native bridge keeps one value per key until the Home polls.
+       A single "trophies" key lost all but the last prefetch reply. */
+    try { console.log('THEME-DATA trophies-' + msg.id + ' ' + text); } catch (e) {}
   }
   function hubTitleId() {
     var q = T.hubContext && T.hubContext.queryParams;
@@ -9593,9 +9598,13 @@
           (data && typeof data === 'object' ? Object.keys(data).join(',').slice(0, 200) : String(data))));
     }
     if (!t) return;
-    T.trophyGotFor = hubTitleId();
-    sendTrophyData({ id: hubTitleId(), e: grades(t.earnedTrophies), d: grades(t.definedTrophies),
-                     p: typeof t.progress === 'number' ? t.progress : null });
+    var id = hubTitleId();
+    if (!id) return;
+    T.trophyGotFor = id;
+    var msg = { id: id, e: grades(t.earnedTrophies), d: grades(t.definedTrophies),
+                p: typeof t.progress === 'number' ? t.progress : null };
+    (T.trophyCache = T.trophyCache || {})[id] = msg;
+    sendTrophyData(msg);
   }
 
   /* With big tiles and the row low the hub is entirely below the screen and
@@ -9693,76 +9702,116 @@
     (T.trophyFetchWait = T.trophyFetchWait || {})[id] = true;
   }
   var NP_SUFFIXES = ['_00', ''];
-  function fetchTrophies(titleId) {
-    if (!titleId || !T.require || T.trophyGotFor === titleId) return;
+  var TROPHY_FETCH_TIMEOUT = 3000;
+  /* The native service can leave a promise pending (for example while
+     offline). Share a request per title, bound each attempt, and always
+     release its queue slot. Late replies belong to the expired attempt. */
+  function requestTrophies(titleId, after) {
+    var cached = cachedTrophies(titleId);
+    if (cached) { if (after) after(cached); return; }
+    if (!titleId) { if (after) after(null); return; }
+    var pending = T.trophyPending = T.trophyPending || {};
+    if (pending[titleId]) { if (after) pending[titleId].push(after); return; }
     var provider = trophyFetcher();
-    if (!provider) { waitForTrophyFetcher(titleId); return; }
-    var fn = function (args) { return provider.fn.call(provider.owner, args); };
-    var i = 0;
-    var next = function () {
-      if (i >= NP_SUFFIXES.length || T.trophyGotFor === titleId || hubTitleId() !== titleId) return;
-      var np = titleId + NP_SUFFIXES[i++], p;
-      try { p = fn({ npTitleId: np }); } catch (e) { log('trophies fetch ' + np + ': ' + e); next(); return; }
-      if (!p || typeof p.then !== 'function') { log('trophies fetch ' + np + ': not a promise'); return; }
-      p.then(function (r) {
-        var t = findTrophies(r, 0);
-        if (!T.done['trophies fetch result']) {
-          T.done['trophies fetch result'] = true;
-          log('trophies fetch ' + np + ': ' + (t ? 'found' : 'no trophies, keys: ' +
-              (r && typeof r === 'object' ? Object.keys(r).join(',').slice(0, 200) : String(r))));
-        }
-        if (t && hubTitleId() === titleId && T.trophyGotFor !== titleId) {
-          T.trophyGotFor = titleId;
-          sendTrophyData({ id: titleId, e: grades(t.earnedTrophies), d: grades(t.definedTrophies),
-                           p: typeof t.progress === 'number' ? t.progress : null });
-          if (!T.done['trophies by fetch']) done('trophies by fetch (' + np + ')');
-        } else if (!t) next();
-      }, function (err) {
-        if (!T.done['trophies fetch error ' + np])
-          { T.done['trophies fetch error ' + np] = true; log('trophies fetch ' + np + ' failed: ' + (err && (err.message || err.error || JSON.stringify(err).slice(0, 160)))); }
-        next();
+    if (!provider) {
+      waitForTrophyFetcher(titleId);
+      var waiting = 'trophies waiting for provider ' + titleId;
+      if (!T.done[waiting]) { T.done[waiting] = true; log(waiting); }
+      if (after) after(null);
+      return;
+    }
+    var listeners = pending[titleId] = after ? [after] : [];
+    var finished = false, i = 0;
+    var finish = function (msg) {
+      if (finished) return;
+      finished = true;
+      delete pending[titleId];
+      if (msg) (T.trophyCache = T.trophyCache || {})[titleId] = msg;
+      listeners.forEach(function (f) {
+        try { f(msg); } catch (e) { log('trophies callback ' + titleId + ': ' + e); }
       });
+    };
+    var next = function () {
+      if (finished) return;
+      if (i >= NP_SUFFIXES.length) return finish(null);
+      var np = titleId + NP_SUFFIXES[i++], settled = false;
+      var report = function (reason) {
+        var key = 'trophies fetch ' + np + ': ' + reason;
+        if (!T.done[key]) { T.done[key] = true; log(key); }
+      };
+      var fail = function (reason) {
+        if (settled || finished) return;
+        settled = true;
+        clearTimeout(timer);
+        report(reason);
+        next();
+      };
+      var receive = function (r) {
+        if (settled || finished) return;
+        var t;
+        try { t = findTrophies(r, 0); } catch (e) { return fail('bad reply: ' + e); }
+        if (!t) {
+          var keys = r && typeof r === 'object' ? Object.keys(r).slice(0, 16).join(',') : String(r);
+          return fail('no trophy data (' + keys + ')');
+        }
+        var msg;
+        try {
+          msg = { id: titleId, e: grades(t.earnedTrophies), d: grades(t.definedTrophies),
+                  p: typeof t.progress === 'number' ? t.progress : null };
+        } catch (e) { return fail('bad trophy counts: ' + e); }
+        settled = true;
+        clearTimeout(timer);
+        report('found');
+        finish(msg);
+      };
+      var timer = setTimeout(function () { fail('timeout after ' + TROPHY_FETCH_TIMEOUT + ' ms'); },
+                             TROPHY_FETCH_TIMEOUT);
+      try {
+        var p = provider.fn.call(provider.owner, { npTitleId: np });
+        if (p && typeof p.then === 'function') p.then(receive, function (err) {
+          fail('failed: ' + String(err && (err.message || err.error) || err || 'unknown error').slice(0, 160));
+        });
+        else receive(p);
+      } catch (e) { fail('failed: ' + String(e).slice(0, 160)); }
     };
     next();
   }
-  /* a game of an open folder on the Home: its trophies are asked here
-     (ZhiThemes hands "THEME-TROPHY-ASK <id>" over when the hub prints
-     "THEME-HUBASK"); the answer goes to the Home like the hub's own */
+  function fetchTrophies(titleId) {
+    if (!titleId) return;
+    requestTrophies(titleId, function (msg) {
+      if (!msg || hubTitleId() !== titleId || fromLibrary()) return;
+      T.trophyGotFor = titleId;
+      sendTrophyData(msg);
+      if (!T.done['trophies by fetch']) done('trophies by fetch (' + titleId + ')');
+    });
+  }
+  /* Requests from the Home also work while another hub page is visible. */
   function trophiesFor(titleId, after) {
-    var end = function () { if (after) { var a = after; after = null; a(); } };
-    if (!titleId || !T.require) return end();
-    var provider = trophyFetcher();
-    if (!provider) { waitForTrophyFetcher(titleId); return end(); }
-    var fn = function (args) { return provider.fn.call(provider.owner, args); };
-    var i = 0;
-    var next = function () {
-      if (i >= NP_SUFFIXES.length) return end();
-      var np = titleId + NP_SUFFIXES[i++], p;
-      try { p = fn({ npTitleId: np }); } catch (e) { next(); return; }
-      if (!p || typeof p.then !== 'function') return end();
-      p.then(function (r) {
-        var t = findTrophies(r, 0);
-        if (!t) { next(); return; }
-        end();
-        log('trophies asked by the Home: ' + titleId);
-        sendTrophyData({ id: titleId, e: grades(t.earnedTrophies), d: grades(t.definedTrophies),
-                         p: typeof t.progress === 'number' ? t.progress : null });
-      }, function () { next(); });
-    };
-    next();
+    requestTrophies(titleId, function (msg) {
+      try {
+        if (msg) {
+          log('trophies asked by the Home: ' + titleId);
+          sendTrophyData(msg);
+        }
+      } finally { if (after) after(); }
+    });
   }
   if (APP === 'hub' && THEME.fakeTrophies && THEME.fakeTrophiesFast !== false) {
-    var trophyQueue = [], trophyBusy = false;
+    var trophyQueue = [], trophyBusy = '';
     var trophyNext = function () {
       if (trophyBusy || !trophyQueue.length) return;
-      trophyBusy = true;
-      trophiesFor(trophyQueue.shift(), function () { trophyBusy = false; trophyNext(); });
+      var id = trophyQueue.shift();
+      trophyBusy = id;
+      trophiesFor(id, function () { trophyBusy = ''; trophyNext(); });
     };
     globalThis.__themeTrophyAsk = function (ids) {
+      var wanted = [];
       String(ids || '').split(',').forEach(function (id) {
         id = id.trim();
-        if (id && trophyQueue.indexOf(id) < 0) trophyQueue.push(id);
+        if (/^[A-Z]{4}\d{5}$/.test(id) && id !== trophyBusy && wanted.indexOf(id) < 0) wanted.push(id);
       });
+      /* A newly focused game goes ahead of old prefetch requests. */
+      trophyQueue = wanted.concat(trophyQueue.filter(function (id) { return wanted.indexOf(id) < 0; }));
       trophyNext();
     };
     setInterval(function () { try { console.log('THEME-HUBASK ' + (globalThis.__ztHubId || '')); } catch (e) {} }, 150);
@@ -11174,7 +11223,10 @@
     if (c) {
       if (T.trophies !== c) {
         T.trophies = c;
-        setTimeout(function () { trophyListeners.forEach(function (f) { try { f(c); } catch (e) {} }); }, 0);
+        setTimeout(function () {
+          if (T.trophies !== c || T.focusedId !== id) return;
+          trophyListeners.forEach(function (f) { try { f(c); } catch (e) {} });
+        }, 0);
       }
       return;
     }

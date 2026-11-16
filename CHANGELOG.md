@@ -2,7 +2,15 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 377
+## Unreleased — build 378
+
+- Time out pending trophy service calls and release the request queue after errors or missing data.
+- Share in-flight requests per game and prioritize the latest focused title.
+- Keep trophy replies under separate bridge keys so fast replies cannot overwrite another game's progress.
+- Cache native summary data and ignore stale Home notifications after focus changes.
+- Log whether each fetch found data, failed, timed out, or is waiting for a provider.
+
+## Build 377
 
 - Find the trophy progress fetcher by its export in loaded modules instead of depending on module 2559.
 - Retry waiting trophy requests when their provider becomes available.
