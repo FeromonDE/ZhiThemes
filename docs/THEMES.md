@@ -11,6 +11,10 @@ Upload buttons next to the fields add your own files:
 - **Top bar / decoration / L1-R1 icons**: square `.png` with transparency (for example 96×96).
 - **Fonts** (Text & fonts → *System font (everywhere)*): `.otf`/`.ttf`, used for every text of the PS5 menus. Bold and italic texts keep the PS5 bold and italic; each text's *font style* is Normal (your font), Bold, Italic or Bold italic.
 
+## Tile reflections
+
+In **Games row → Reflection**, set **Reflection fade steps** (`tileReflectionSteps`) to **0** for automatic density based on the reflection's height, up to 128 strips per tile. The fade eases down to fully transparent, including over pictures and video. Older themes keep their saved strip count; change it to 0 and press **Apply** to remove the broad bands on bright tiles. Manual values from 2 to 128 remain available; fewer strips reduce the number of views but make the bands more visible.
+
 ## Game names
 
 There are four names on the Home:

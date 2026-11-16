@@ -389,7 +389,7 @@
     tileReflection: 0,          /* reflection of the tiles under the row (lake): opacity at the top, 0-1; 0 = none (0) */
     tileReflectionHeight: 0.5,  /* how much of the tile is reflected, 0.1-1 (0.5) */
     tileReflectionGap: 4,       /* space between the tile and its reflection, px (4) */
-    tileReflectionSteps: 8,     /* strips of the fade: more = smoother, 2 to 24 (8) */
+    tileReflectionSteps: 0,     /* fade strips: 0 = automatic by height (up to 128), or 2 to 128 (0) */
     tileReflectionWaves: 0,     /* lake ripples: sideways movement in px; 0 = still (0) */
     tileReflectionWaveSpeed: 3, /* seconds per ripple (3) */
     tileReflectionFlip: 'scaleY', /* how the image is turned upside down: 'scaleY', 'rotateX' or 'rotate' ('scaleY') */
@@ -1205,8 +1205,10 @@
      the strand's renderItem) carries the game in props.experience
      (icon0PathWithTs). No native gradient and the PS5 cannot draw a view
      twice: the reflection is cut into strips (absolute + overflow hidden,
-     each showing its slice of the flipped image) whose opacity goes down, so
-     it fades out over any background (also the video). tileReflectionWaves
+     each showing its slice of the flipped image). Automatic density uses
+     up to one strip per layout pixel, capped at 128 strips per tile. A
+     smoothstep fade ends at zero over any background (also the video).
+     tileReflectionWaves
      moves the strips sideways on a shared native-driven sine. ---- */
   var reflLogs = 0;
   function tileExperience(c, depth) {
@@ -1291,9 +1293,10 @@
     if (!box) return React.createElement(rn.View, { pointerEvents: 'none', onLayout: onLayout, style: fill });
     var W = box.w, H = box.h;
     var frac = Math.min(1, Math.max(0.05, THEME.tileReflectionHeight > 0 ? THEME.tileReflectionHeight : 0.5));
-    var n = Math.min(24, Math.max(2, Math.round(THEME.tileReflectionSteps > 0 ? THEME.tileReflectionSteps : 8)));
     var op = Math.min(1, THEME.tileReflection);
-    var top0 = H + (THEME.tileReflectionGap || 0), shown = H * frac;
+    var top0 = H + (THEME.tileReflectionGap || 0), shown = Math.max(1, Math.round(H * frac));
+    var steps = THEME.tileReflectionSteps;
+    var n = Math.min(shown, steps > 0 ? Math.min(128, Math.max(2, Math.round(steps))) : 128);
     var radius = (THEME.tileCorners || 0) * W / (THEME.tileSize || 106);
     var amp = THEME.tileReflectionWaves > 0 && A && A.View ? THEME.tileReflectionWaves : 0;
     var wave = amp ? reflectionWave() : null;
@@ -1302,11 +1305,12 @@
     for (var i = 0; i < n; i++) {
       var y = Math.round(i * shown / n), h = Math.round((i + 1) * shown / n) - y;
       if (h <= 0) continue;
+      var t = n > 1 ? i / (n - 1) : 1;
       var style = { position: 'absolute', left: 0, top: top0 + y, width: W, height: h, overflow: 'hidden',
-                    opacity: op * (1 - i / n) };
+                    opacity: op * (1 - t * t * (3 - 2 * t)) };
       if (wave) {
         /* deeper strips move more; each one a bit later than the one above */
-        var a = amp * (0.3 + 0.7 * (i + 1) / n), ph = i * 0.12, ins = [], outs = [];
+        var a = amp * (0.3 + 0.7 * (y + h) / shown), ph = y / shown * 0.96, ins = [], outs = [];
         for (var k = 0; k <= 12; k++) {
           ins.push(k / 12);
           outs.push(a * Math.sin(2 * Math.PI * (k / 12 + ph)));

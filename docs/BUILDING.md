@@ -51,6 +51,7 @@ Run it again after every change to `theme/`.
 ```bash
 cd theme
 node --check theme.js
+node test_reflection.js                        # reflection geometry, fade and ripples
 THEME_APP=home node theme_harness.js theme.js     # also: hub, settings, trophy
 python3 editor_mock_server.py editor.html theme.js 4444   # then open http://localhost:4444
 ```
