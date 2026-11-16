@@ -1060,3 +1060,43 @@ bool zt_tall_icon(const std::string &src, const std::string &dest, double ratio)
   zt_log("system tile: %s %dx%d %s", dest.c_str(), out.w, out.h, ok ? "written" : "NOT written");
   return ok;
 }
+
+bool zt_tile_reflection(const std::string &src, const std::string &dest,
+                        int width, int height, int shown, int radius) {
+  if (width < 8 || width > 1024 || height < 8 || height > 1536 ||
+      shown < 1 || shown > height || radius < 0 || radius > std::min(width, height) / 2)
+    return false;
+  struct stat source, cached;
+  if (stat(src.c_str(), &source) != 0)
+    return false;
+  if (stat(dest.c_str(), &cached) == 0 && cached.st_size > 0 &&
+      (cached.st_mtim.tv_sec > source.st_mtim.tv_sec ||
+       (cached.st_mtim.tv_sec == source.st_mtim.tv_sec && cached.st_mtim.tv_nsec >= source.st_mtim.tv_nsec)))
+    return true;
+  Image icon;
+  if (!load_game_icon(src, icon))
+    return false;
+  Image tile;
+  tile.w = width;
+  tile.h = height;
+  tile.px.assign((size_t)width * height * 4, 0);
+  draw_icon(tile, icon, 0, 0, (float)width, (float)height, radius > 0 ? (float)radius : 0.5f);
+  Image out;
+  out.w = width;
+  out.h = shown;
+  out.px.resize((size_t)width * shown * 4);
+  Noise noise{0x7265666c};
+  for (int y = 0; y < shown; ++y) {
+    const float t = shown > 1 ? (float)y / (shown - 1) : 1;
+    const float fade = 1 - t * t * (3 - 2 * t);
+    for (int x = 0; x < width; ++x) {
+      const unsigned char *p = &tile.px[((size_t)(height - 1 - y) * width + x) * 4];
+      unsigned char *q = &out.px[((size_t)y * width + x) * 4];
+      memcpy(q, p, 4);
+      if (!p[3]) { q[3] = 0; continue; }
+      const float dither = y > 0 && y < shown - 1 ? noise(0.5f) : 0;
+      q[3] = (unsigned char)lroundf(fminf(255, fmaxf(0, p[3] * fade + dither)));
+    }
+  }
+  return save_png(dest.c_str(), out);
+}

@@ -3030,6 +3030,88 @@ void RunScript_Hook(MonoObject *self, MonoObject *bundle) {
  * the Home as data "zt-fbg" ["name", …], and the Home then shows that picture
  * when the folder is focused.
  */
+struct ReflectionJob {
+  std::string key, src;
+  int width, height, shown, radius;
+};
+std::mutex g_reflection_lock;
+std::vector<ReflectionJob> g_reflection_jobs;
+bool g_reflection_running = false;
+
+void reflection_ready(const std::string &key, const std::string &path) {
+  std::lock_guard<std::mutex> lock(g_name_lock);
+  const std::string data_key = "zt-reflection-" + key;
+  g_hub_data[data_key] = "\"" + json_text(path) + "\"";
+  g_sent_data.erase(data_key); /* also deliver after a Home reload */
+}
+
+void *reflection_worker(void *) {
+  for (;;) {
+    ReflectionJob job;
+    {
+      std::lock_guard<std::mutex> lock(g_reflection_lock);
+      if (g_reflection_jobs.empty()) {
+        g_reflection_running = false;
+        return nullptr;
+      }
+      job = g_reflection_jobs.front();
+      g_reflection_jobs.erase(g_reflection_jobs.begin());
+    }
+    zt_mkdirs(ZT_CACHE_REFLECTIONS);
+    const std::string path = ZT_CACHE_REFLECTIONS "/zt_refl_" + job.key + ".png";
+    const bool ok = zt_tile_reflection(job.src, path, job.width, job.height, job.shown, job.radius);
+    if (!ok)
+      zt_log("reflection: cannot prepare %.200s", job.src.c_str());
+    reflection_ready(job.key, ok ? path : "");
+  }
+}
+
+void reflection_ask(const std::string &text) {
+  std::vector<std::string> f;
+  for (size_t at = 17;;) {
+    const size_t bar = text.find('|', at);
+    f.push_back(text.substr(at, bar == std::string::npos ? std::string::npos : bar - at));
+    if (bar == std::string::npos || f.size() > 6) break;
+    at = bar + 1;
+  }
+  if (f.size() != 6 || f[0].empty() || f[0].size() > 40) return;
+  for (char c : f[0])
+    if (!isalnum((unsigned char)c) && c != '_') return;
+  const std::string &src = f[1];
+  const bool allowed = src.rfind("/user/app/", 0) == 0 || src.rfind("/user/appmeta/", 0) == 0 ||
+      src.rfind("/system_ex/rnps/apps/", 0) == 0 || src.rfind("/system_data/priv/appmeta/", 0) == 0 ||
+      src.rfind(ZT_ASSETS "/", 0) == 0 || src.rfind("/data/ZhiThemes/Assets/", 0) == 0;
+  if (!allowed || src.size() > 1024 || src.find("..") != std::string::npos) {
+    reflection_ready(f[0], "");
+    return;
+  }
+  ReflectionJob job{f[0], src, atoi(f[2].c_str()), atoi(f[3].c_str()),
+                    atoi(f[4].c_str()), atoi(f[5].c_str())};
+  bool start = false;
+  {
+    std::lock_guard<std::mutex> lock(g_reflection_lock);
+    for (const auto &pending : g_reflection_jobs)
+      if (pending.key == job.key) return;
+    if (g_reflection_jobs.size() >= 32) {
+      reflection_ready(job.key, "");
+      return;
+    }
+    g_reflection_jobs.push_back(job);
+    if (!g_reflection_running) start = g_reflection_running = true;
+  }
+  if (start) {
+    pthread_t thread;
+    if (pthread_create(&thread, nullptr, reflection_worker, nullptr) == 0)
+      pthread_detach(thread);
+    else {
+      std::lock_guard<std::mutex> lock(g_reflection_lock);
+      g_reflection_running = false;
+      for (const auto &pending : g_reflection_jobs) reflection_ready(pending.key, "");
+      g_reflection_jobs.clear();
+    }
+  }
+}
+
 struct FolderBgJob {
   std::string name, style, colour;
   std::vector<std::string> ids;
@@ -3358,6 +3440,10 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
     /* "THEME-TALLICON <icon>|<name>|<ratio>": a taller copy of a
        system tile's icon (Game / App Library) in backgrounds/<name>, made
        before the call returns so the tile can load it right away */
+    if (text.rfind("THEME-REFLECTION ", 0) == 0) {
+      reflection_ask(text);
+      return;
+    }
     if (text.rfind("THEME-TALLICON ", 0) == 0) {
       const std::string rest = text.substr(15);
       const size_t b1 = rest.find('|'), b2 = b1 == std::string::npos ? b1 : rest.find('|', b1 + 1);

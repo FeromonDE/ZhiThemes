@@ -1,128 +1,95 @@
-// Exercise the actual reflection component without needing the PS5 renderer.
-// Run: node theme/test_reflection.js
+// Regression: still reflections must remain one image even in old 24/128-step themes.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-
 const source = fs.readFileSync(path.join(__dirname, 'theme.js'), 'utf8');
 const start = source.indexOf('  var reflLogs = 0;');
 const end = source.indexOf('  /* theme layers on the Home', start);
-assert.ok(start >= 0 && end > start, 'reflection component found');
-let layout = { w: 238, h: 238 };
-let updatedLayout;
-let interpolations = [];
-const theme = {
-  tileReflection: 0.5, tileReflectionHeight: 0.5, tileReflectionGap: 4,
-  tileReflectionSteps: 0, tileReflectionWaves: 0, tileReflectionFlip: 'scaleY',
-  tileCorners: 16, tileSize: 106
-};
-const context = vm.createContext({
-  THEME: theme,
-  T: {
-    React: {
-      useState: () => [layout, (value) => { updatedLayout = value; }],
-      createElement: (type, props, ...children) => ({ type, props, children })
+assert.ok(start >= 0 && end > start);
+let layout = { w: 238, h: 238 }, stateIndex, effectKey, cleanup, updates = 0;
+const requests = [], interpolations = [];
+const theme = { tileReflection: 0.5, tileReflectionHeight: 0.5, tileReflectionGap: 4,
+  tileReflectionSteps: 0, tileReflectionWaves: 0, tileReflectionFlip: 'scaleY', tileCorners: 16, tileSize: 106 };
+const context = vm.createContext({ THEME: theme, console: { log: (s) => requests.push(s) }, log: () => {},
+  T: { React: {
+    useState: () => stateIndex++ === 0 ? [layout, (v) => { layout = v; }] : [0, () => updates++],
+    useEffect: (fn, deps) => {
+      if (effectKey !== deps[0]) { if (cleanup) cleanup(); effectKey = deps[0]; cleanup = fn(); }
     },
-    rn: { View: 'View', Image: 'Image', Animated: { View: 'Animated.View' } },
-    reflWave: { interpolate: (config) => { interpolations.push(config); return config; } }
-  },
-  log: () => {}
+    createElement: (type, props, ...children) => ({ type, props, children })
+  }, rn: { View: 'View', Image: 'Image', Animated: { View: 'Animated.View' } },
+  reflWave: { interpolate: (config) => { interpolations.push(config); return config; } } }
 });
 vm.runInContext(source.slice(start, end), context);
-const render = () => context.TileReflection({ id: 'TEST', uri: 'file:///test.png' });
-const strips = () => render().children[0];
+const render = () => { stateIndex = 0; return context.TileReflection({ id: 'TEST', uri: 'file:///user/app/TEST00001/sce_sys/icon0.png?ts=1' }); };
+const deliver = () => context.reflectionReceived('zt-reflection-' + effectKey, JSON.stringify('/test/reflection.png'));
 
-function checkGeometry(list, height, gap = 4) {
-  let y = layout.h + gap;
-  for (const strip of list) {
-    const style = strip.props.style;
-    assert.equal(style.top, y, 'adjacent strips have no gap or overlap');
-    assert.ok(style.height > 0);
-    assert.equal(style.overflow, 'hidden');
-    const image = strip.children[0];
-    assert.equal(image.type, 'Image');
-    assert.equal(image.props.source.uri, 'file:///test.png');
-    assert.equal(image.props.style.top, -(y - layout.h - gap), 'same image crop across strips');
-    assert.equal(image.props.style.height, layout.h);
-    assert.equal(image.props.style.width, layout.w);
-    y += style.height;
-  }
-  assert.equal(y, layout.h + gap + height, 'exact reflection height');
-  if (list.length > 1) assert.equal(list[0].props.style.opacity, theme.tileReflection);
-  assert.equal(list.at(-1).props.style.opacity, 0, 'no opaque bottom edge');
-  for (let i = 1; i < list.length; i++) {
-    assert.ok(list[i].props.style.opacity <= list[i - 1].props.style.opacity);
-    assert.ok(list[i].props.style.opacity >= 0);
-  }
-}
-
-const automatic = strips();
-assert.equal(automatic.length, 119, 'automatic density follows height');
-checkGeometry(automatic, 119);
-for (let i = 1; i < automatic.length; i++) {
-  assert.ok(automatic[i - 1].props.style.opacity - automatic[i].props.style.opacity < 2 / 255,
-    'bright tile fade changes by less than two alpha levels per strip');
-}
-
-for (const steps of [2, 8, 24, 64, 128, 500]) {
+assert.equal(render().children.length, 0, 'pending reflection does not build strips on the UI thread');
+assert.equal(requests.length, 1);
+assert.ok(requests[0].startsWith('THEME-REFLECTION '));
+assert.ok(!requests[0].includes('?ts='), 'native file path excludes query string');
+assert.equal(deliver(), true);
+assert.equal(updates, 1, 'completion redraws the mounted component');
+for (const steps of [0, 2, 8, 24, 64, 128, 500]) {
   theme.tileReflectionSteps = steps;
-  const list = strips();
-  assert.equal(list.length, Math.min(119, steps, 128));
-  checkGeometry(list, 119);
+  const view = render();
+  assert.equal(view.children.length, 1);
+  const image = view.children[0];
+  assert.equal(image.type, 'Image', 'still reflection uses one image regardless of legacy strip count');
+  assert.equal(image.props.source.uri, 'file:///test/reflection.png');
+  assert.equal(image.props.style.height, 119);
+  assert.equal(image.props.style.top, 242);
+  assert.equal(image.props.style.opacity, 0.5);
+  assert.equal(image.props.style.transform, undefined, 'cached pixels are already mirrored');
 }
+assert.equal(requests.length, 1, 'renders reuse the prepared texture');
 
-for (const steps of [0, undefined, -1, NaN]) {
-  theme.tileReflectionSteps = steps;
-  assert.equal(strips().length, 119, 'missing/automatic count uses height');
-}
-
-layout = { w: 600.25, h: 900.5 };
-theme.tileReflectionSteps = 0;
-theme.tileReflectionGap = -3;
-const tall = strips();
-assert.equal(tall.length, 128, 'large reflections have a bounded view count');
-checkGeometry(tall, 450, -3);
-
-layout = { w: 100, h: 5 };
-theme.tileReflectionHeight = 0.1;
-const tiny = strips();
-assert.equal(tiny.length, 1);
-checkGeometry(tiny, 1, -3);
-
-layout = null;
-const pending = render();
-assert.equal(pending.children.length, 0, 'waits for a measured layout');
-pending.props.onLayout({ nativeEvent: { layout: { width: 0, height: 100 } } });
-assert.equal(updatedLayout, undefined);
-pending.props.onLayout({ nativeEvent: { layout: { width: 200, height: 300 } } });
-assert.equal(updatedLayout.w, 200);
-assert.equal(updatedLayout.h, 300);
-
-layout = { w: 200, h: 256 };
-theme.tileReflectionHeight = 0.5;
-theme.tileReflectionGap = 4;
 theme.tileReflectionWaves = 6;
-for (const steps of [8, 128]) {
+for (const steps of [0, 8, 24, 128]) {
   theme.tileReflectionSteps = steps;
-  interpolations = [];
-  const list = strips();
-  checkGeometry(list, 128);
-  assert.ok(list.every((strip) => strip.type === 'Animated.View'));
-  const half = list.findIndex((strip) => strip.props.style.top === layout.h + 4 + 64);
-  assert.ok(half >= 0);
-  assert.ok(Math.abs(interpolations[half].outputRange[0] /
-    (6 * (0.3 + 0.7 * (64 + list[half].props.style.height) / 128)) -
-    Math.sin(2 * Math.PI * 0.48)) < 1e-10, 'ripple phase follows depth, not strip count');
+  const strips = render().children[0];
+  assert.equal(strips.length, 8, 'ripple node count is bounded');
+  let y = 242;
+  for (const strip of strips) {
+    assert.equal(strip.type, 'Animated.View');
+    assert.equal(strip.props.style.top, y);
+    assert.equal(strip.props.style.opacity, 0.5, 'baked fade is continuous across ripple slices');
+    const image = strip.children[0];
+    assert.equal(image.props.style.top, -(y - 242));
+    assert.equal(image.props.style.height, 119);
+    y += strip.props.style.height;
+  }
+  assert.equal(y, 361);
 }
 
 theme.tileReflectionWaves = 0;
+render().children[0].props.onError();
+const fallback = render().children[0];
+assert.equal(fallback.length, 8, 'unsupported image fallback cannot restore the expensive 128-strip path');
+assert.equal(fallback.at(-1).props.style.opacity, 0);
 for (const flip of ['scaleY', 'rotateX', 'rotate']) {
   theme.tileReflectionFlip = flip;
-  const transform = strips()[0].children[0].props.style.transform;
-  assert.equal(JSON.stringify(transform), JSON.stringify({
-    scaleY: [{ scaleY: -1 }], rotateX: [{ rotateX: '180deg' }],
-    rotate: [{ rotate: '180deg' }, { scaleX: -1 }]
-  }[flip]), 'existing image flip modes are preserved');
+  assert.ok(render().children[0][0].children[0].props.style.transform.length > 0);
 }
-console.log('Reflection tests passed (density, fade, geometry, layout, ripples, flip).');
+
+const oldKey = effectKey;
+layout = { w: 1000, h: 2000 };
+assert.equal(render().children.length, 0, 'new geometry waits for its own texture');
+assert.notEqual(effectKey, oldKey);
+assert.equal(context.reflectionWaiters[oldKey].length, 0, 'old subscription cleaned up');
+const dims = requests.at(-1).split('|').slice(-4).map(Number);
+assert.ok(dims[0] <= 1024 && dims[1] <= 1536 && dims[2] <= dims[1]);
+context.reflectionReceived('zt-reflection-' + effectKey, '""');
+assert.ok(render().children[0].length <= 8, 'native decode failure uses bounded fallback');
+assert.equal(context.reflectionReceived('unrelated', '""'), false);
+
+layout = null;
+const pending = render();
+assert.equal(pending.children.length, 0);
+pending.props.onLayout({ nativeEvent: { layout: { width: 0, height: 100 } } });
+assert.equal(layout, null);
+pending.props.onLayout({ nativeEvent: { layout: { width: 200, height: 300 } } });
+assert.equal(layout.w, 200);
+assert.equal(layout.h, 300);
+console.log('Reflection tests passed: one still image, async preparation, bounded ripples/fallback, layout and reuse.');

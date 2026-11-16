@@ -389,7 +389,7 @@
     tileReflection: 0,          /* reflection of the tiles under the row (lake): opacity at the top, 0-1; 0 = none (0) */
     tileReflectionHeight: 0.5,  /* how much of the tile is reflected, 0.1-1 (0.5) */
     tileReflectionGap: 4,       /* space between the tile and its reflection, px (4) */
-    tileReflectionSteps: 0,     /* fade strips: 0 = automatic by height (up to 128), or 2 to 128 (0) */
+    tileReflectionSteps: 0,     /* ripple / fallback slices: 0 = automatic (8), or 2 to 8; still PNG uses one image (0) */
     tileReflectionWaves: 0,     /* lake ripples: sideways movement in px; 0 = still (0) */
     tileReflectionWaveSpeed: 3, /* seconds per ripple (3) */
     tileReflectionFlip: 'scaleY', /* how the image is turned upside down: 'scaleY', 'rotateX' or 'rotate' ('scaleY') */
@@ -1203,13 +1203,9 @@
      under each tile, like a lake. It goes in the same selectedN view as the
      shadow, so it moves and grows with the carousel. The tile element (from
      the strand's renderItem) carries the game in props.experience
-     (icon0PathWithTs). No native gradient and the PS5 cannot draw a view
-     twice: the reflection is cut into strips (absolute + overflow hidden,
-     each showing its slice of the flipped image). Automatic density uses
-     up to one strip per layout pixel, capped at 128 strips per tile. A
-     smoothstep fade ends at zero over any background (also the video).
-     tileReflectionWaves
-     moves the strips sideways on a shared native-driven sine. ---- */
+     (icon0PathWithTs). A worker prepares one mirrored PNG with rounded
+     corners and per-pixel alpha. The Home only draws that cached image;
+     ripples use at most eight slices of the same pre-faded texture. ---- */
   var reflLogs = 0;
   function tileExperience(c, depth) {
     if (!c || depth > 5) return null;
@@ -1240,7 +1236,7 @@
   }
   function tileReflection(children) {
     var React = T.React, rn = T.rn;
-    if (!React || !rn || !rn.View || !rn.Image || typeof React.useState !== 'function') return null;
+    if (!React || !rn || !rn.View || !rn.Image || typeof React.useState !== 'function' || typeof React.useEffect !== 'function') return null;
     var e = tileExperience(children, 0);
     var uri = e ? experienceIcon(e) : '';
     if (!uri) {
@@ -1278,53 +1274,95 @@
     if (f === 'rotate') return [{ rotate: '180deg' }, { scaleX: -1 }];
     return [{ scaleY: -1 }];
   }
+  var reflectionImages = {}, reflectionAsked = {}, reflectionWaiters = {};
+  function reflectionKey(value) {
+    var a = 2166136261, b = 5381;
+    for (var i = 0; i < value.length; i++) {
+      a = Math.imul(a ^ value.charCodeAt(i), 16777619) >>> 0;
+      b = ((b * 33) ^ value.charCodeAt(i)) >>> 0;
+    }
+    return a.toString(16) + '_' + b.toString(16);
+  }
+  function reflectionReceived(key, text) {
+    if (key.indexOf('zt-reflection-') !== 0) return false;
+    var id = key.slice(14), path = '';
+    try { path = JSON.parse(String(text)); } catch (e) {}
+    reflectionImages[id] = typeof path === 'string' && path ? 'file://' + path : '';
+    (reflectionWaiters[id] || []).slice().forEach(function (f) { f(); });
+    return true;
+  }
   function TileReflection(props) {
     var React = T.React, rn = T.rn, A = rn.Animated;
     var st = React.useState(null), box = st[0], setBox = st[1];
-    /* the reflection box fills the selectedN view: its size is the tile's */
+    var redraw = React.useState(0)[1];
+    var fill = { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 };
+    var W = box ? box.w : 0, H = box ? box.h : 0;
+    var frac = Math.min(1, Math.max(0.05, THEME.tileReflectionHeight > 0 ? THEME.tileReflectionHeight : 0.5));
+    var shown = Math.max(1, Math.round(H * frac));
+    var radius = (THEME.tileCorners || 0) * W / (THEME.tileSize || 106);
+    var scale = box ? Math.min(2, 1024 / W, 1536 / H) : 1;
+    var pw = Math.max(8, Math.round(W * scale)), ph = Math.max(8, Math.round(H * scale));
+    var ps = Math.min(ph, Math.max(1, Math.round(shown * scale)));
+    var pr = Math.max(0, Math.min(Math.floor(Math.min(pw, ph) / 2), Math.round(radius * scale)));
+    var key = box ? reflectionKey('v2|' + props.uri + '|' + pw + '|' + ph + '|' + ps + '|' + pr) : '';
+    React.useEffect(function () {
+      if (!key) return;
+      var update = function () { redraw(function (n) { return n + 1; }); };
+      var list = reflectionWaiters[key] = reflectionWaiters[key] || [];
+      list.push(update);
+      if (!(key in reflectionImages) && !reflectionAsked[key]) {
+        reflectionAsked[key] = true;
+        var path = String(props.uri).replace(/^file:\/\//, '').split('?')[0];
+        try { console.log('THEME-REFLECTION ' + key + '|' + path + '|' + pw + '|' + ph + '|' + ps + '|' + pr); }
+        catch (e) { reflectionImages[key] = ''; update(); }
+      }
+      return function () { var i = list.indexOf(update); if (i >= 0) list.splice(i, 1); };
+    }, [key]);
     var onLayout = function (ev) {
       var l = ev && ev.nativeEvent && ev.nativeEvent.layout;
       if (!l || !(l.width > 0) || !(l.height > 0)) return;
       if (box && Math.abs(box.w - l.width) < 0.5 && Math.abs(box.h - l.height) < 0.5) return;
-      if (reflLogs++ < 6) log('reflection: tile ' + props.id + ' ' + Math.round(l.width) + 'x' + Math.round(l.height) + ' ' + props.uri);
       setBox({ w: l.width, h: l.height });
     };
-    var fill = { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 };
-    if (!box) return React.createElement(rn.View, { pointerEvents: 'none', onLayout: onLayout, style: fill });
-    var W = box.w, H = box.h;
-    var frac = Math.min(1, Math.max(0.05, THEME.tileReflectionHeight > 0 ? THEME.tileReflectionHeight : 0.5));
-    var op = Math.min(1, THEME.tileReflection);
-    var top0 = H + (THEME.tileReflectionGap || 0), shown = Math.max(1, Math.round(H * frac));
-    var steps = THEME.tileReflectionSteps;
-    var n = Math.min(shown, steps > 0 ? Math.min(128, Math.max(2, Math.round(steps))) : 128);
-    var radius = (THEME.tileCorners || 0) * W / (THEME.tileSize || 106);
+    var root = { pointerEvents: 'none', style: fill, onLayout: onLayout };
+    if (!box || !(key in reflectionImages)) return React.createElement(rn.View, root);
+    var uri = reflectionImages[key], baked = !!uri;
+    var op = Math.min(1, THEME.tileReflection), top0 = H + (THEME.tileReflectionGap || 0);
     var amp = THEME.tileReflectionWaves > 0 && A && A.View ? THEME.tileReflectionWaves : 0;
-    var wave = amp ? reflectionWave() : null;
-    var flip = reflectionFlip();
-    var strips = [];
+    var imageError = function () {
+      if (baked) { reflectionImages[key] = ''; redraw(function (n) { return n + 1; }); }
+      if (reflLogs++ < 10) log('reflection: image error ' + (uri || props.uri));
+    };
+    /* A still reflection is one image, regardless of the old fade-step value.
+       The PNG already holds the flip, rounded corners and per-pixel alpha. */
+    if (baked && !amp)
+      return React.createElement(rn.View, root, React.createElement(rn.Image, {
+        source: { uri: uri }, onError: imageError,
+        style: { position: 'absolute', left: 0, top: top0, width: W, height: shown, opacity: op } }));
+    /* Ripples and unsupported source formats use at most eight slices.
+       Cached slices keep their baked fade; no alpha jump between slices. */
+    var steps = THEME.tileReflectionSteps;
+    var n = Math.min(shown, steps > 0 ? Math.min(8, Math.max(2, Math.round(steps))) : 8);
+    var wave = amp ? reflectionWave() : null, strips = [], flip = reflectionFlip();
     for (var i = 0; i < n; i++) {
       var y = Math.round(i * shown / n), h = Math.round((i + 1) * shown / n) - y;
-      if (h <= 0) continue;
       var t = n > 1 ? i / (n - 1) : 1;
-      var style = { position: 'absolute', left: 0, top: top0 + y, width: W, height: h, overflow: 'hidden',
-                    opacity: op * (1 - t * t * (3 - 2 * t)) };
+      var style = { position: 'absolute', left: 0, top: top0 + y, width: W, height: h,
+                    overflow: 'hidden', opacity: baked ? op : op * (1 - t * t * (3 - 2 * t)) };
       if (wave) {
-        /* deeper strips move more; each one a bit later than the one above */
-        var a = amp * (0.3 + 0.7 * (y + h) / shown), ph = y / shown * 0.96, ins = [], outs = [];
+        var a = amp * (0.3 + 0.7 * (y + h) / shown), phase = y / shown * 0.96, ins = [], outs = [];
         for (var k = 0; k <= 12; k++) {
           ins.push(k / 12);
-          outs.push(a * Math.sin(2 * Math.PI * (k / 12 + ph)));
+          outs.push(a * Math.sin(2 * Math.PI * (k / 12 + phase)));
         }
         style.transform = [{ translateX: wave.interpolate({ inputRange: ins, outputRange: outs }) }];
       }
+      var imageStyle = { position: 'absolute', left: 0, top: -y, width: W, height: baked ? shown : H };
+      if (!baked) { imageStyle.borderRadius = radius; imageStyle.transform = flip; }
       strips.push(React.createElement(wave ? A.View : rn.View, { key: 's' + i, style: style },
-        React.createElement(rn.Image, {
-          source: { uri: props.uri },
-          onError: function () { if (reflLogs++ < 10) log('reflection: image error ' + props.uri); },
-          style: { position: 'absolute', left: 0, top: -y, width: W, height: H, borderRadius: radius,
-                   transform: flip } })));
+        React.createElement(rn.Image, { source: { uri: uri || props.uri }, onError: imageError, style: imageStyle })));
     }
-    return React.createElement(rn.View, { pointerEvents: 'none', style: fill, onLayout: onLayout }, strips);
+    return React.createElement(rn.View, root, strips);
   }
   /* theme layers on the Home (background, footer, user, boxes...): in a
      screen-sized box whose opacity follows the Home moving up; when the
@@ -7860,8 +7898,9 @@
      and, when the Home asks ("THEME-ASK", on the Home's own thread), hands it
      over with __themeName(name). */
   var trophyListeners = [];
-  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.animToast)) {
+  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.animToast || THEME.tileReflection > 0)) {
     globalThis.__themeData = function (key, text) {
+      if (reflectionReceived(key, text)) return;
       if (toastData(key, text)) return;
       if (key === 'zt-select') {
         /* from the Home before the reload (not this one, not an old one) */
@@ -7927,7 +7966,7 @@
       }, 0);
     };
   }
-  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders))
+  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.tileReflection > 0))
     setInterval(function () { try { console.log('THEME-ASK'); } catch (e) {} },
                 THEME.fakeTrophies && THEME.fakeTrophiesFast !== false ? 120 : 250);
   var TROPHY_ICONS = ['trophy_grade1_platinum', 'trophy_grade2_gold', 'trophy_grade3_silver', 'trophy_grade4_bronze'];

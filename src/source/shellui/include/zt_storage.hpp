@@ -23,6 +23,7 @@ later version. See LICENSE and NOTICE.  */
 #define ZT_CACHE_MOSAICS ZT_CACHE "/mosaics"       /* folder mosaics (zt_folder_*) */
 #define ZT_CACHE_FOLDERBG ZT_CACHE "/folderbg"     /* folder backgrounds (zt_fbg_*) */
 #define ZT_CACHE_ICONS ZT_CACHE "/icons"           /* tall system tile icons (zt_sys_*) */
+#define ZT_CACHE_REFLECTIONS ZT_CACHE "/reflections" /* pre-faded tile images */
 #define ZT_PARTICLES ZT_ASSETS "/particles"      /* built-in particle textures (written at start) */
 #define ZT_LEGACY ZT_ASSETS "/backgrounds"         /* in older versions; read when a file is still there */
 #define ZT_SGDB_KEY_FILE ZT_DIR "/steamgrid.key"   /* the SteamGridDB API key, never in a theme */

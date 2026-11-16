@@ -13,7 +13,7 @@ Upload buttons next to the fields add your own files:
 
 ## Tile reflections
 
-In **Games row → Reflection**, set **Reflection fade steps** (`tileReflectionSteps`) to **0** for automatic density based on the reflection's height, up to 128 strips per tile. The fade eases down to fully transparent, including over pictures and video. Older themes keep their saved strip count; change it to 0 and press **Apply** to remove the broad bands on bright tiles. Manual values from 2 to 128 remain available; fewer strips reduce the number of views but make the bands more visible.
+Still PNG reflections use one cached image per tile. The mirrored picture, rounded corners and smooth alpha fade are prepared once by a background worker, outside the Home's JS/UI thread. **Reflection ripple slices** (`tileReflectionSteps`) only controls the ripple effect or the fallback for unsupported images: **0** selects eight slices, manual values are limited to **2–8**. Older themes with 24 or 128 steps are capped at eight; they no longer create that many copies. No change to this field is needed for a still PNG reflection.
 
 ## Game names
 

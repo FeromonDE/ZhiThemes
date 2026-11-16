@@ -35,3 +35,8 @@ bool zt_hero_background(const std::string &src, const std::string &dest, double 
 /* Taller copy of a square system icon (Game / App Library): the square in
    the middle, its top / bottom rows repeated up to w x w*ratio. */
 bool zt_tall_icon(const std::string &src, const std::string &dest, double ratio);
+
+/* Mirrored lower part of a tile, with rounded corners and a per-pixel
+   alpha fade. Cached on disk; call off the Home's JS/UI thread. */
+bool zt_tile_reflection(const std::string &src, const std::string &dest,
+                        int width, int height, int shown, int radius);
