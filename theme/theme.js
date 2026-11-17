@@ -7992,11 +7992,8 @@
         if (i >= 0) trophyListeners.splice(i, 1);
       };
     }, []);
-    if (!t || t.none || !t.e) return null;
-    /* only in the Games space and for the focused tile (when the Home has
-       said which one it is) */
-    if (T.space === 'media') return null;
-    if (typeof T.focusedId === 'string' && t.id && T.focusedId !== t.id) return null;
+    t = displayedTrophies(t);
+    if (!t) return null;
     var px = fontSize(THEME.fakeTrophiesFontSize || 27) || 27, color = THEME.fakeTrophiesColor || '#ffffff';
     var text = { fontSize: px, color: color };
     var rows = [];
@@ -9619,6 +9616,21 @@
   function cachedTrophies(id) {
     var v = T.trophyCache && T.trophyCache[id];
     return trophyValue(v) ? v : null;
+  }
+  /* An unplayed game can have no registered trophy set at all. Keep its
+     empty card visible while the native lookup has no data. This is only
+     presentation state: never cache it or stop retrying the real lookup. */
+  function displayedTrophies(value) {
+    if (T.space === 'media') return null;
+    var id = T.focusedId;
+    if (typeof id !== 'string') return trophyValue(value) ? value : null;
+    if (!id) return null;
+    var cached = cachedTrophies(id);
+    if (cached) return cached;
+    if (value && value.id === id && trophyValue(value)) return value;
+    var game = T.allGames && T.allGames[id];
+    if (!/^(PPSA|CUSA)\d{5}$/.test(id) || (game && game.space === 'media')) return null;
+    return { id: id, e: [0, 0, 0, 0], p: 0, placeholder: true };
   }
   /* Production RNPS renderers omit React DevTools callbacks. Capture the
      real trophy row props through the JSX hook that already runs there.

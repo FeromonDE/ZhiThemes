@@ -6,7 +6,7 @@ const start = src.indexOf('  function trophyValue('), end = src.indexOf("  var N
 if (start < 0 || end < start) throw Error('trophy helpers missing');
 const T = {}, callbacks = [], requests = [];
 const api = new Function('T','APP','THEME','log','setTimeout','globalThis','hubTitleId','fetchTrophies',
-  src.slice(start,end) + '\nreturn {trophyValue,cachedTrophies,trophyFetchExport,observeTrophyFetch,trophyFetcher,waitForTrophyFetcher};'
+  src.slice(start,end) + '\nreturn {trophyValue,cachedTrophies,displayedTrophies,trophyFetchExport,observeTrophyFetch,trophyFetcher,waitForTrophyFetcher};'
 )(T,'hub',{fakeTrophies:true},()=>{},f=>callbacks.push(f),
   {__themeTrophyAsk:ids=>requests.push(ids)},()=>'PPSA00001',()=>{});
 
@@ -53,6 +53,26 @@ receive('trophies',JSON.stringify({id:'PPSA00001',e:[0,1,2,3],p:10}));
 const cached=T.trophyCache.PPSA00001;
 receive('trophies',JSON.stringify({id:'PPSA00001',none:true}));
 assert(T.trophies===cached,'reload placeholder must not overwrite already available trophies');
+// A game with no trophy registration still displays an empty card. Switching
+// between it and an earned game must not leak counts, cache fake results or
+// hide good data while React is delivering a delayed state update.
+T.focusedId='PPSA02343';T.space='game';
+const empty=api.displayedTrophies({id:'PPSA02530',e:[0,0,1,4],p:8});
+assert(empty.id==='PPSA02343' && empty.p===0 && empty.e.every(n=>n===0),'unregistered focused game has an empty 0% card');
+assert(!('d' in empty),'unknown total counts are not invented');
+assert(!T.trophyCache.PPSA02343,'display placeholder does not enter the real-data cache');
+assert(api.displayedTrophies({id:'PPSA02343',none:true}).placeholder,'native no-data reply leaves empty card visible');
+const earned={id:'PPSA02530',e:[0,0,1,4],p:8};T.trophyCache.PPSA02530=earned;T.focusedId='PPSA02530';
+assert(api.displayedTrophies(empty)===earned,'earned cached data wins during a focus state update');
+T.focusedId='PPSA02343';
+const arrived={id:'PPSA02343',e:[0,0,0,1],p:2};T.trophyCache.PPSA02343=arrived;
+assert(api.displayedTrophies(empty)===arrived,'actual trophies replace the empty card as soon as they arrive');
+T.space='media';assert(api.displayedTrophies(arrived)===null,'media space has no trophy card');
+T.space='game';
+for(const id of ['','NPXS40047','ZTFOLDER0','PLDM00001']){T.focusedId=id;assert(api.displayedTrophies(earned)===null,'no empty card for non-game tile '+id);}
+T.focusedId='PPSA02343';T.allGames={PPSA02343:{space:'media'}};delete T.trophyCache.PPSA02343;
+assert(api.displayedTrophies(null)===null,'known media app cannot acquire a fake game card');
+delete T.allGames;T.focusedId='PPSA00001';
 // Exercise the real request and queue code with controlled service replies.
 function makeHub(service) {
   const state = {done:{},require(){},hubContext:{queryParams:{titleId:'PPSA00001'}},

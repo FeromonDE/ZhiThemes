@@ -2,7 +2,13 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 384
+## Unreleased — build 385
+
+- Keep a visible empty 0% trophy card for focused PS5/PS4 games that have no registered trophy set or native record yet.
+- Treat empty cards as presentation only: do not cache them, invent trophy totals or stop real-data retries. Existing earned records take precedence immediately, including during focus changes.
+- Keep media, folders and system/homebrew app tiles without empty trophy cards.
+
+## Build 384
 
 - Match the console-verified English/Russian title pair PRAGMATA/Прагмата. The catalog and UI dumps show that the different names prevented finding the actual 8% record.
 - Read every publisher-localized title name from param.json and relay the exact aliases by application ID. Keep platform and duplicate-set checks; do not infer identity from earned counts or approximate spelling.
