@@ -2,7 +2,14 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 382
+## Unreleased — build 383
+
+- Resolve the local user's decimal-string account ID with native Account.getInfo before offline trophy queries, matching the system Trophies app instead of always querying `me`.
+- Preserve 64-bit account IDs without numeric conversion, respect explicit accounts and retain a bounded `me` fallback when account information is unavailable.
+- Screen dump now captures real trophy row metadata as trophy-records.txt through JSX, without requiring React DevTools callbacks absent from production RNPS bundles. Capture is independent of the system map's 220-entry limit.
+- Save bounded catalog diagnostics on unmatched titles when Screen dump is enabled. Existing reflection, Assets backup and trophy queue fixes remain intact.
+
+## Build 382
 
 - If the local NP-title mapping is empty, read the native Trophies title catalog and select a unique full-name match on the same platform (PS5 uses `prospero`). Ambiguous or unmatched sets remain errors rather than fabricated zero progress.
 - Relay localized Home names and installed-file names by game ID, including prefetched neighbours; cache catalog definitions briefly per user, while reading earned counts afresh.

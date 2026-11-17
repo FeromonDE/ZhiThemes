@@ -103,3 +103,46 @@ Tests reproduce empty mappings plus the screenshot's nonzero counts, reject
 wrong-platform/similar/duplicate names, check current per-ID metadata and
 user isolation, and exercise stalled/late cursor replies. These are simulated
 native replies; matching on the user's console is still unverified.
+
+## Native account identity and production row capture in build 383
+
+The user's build 382 system-screen log shows the Trophies app in offline
+mode with a real decimal-string `myAccountId`, the same local user ID as the
+theme, and aggregate counts of one silver/four bronze. The earlier provider
+always queried `accountId: 'me'`; this differs from the real screen's calls.
+The log's generic map reaches its 220-component cap after the first rows,
+so the affected title's full definition is not present. Its actual NPWR
+identifier is not inferred from an unrelated row.
+
+The verified native call chain in NPXS40025 is:
+
+| Function | Behavior |
+| --- | --- |
+| 13614 | Resolves `getAccountId({userId})`, stores `myAccountId`, falls back to `me` |
+| 14116 (module 1203) | Reads `Account.getInfo({userId}).accountId` via module 16's Account API |
+| 5979 | Passes navigation `myAccountId` into offline `requestGet` as `accountId` |
+
+In the hub, factory 95's Account getter (function 96) resolves module 1009,
+whose factory 12717 wraps the native `VshNMPsnAccountModule`. Build 383 checks
+its Account export and calls the verified `getInfo({userId})` method before
+creating the private offline accessor. Decimal strings are passed unchanged
+to mapping, configuration-list and record queries; numbers are rejected to
+avoid rounding 64-bit IDs. Explicit caller accounts are preserved. Failed,
+missing or timed-out identity lookup retains the stock `me` fallback. No
+account ID is hardcoded or written into the theme configuration/logs.
+
+The supplied production Home, hub and Trophies HBC payloads contain none of
+the React DevTools callback identifiers used by the earlier tree dumper.
+Native bundle copies can therefore exist without any `trophy-*.txt` tree.
+Build 383 captures the real `data`/`rowData`/`dataTrophyInfo` passed through
+the existing JSX hook instead, writing bounded, deduplicated JSON lines to
+`trophy-records.txt` only when Screen dump is enabled. These lines include
+only the trophy ID, game name, platforms, progress and earned counts;
+unknown counts remain null. They are independent of the generic map cap.
+
+Tests reproduce a `me` lookup with no earned record and a native account
+lookup returning 8%, one silver/four bronze, preserve IDs above 2^53, check
+separate users/explicit accounts and late identity replies, and replay the
+production row prop shapes without a React DevTools hook. Console testing
+of this change remains necessary; the account difference is verified, but
+its effect on PPSA02530 has not yet been measured on the user's console.

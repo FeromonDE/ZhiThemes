@@ -9620,6 +9620,24 @@
     var v = T.trophyCache && T.trophyCache[id];
     return trophyValue(v) ? v : null;
   }
+  /* Production RNPS renderers omit React DevTools callbacks. Capture the
+     real trophy row props through the JSX hook that already runs there.
+     This diagnostic is independent of the capped system-screen map. */
+  function trophyScreenRecord(props) {
+    if (APP !== 'trophy' || !(THEME.screenDump || globalThis.__ztDiag) || !props) return;
+    var v = props.data || props.rowData || props.dataTrophyInfo;
+    if (!v || typeof v !== 'object') return;
+    var id = v.id || v.titleId, conf = v.titleConf || v, record = v.titleRecord || v.record || v;
+    var name = conf.name || conf.title;
+    if (!/^(10|20):NPWR\d{5}_00$/.test(id) || typeof name !== 'string' || !name) return;
+    var number = function (n) { return typeof n === 'number' && isFinite(n) && n >= 0 ? n : null; };
+    var message = { id: id, name: name, platforms: conf.platforms, progress: number(record.progress),
+      earned: ['Platinum', 'Gold', 'Silver', 'Bronze'].map(function (grade) { return number(record['numUnlocked' + grade]); }) };
+    var text = JSON.stringify(message), state = T.trophyScreenDump = T.trophyScreenDump || { seen: {}, count: 0 };
+    if (state.seen[text] || state.count >= 512) return;
+    state.seen[text] = true;
+    console.log('THEME-DUMP trophy-records ' + (state.count++ ? 1 : 0) + '\n' + text + '\n');
+  }
   function trophyNameKey(name) {
     return typeof name === 'string' ? name.replace(/[\u2122\u00ae\u00a9]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() : '';
   }
@@ -9692,7 +9710,7 @@
      succeeds. The widget only needs local records, including unsynced ones.
      These API names, arguments and the 'offline' mode are verified in the
      user's 13.20 HBC. Keep the accessor private to this request. */
-  function trophyOfflineFetcher(api, user) {
+  function trophyOfflineFetcher(api, user, account) {
     var methods = ['createAccessor', 'deleteAccessor', 'getPlayedTitleIdListByNpTitleId', 'getTitleConf', 'getTitleRecord'];
     if (!api || !user) return null;
     for (var k = 0; k < methods.length; k++) if (typeof api[methods[k]] !== 'function') return null;
@@ -9708,7 +9726,7 @@
           var timer = setTimeout(function () {
             settled = true;
             reject(new Error(method + ': timeout'));
-          }, cleanup ? 250 : Math.max(1, Math.min(1200, deadline - Date.now())));
+          }, cleanup ? 250 : Math.max(1, Math.min(method === 'getInfo' ? 600 : 1200, deadline - Date.now())));
           Promise.resolve().then(function () { return (owner || api)[method](params); }).then(function (result) {
             if (settled) {
               /* A timed-out create still owns a native handle if it completes
@@ -9770,7 +9788,24 @@
             seen[conf.titleId] = true;
             matches.push(conf);
           });
-          if (matches.length !== 1) throw new Error('local trophy catalog: ' + matches.length + ' matches for ' + gameId);
+          if (matches.length !== 1) {
+            var detailKey = 'trophy catalog detail ' + gameId;
+            if (!T.done[detailKey]) {
+              T.done[detailKey] = true;
+              log('trophies catalog detail ' + gameId + ': rows=' + rows.length + ' names=' + JSON.stringify(names));
+              if (THEME.screenDump) {
+                var details = { gameId: gameId, names: names, platform: platform, rows: rows.slice(0, 512).map(function (r) {
+                  return r ? { id: r.titleId, name: r.name, platforms: r.platforms } : null;
+                }) };
+                try {
+                  var text = JSON.stringify(details) + '\n';
+                  for (var at = 0; at < text.length; at += 12000)
+                    console.log('THEME-DUMP trophy-catalog-' + gameId + ' ' + (at ? 1 : 0) + '\n' + text.slice(at, at + 12000));
+                } catch (e) {}
+              }
+            }
+            throw new Error('local trophy catalog: ' + matches.length + ' matches for ' + gameId);
+          }
           log('trophies catalog ' + gameId + ': ' + matches[0].titleId + ' (' + platform + ')');
           return [matches[0].titleId];
         };
@@ -9787,8 +9822,25 @@
           return closeList().then(function () { return select(rows); });
         });
       };
-      return call('createAccessor', { userId: userId,
-                                      mode: 'offline' }).then(function (id) {
+      /* NPXS40025 functions 13614/14116 resolve Account.getInfo({userId})
+         and pass its decimal-string accountId into the offline reader.
+         The hub's stock 'me' default can address a different local record.
+         Never convert this 64-bit ID to a JavaScript number. */
+      var identity = Promise.resolve();
+      if (args.accountId === undefined && account && typeof account.getInfo === 'function') {
+        identity = call('getInfo', { userId: userId }, false, account).then(function (info) {
+          if (info && typeof info.accountId === 'string' && /^[0-9]{1,20}$/.test(info.accountId) && !/^0+$/.test(info.accountId)) {
+            accountId = info.accountId;
+            if (!T.done['native trophy account']) {
+              T.done['native trophy account'] = true;
+              log('trophies account: native ID resolved for user ' + userId);
+            }
+          }
+        }, function (e) { log('trophies account: ' + trophyErrorText(e) + '; using me fallback'); });
+      }
+      return identity.then(function () {
+        return call('createAccessor', { userId: userId, mode: 'offline' });
+      }).then(function (id) {
         if (id == null) throw new Error('createAccessor: missing handle');
         accessor = id;
         opened = true;
@@ -9840,7 +9892,9 @@
         try {
           var native = T.require(210).TrophyAccessor;
           var user = T.require(8).User;
-          var offline = trophyOfflineFetcher(native, user);
+          var account;
+          try { account = T.require(1009).Account; } catch (e) {}
+          var offline = trophyOfflineFetcher(native, user, account);
           if (offline) return { fn: offline, owner: null, label: 'TrophyAccessor (offline)' };
         } catch (e) {}
         return { fn: exp.fetchTitleData, owner: exp, label: 'fetchTitleData' };
@@ -10784,6 +10838,7 @@
     var wrapped = function (type, props) {
       if (SYS_APP) {
         if (props && typeof props === 'object') {
+          try { trophyScreenRecord(props); } catch (e) { log('trophy screen record: ' + e); }
           if (DEBUG.sys) {
             try { seeSys(type, props, arguments[2]); } catch (e) { T.errors++; log('map: ' + e); }
           }

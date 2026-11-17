@@ -26,6 +26,58 @@ function native(overrides={}){
   return {api,calls};
 }
 async function main(){
+  // Native Trophies resolves Account.getInfo({userId}) before reading the
+  // current user's offline records. A 64-bit decimal ID must stay a string.
+  {
+    const h=harness(),accountId='18446744073709551614',accountCalls=[];
+    const account={getInfo(p){assert.equal(this,account);accountCalls.push(p);return {accountId};}};
+    const n=native({
+      getPlayedTitleIdListByNpTitleId:p=>p.accountId===accountId?['played-set']:[],
+      getTitleIdListByNpTitleId:()=>[],
+      getTitleRecord:p=>p.accountId===accountId?{numUnlockedPlatinum:0,numUnlockedGold:0,numUnlockedSilver:1,numUnlockedBronze:4,progress:8}:{}
+    });
+    const required=[];
+    h.T.require=id=>{required.push(id);
+      if(id===2578)return {fetchTitleData(){throw Error('stock service called');}};
+      if(id===210)return {TrophyAccessor:n.api};
+      if(id===8)return {User:{launchedUser:7}};
+      if(id===1009)return {Account:account};
+      throw Error('unexpected factory '+id);
+    };h.T.require.c={};
+    const data=await h.trophyFetcher().fn({npTitleId:'PPSA02530_00'});
+    assert.deepEqual(accountCalls,[{userId:7}]);assert(required.includes(1009));
+    assert.equal(data.progress,8);assert.deepEqual(data.earnedTrophies,{platinum:0,gold:0,silver:1,bronze:4});
+    for(const [method,params]of n.calls)if(method==='getPlayedTitleIdListByNpTitleId'||method==='getTitleRecord')assert.equal(params.accountId,accountId);
+    assert.equal(n.calls.at(-1)[0],'deleteAccessor');assert.equal(h.timers.size,0);
+  }
+  // A provided account is respected, and native IDs are isolated by user.
+  {
+    const h=harness(),seen=[],n=native();
+    const account={getInfo:({userId})=>{seen.push(userId);return {accountId:userId===7?'9007199254740993':'9007199254740995'};}};
+    const fetch=h.trophyOfflineFetcher(n.api,{launchedUser:7},account);
+    await fetch({npTitleId:'PPSA00001_00'});await fetch({npTitleId:'PPSA00002_00',userId:8});
+    await fetch({npTitleId:'PPSA00003_00',accountId:'123'});
+    assert.deepEqual(seen,[7,8]);
+    assert.deepEqual(n.calls.filter(c=>c[0]==='getTitleRecord').map(c=>c[1].accountId),['9007199254740993','9007199254740995','123']);
+  }
+  // Unsupported/invalid account information retains Sony's 'me' fallback;
+  // numbers are not accepted because precision may already have been lost.
+  for(const info of [{},{accountId:9007199254740992},{accountId:'0'},{accountId:'invalid'}]){
+    const h=harness(),n=native();
+    await h.trophyOfflineFetcher(n.api,{launchedUser:1},{getInfo:()=>info})({npTitleId:'PPSA00001_00'});
+    assert.equal(n.calls.find(c=>c[0]==='getTitleRecord')[1].accountId,'me');assert.equal(h.timers.size,0);
+  }
+  // A pending identity request expires before the queue watchdog; a late
+  // identity reply cannot change the account of an in-flight native read.
+  {
+    const h=harness(),n=native(),r=deferred();
+    const result=h.trophyOfflineFetcher(n.api,{launchedUser:1},{getInfo:()=>r.promise})({npTitleId:'PPSA00001_00'});
+    await flush();assert.equal(n.calls.length,0);
+    h.advance(600);await flush();await result;
+    assert.equal(n.calls.find(c=>c[0]==='getTitleRecord')[1].accountId,'me');
+    const count=n.calls.length;r.resolve({accountId:'9007199254740993'});await flush();assert.equal(n.calls.length,count);
+    assert.equal(h.timers.size,0);
+  }
   // Reproduce the affected played title with nonzero local records. The
   // stock service chooses its own online mode and is deliberately unusable.
   {
@@ -156,6 +208,6 @@ async function main(){
     await flush();h.advance(1200);await flush();await rejected;
     r.resolve(n.cursor);await flush();assert.deepEqual(n.events,['close']);assert.equal(h.timers.size,0);
   }
-  console.log('Offline trophy tests passed: earned records, catalog fallback, platform/ambiguity checks, user isolation, cursor cleanup, timeouts and late replies.');
+  console.log('Offline trophy tests passed: native account identity, 64-bit IDs, earned records, catalog fallback, isolation, cleanup, timeouts and late replies.');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
