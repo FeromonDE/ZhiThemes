@@ -5,7 +5,7 @@ assert(start>=0 && end>start);
 function harness(){
   let now=0,id=0;const timers=new Map(),logs=[],T={done:{}};
   const methods=new Function('T','APP','THEME','log','setTimeout','clearTimeout','globalThis','hubTitleId','fetchTrophies','Date',
-    source.slice(start,end)+'\nreturn {trophyOfflineFetcher,trophyErrorText,trophyFetcher};')(
+    source.slice(start,end)+'\nreturn {trophyOfflineFetcher,trophyErrorText,trophyFetcher,trophyGameNames};')(
       T,'hub',{fakeTrophies:true},s=>logs.push(s),
       (fn,ms)=>{timers.set(++id,{fn,time:now+ms});return id;},n=>timers.delete(n),{},()=>'',()=>{}, {now:()=>now});
   return {...methods,T,timers,logs,advance(ms){now+=ms;for(const [n,t]of [...timers])if(t.time<=now){timers.delete(n);t.fn();}}};
@@ -96,6 +96,66 @@ async function main(){
     const cycle={message:'TrophyHelperError',error:{code:'TEST_CODE'}};cycle.error.cause=cycle;
     assert(h.trophyErrorText(cycle).includes('TEST_CODE'));
   }
-  console.log('Offline trophy tests passed: nonzero records, no online chooser, cleanup, late handles, timeouts and native errors.');
+  // The real affected case: both NP mappings are empty, but the native
+  // Trophies catalog contains the PS5 record shown in the user's screenshot.
+  const conf={titleId:'20:NPWR99999_00',name:'Прагмата',platforms:['prospero'],numGold:4,numSilver:10,numBronze:23};
+  function catalogNative(rows, overrides={}){
+    const events=[];
+    const cursor={read(limit){assert.equal(this,cursor);assert.equal(limit,10000);events.push('read');return rows;},close(){assert.equal(this,cursor);events.push('close');}};
+    const n=native({getPlayedTitleIdListByNpTitleId:()=>[],getTitleIdListByNpTitleId:()=>[],
+      getTitleConfList:()=>cursor,getTitleConf:p=>{assert.equal(p.titleId,conf.titleId);return conf;},
+      getTitleRecord:p=>{assert.equal(p.titleId,conf.titleId);return {numUnlockedPlatinum:0,numUnlockedGold:0,numUnlockedSilver:1,numUnlockedBronze:4,progress:8};},
+      ...overrides});
+    return {...n,events,cursor};
+  }
+  function metadata(h){
+    h.trophyGameNames(JSON.stringify([{id:'PPSA02530',name:'PRAGMATA'},{id:'PPSA00002',name:'Other game'}]));
+    h.trophyGameNames(JSON.stringify([{id:'PPSA02530',name:'Прагмата'}]));
+  }
+  {
+    const h=harness();metadata(h);
+    const n=catalogNative([{...conf,titleId:'10:NPWR99999_00',platforms:['ps4']},conf]);
+    const fetch=h.trophyOfflineFetcher(n.api,{launchedUser:452565539});
+    const data=await fetch({npTitleId:'PPSA02530_00'});
+    assert.deepEqual(data.earnedTrophies,{platinum:0,gold:0,silver:1,bronze:4});assert.equal(data.progress,8);
+    assert.deepEqual(n.events,['read','close']);assert.equal(n.calls.at(-1)[0],'deleteAccessor');
+    await fetch({npTitleId:'PPSA02530'});
+    assert.equal(n.calls.filter(c=>c[0]==='getTitleConfList').length,1,'reuse definitions, not earned counts');
+    assert.equal(n.calls.filter(c=>c[0]==='getTitleRecord').length,2);
+    await fetch({npTitleId:'PPSA02530',userId:7});
+    assert.equal(n.calls.filter(c=>c[0]==='getTitleConfList').length,2,'catalog is scoped to user');
+    assert.equal(h.timers.size,0);
+  }
+  // Wrong platform, a similar name, and two PS5 sets must never select a
+  // convenient record merely because it has earned trophies.
+  for(const rows of [
+    [{...conf,platforms:['ps4']}],
+    [{...conf,name:'Прагмата Demo'}],
+    [conf,{...conf,titleId:'20:NPWR88888_00'}]
+  ]){
+    const h=harness();metadata(h);const n=catalogNative(rows);
+    await assert.rejects(h.trophyOfflineFetcher(n.api,{launchedUser:1})({npTitleId:'PPSA02530_00'}),/catalog: [02] matches/);
+    assert(!n.calls.some(c=>c[0]==='getTitleRecord'));assert.deepEqual(n.events,['read','close']);
+    assert.equal(n.calls.at(-1)[0],'deleteAccessor');assert.equal(h.timers.size,0);
+  }
+  // A stuck catalog read closes its cursor before releasing the accessor.
+  {
+    const h=harness();metadata(h);const r=deferred(),n=catalogNative([]);
+    n.cursor.read=()=>r.promise;
+    const result=h.trophyOfflineFetcher(n.api,{launchedUser:1})({npTitleId:'PPSA02530_00'});
+    const rejected=assert.rejects(result,/read: timeout/);
+    await flush();h.advance(1200);await flush();await rejected;
+    assert.deepEqual(n.events,['close']);assert.equal(n.calls.at(-1)[0],'deleteAccessor');
+    r.resolve([conf]);await flush();assert(!n.calls.some(c=>c[0]==='getTitleRecord'));assert.equal(h.timers.size,0);
+  }
+  // A catalog cursor created after its timeout is still closed once.
+  {
+    const h=harness();metadata(h);const r=deferred(),n=catalogNative([], {getTitleConfList:()=>r.promise});
+    const result=h.trophyOfflineFetcher(n.api,{launchedUser:1})({npTitleId:'PPSA02530_00'});
+    const rejected=assert.rejects(result,/getTitleConfList: timeout/);
+    await flush();h.advance(1200);await flush();await rejected;
+    r.resolve(n.cursor);await flush();assert.deepEqual(n.events,['close']);assert.equal(h.timers.size,0);
+  }
+  console.log('Offline trophy tests passed: earned records, catalog fallback, platform/ambiguity checks, user isolation, cursor cleanup, timeouts and late replies.');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

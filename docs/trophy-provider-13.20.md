@@ -61,3 +61,45 @@ A missing record is not substituted with zero earned counts.
 mode, launched-user selection, cleanup, error codes, late handle creation,
 and stalled operations with controlled native-service replies. Hardware
 verification remains necessary.
+
+## Native Trophies catalog fallback in build 382
+
+The build 381 log reports `local trophy title not found` for PPSA02530
+with and without `_00`, while the user's native Trophies screen displays a
+PS5 set with 8%, one silver and four bronze. Forcing offline mode did not
+resolve the missing NP-title mapping. The exact reason that index has no
+entry is not established by the available dumps/logs.
+
+The supplied NPXS40025 Trophies app is Hermes v89, source hash
+`64cea6a0515f212c1e75066dbffb6ab6c126b621`. Its actual catalog path is:
+
+| Bytecode function | Verified behavior |
+| --- | --- |
+| 803 | `getTitleConfList({accessorId,accountId,cancelToken})` returns a cursor; calls `read(10000)`, then `close()` |
+| 814/815 | `getTitleRecordList` has the same cursor contract; records are indexed by `titleId` |
+| 3417 onward | Main list reads definition and record cursors, joins by `titleId`, closes both |
+| 14189 | Renders definition `name`, `iconUri`, `platforms` and record `progress`, `numUnlocked*` |
+| 1778 | Platform values are `ps3`, `psp2`, `ps4`, `prospero` (PS5), `pspc` |
+
+The theme uses the already verified hub TrophyAccessor, with no new module
+number guess. Only when the NP-title mappings return empty arrays does it
+read the catalog using the verified cursor signature. It selects exactly
+one distinct trophy `titleId` whose full name matches a current installed
+game name and whose platforms include the requested game's platform. Name
+normalization folds case/whitespace and trademark symbols; no fuzzy title,
+substring, progress, ID-prefix or "first earned set" selection is performed.
+Localized Home names and file metadata names are relayed by ID, rather than
+borrowing the name of the current focus. Two matching PS5 sets are rejected.
+Names that differ beyond the limited normalization remain unmatched.
+
+Once matched, configuration and the current user's record are read by the
+catalog's actual trophy `titleId`. Only definitions are cached for 20 seconds,
+scoped to user/account; earned counts are read again. Cursors are closed
+before accessor deletion, including failed reads, malformed cursor replies
+with a close method, and late cursor creation. Calls plus normal cleanup
+fit inside the outer queue watchdog.
+
+Tests reproduce empty mappings plus the screenshot's nonzero counts, reject
+wrong-platform/similar/duplicate names, check current per-ID metadata and
+user isolation, and exercise stalled/late cursor replies. These are simulated
+native replies; matching on the user's console is still unverified.

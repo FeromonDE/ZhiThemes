@@ -2983,15 +2983,19 @@ void deliver_hub_request(unsigned ctx) {
   /* the trophy requests are for a game hub */
   if (media)
     return;
-  std::string id;
+  std::string id, games, files;
   {
     std::lock_guard<std::mutex> lock(g_name_lock);
     id.swap(g_hub_trophy_req);
+    if (id.empty())
+      return;
+    games = g_games_all;
+    auto it = g_hub_data.find("allgames");
+    if (it != g_hub_data.end())
+      files = it->second;
   }
-  if (id.empty())
-    return;
   const std::string src = ascii_js("globalThis.__themeTrophyAsk && globalThis.__themeTrophyAsk('" +
-                                   js_quote(id) + "');");
+                                   js_quote(id) + "','" + js_quote(games) + "','" + js_quote(files) + "');");
   MonoDomain *domain = mono_domain_get();
   void *args[2] = {mono_string_new(domain, src.c_str()), mono_string_new(domain, "theme-ask.js")};
   MonoObject *exc = nullptr;

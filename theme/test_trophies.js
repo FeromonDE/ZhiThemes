@@ -248,6 +248,19 @@ assert(localArgs.join(',')==='PPSA02530_00,PPSA00002_00','correct NP IDs passed 
 assert(localRequires.join(',')==='2578,210','verified service and optional native API checked without probing arbitrary factories');
 assert(!verified.timers.size,'service completion clears watchdogs');
 
+// The native relay carries current per-ID names in two escaped JSON strings:
+// localized Home metadata and the files' default-language names. Focus changes
+// and folder prefetch must not attach one game's name to its neighbour.
+const named=makeHub(()=>immediate(trophyData));
+named.global.__themeTrophyAsk('PPSA02530,PPSA00002',
+  JSON.stringify([{id:'PPSA02530',name:'Прагмата'},{id:'PPSA00002',name:'Other "game"'}]),
+  JSON.stringify([{id:'PPSA02530',name:'PRAGMATA'}]));
+assert(named.state.trophyNames.PPSA02530.join('|')==='Прагмата|PRAGMATA','both language names attached to requested ID');
+assert(named.state.trophyNames.PPSA00002[0]==='Other "game"','quoted names preserved');
+named.global.__themeTrophyAsk('',JSON.stringify([{id:'PPSA02530',name:'New name'}]),'bad JSON');
+assert(named.state.trophyNames.PPSA02530.join('|')==='New name','removed/replaced metadata is not reused');
+assert(!named.state.trophyNames.PPSA00002,'old names expire with the metadata snapshot');
+
 // Loading the wrong module shape must never call an arbitrary anonymous
 // UI export. Verified legacy 9.60 progress remains available as fallback.
 let unrelatedCalls=0, legacyCalls=0;

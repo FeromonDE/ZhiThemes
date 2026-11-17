@@ -2,7 +2,13 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 381
+## Unreleased — build 382
+
+- If the local NP-title mapping is empty, read the native Trophies title catalog and select a unique full-name match on the same platform (PS5 uses `prospero`). Ambiguous or unmatched sets remain errors rather than fabricated zero progress.
+- Relay localized Home names and installed-file names by game ID, including prefetched neighbours; cache catalog definitions briefly per user, while reading earned counts afresh.
+- Bound catalog calls and close cursors/accessors on failure, timeout and late completion. Keep existing queue recovery, per-game responses, reflection and Assets backup changes.
+
+## Build 381
 
 - Read trophy records through a private offline TrophyAccessor instead of letting the stock helper choose online mode.
 - Preserve earned counts for unsynced games, retry later title mappings when an earlier mapping fails, and close native handles on errors/timeouts (including late create replies).

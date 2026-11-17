@@ -9620,6 +9620,22 @@
     var v = T.trophyCache && T.trophyCache[id];
     return trophyValue(v) ? v : null;
   }
+  function trophyNameKey(name) {
+    return typeof name === 'string' ? name.replace(/[\u2122\u00ae\u00a9]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() : '';
+  }
+  /* Metadata is attached to each Home request, never inferred from whichever
+     tile happens to be focused when an asynchronous answer arrives. */
+  function trophyGameNames(text) {
+    var games;
+    try { games = JSON.parse(text); } catch (e) { return; }
+    if (!Array.isArray(games)) return;
+    games.slice(0, 10000).forEach(function (g) {
+      if (!g || !/^[A-Z]{4}\d{5}$/.test(g.id) || typeof g.name !== 'string' || g.name === g.id) return;
+      var names = (T.trophyNames = T.trophyNames || {})[g.id] || [];
+      if (names.indexOf(g.name) < 0 && names.length < 8) names.push(g.name);
+      T.trophyNames[g.id] = names;
+    });
+  }
   /* Observe exports of loaded modules; never execute arbitrary factories to
      guess a new firmware's module numbers. */
   function trophyFetchExport(exp, legacy) {
@@ -9680,21 +9696,27 @@
     var methods = ['createAccessor', 'deleteAccessor', 'getPlayedTitleIdListByNpTitleId', 'getTitleConf', 'getTitleRecord'];
     if (!api || !user) return null;
     for (var k = 0; k < methods.length; k++) if (typeof api[methods[k]] !== 'function') return null;
+    var catalogCache;
     return function (args) {
-      var accessor, opened = false, deadline = Date.now() + 2400;
-      var call = function (method, params, cleanup) {
+      var accessor, opened = false, list, deadline = Date.now() + 2200;
+      var userId = args.userId === undefined ? user.launchedUser : args.userId;
+      var accountId = args.accountId === undefined ? 'me' : args.accountId;
+      var call = function (method, params, cleanup, owner) {
         return new Promise(function (resolve, reject) {
+          if (!cleanup && Date.now() >= deadline) return reject(new Error(method + ': deadline'));
           var settled = false;
           var timer = setTimeout(function () {
             settled = true;
             reject(new Error(method + ': timeout'));
-          }, cleanup ? 500 : Math.max(1, Math.min(1200, deadline - Date.now())));
-          Promise.resolve().then(function () { return api[method](params); }).then(function (result) {
+          }, cleanup ? 250 : Math.max(1, Math.min(1200, deadline - Date.now())));
+          Promise.resolve().then(function () { return (owner || api)[method](params); }).then(function (result) {
             if (settled) {
               /* A timed-out create still owns a native handle if it completes
                  late. Do not leave it allocated after the queue moved on. */
               if (method === 'createAccessor' && result != null)
                 call('deleteAccessor', { accessorId: result }, true).catch(function (e) { log('trophies cleanup: ' + trophyErrorText(e)); });
+              if (method === 'getTitleConfList' && result && typeof result.close === 'function')
+                call('close', undefined, true, result).catch(function (e) { log('trophies cleanup: ' + trophyErrorText(e)); });
               return;
             }
             settled = true;
@@ -9708,20 +9730,64 @@
           });
         });
       };
+      var closeList = function () {
+        var cursor = list;
+        list = null;
+        if (!cursor) return Promise.resolve();
+        return call('close', undefined, true, cursor).catch(function (e) { log('trophies cleanup: ' + trophyErrorText(e)); });
+      };
       var release = function (value, error) {
         var finish = function () { if (error) throw error; return value; };
-        if (!opened) return finish();
-        opened = false;
-        return call('deleteAccessor', { accessorId: accessor }, true).then(finish, function (e) {
-          log('trophies cleanup: ' + trophyErrorText(e));
-          return finish();
+        return closeList().then(function () {
+          if (!opened) return finish();
+          opened = false;
+          return call('deleteAccessor', { accessorId: accessor }, true).then(finish, function (e) {
+            log('trophies cleanup: ' + trophyErrorText(e));
+            return finish();
+          });
         });
       };
       var query = function (method) {
         return call(method, { accessorId: accessor, npTitleId: args.npTitleId,
-                              accountId: args.accountId === undefined ? 'me' : args.accountId });
+                              accountId: accountId });
       };
-      return call('createAccessor', { userId: args.userId === undefined ? user.launchedUser : args.userId,
+      /* NPXS40025 functions 803/814 read a {read,close} cursor (not an
+         array returned by getTitleConfList). Records join on titleId.
+         Use its catalog if the NP-title index has no entry. Match a unique
+         full name AND platform; similar names or duplicate sets are unsafe. */
+      var catalog = function () {
+        var gameId = String(args.npTitleId || '').replace(/_00$/, '');
+        var names = ((T.trophyNames && T.trophyNames[gameId]) || []).map(trophyNameKey).filter(Boolean);
+        var platform = /^PPSA\d{5}$/.test(gameId) ? 'prospero' : /^CUSA\d{5}$/.test(gameId) ? 'ps4' : '';
+        if (!names.length || !platform || typeof api.getTitleConfList !== 'function')
+          throw new Error('local trophy title not found; catalog metadata unavailable');
+        var select = function (rows) {
+          var matches = [], seen = {};
+          rows.forEach(function (conf) {
+            if (!conf || typeof conf.titleId !== 'string' || seen[conf.titleId] ||
+                names.indexOf(trophyNameKey(conf.name)) < 0 || !Array.isArray(conf.platforms) ||
+                conf.platforms.indexOf(platform) < 0) return;
+            seen[conf.titleId] = true;
+            matches.push(conf);
+          });
+          if (matches.length !== 1) throw new Error('local trophy catalog: ' + matches.length + ' matches for ' + gameId);
+          log('trophies catalog ' + gameId + ': ' + matches[0].titleId + ' (' + platform + ')');
+          return [matches[0].titleId];
+        };
+        if (catalogCache && catalogCache.userId === userId && catalogCache.accountId === accountId &&
+            Date.now() - catalogCache.at < 20000) return select(catalogCache.rows);
+        return call('getTitleConfList', { accessorId: accessor, accountId: accountId }).then(function (cursor) {
+          if (cursor && typeof cursor.close === 'function') list = cursor;
+          if (!cursor || typeof cursor.read !== 'function' || typeof cursor.close !== 'function')
+            throw new Error('local trophy catalog: invalid cursor');
+          return call('read', 10000, false, cursor);
+        }).then(function (rows) {
+          if (!Array.isArray(rows) || rows.length >= 10000) throw new Error('local trophy catalog: incomplete list');
+          catalogCache = { userId: userId, accountId: accountId, at: Date.now(), rows: rows };
+          return closeList().then(function () { return select(rows); });
+        });
+      };
+      return call('createAccessor', { userId: userId,
                                       mode: 'offline' }).then(function (id) {
         if (id == null) throw new Error('createAccessor: missing handle');
         accessor = id;
@@ -9732,13 +9798,15 @@
           return query('getTitleIdListByNpTitleId');
         return ids;
       }).then(function (ids) {
-        if (!Array.isArray(ids) || !ids.length) throw new Error('local trophy title not found');
+        if (!Array.isArray(ids)) throw new Error('local trophy mapping: invalid reply');
+        return ids.length ? ids : catalog();
+      }).then(function (ids) {
         var read = function (index) {
           var id = ids[index], conf;
           return call('getTitleConf', { accessorId: accessor, titleId: id }).then(function (v) {
             conf = v;
             return call('getTitleRecord', { accessorId: accessor, titleId: id,
-                         accountId: args.accountId === undefined ? 'me' : args.accountId });
+                         accountId: accountId });
           }).then(function (record) {
             if (!conf || !record) throw new Error('local trophy conf/record missing');
             var names = ['Platinum', 'Gold', 'Silver', 'Bronze'], defined = {}, earned = {};
@@ -9945,7 +10013,10 @@
       trophyBusy = id;
       trophiesFor(id, function () { trophyBusy = ''; trophyNext(); });
     };
-    globalThis.__themeTrophyAsk = function (ids) {
+    globalThis.__themeTrophyAsk = function (ids, games, files) {
+      if (games || files) T.trophyNames = {};
+      if (games) trophyGameNames(games);
+      if (files) trophyGameNames(files);
       var wanted = [];
       String(ids || '').split(',').forEach(function (id) {
         id = id.trim();
