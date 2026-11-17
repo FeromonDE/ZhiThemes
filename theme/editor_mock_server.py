@@ -31,8 +31,7 @@ state = {'theme': THEME, 'log': ['js: hooks RunScript=1 ConsoleLog=1 name_field=
          'bgs': [], 'bgdata': {},
          # files by kind (wallpapers, icons, fonts), debug mode, saved logs
          'files': {'wallpapers': {}, 'icons': {}, 'fonts': {}, 'avatars': {}}, 'debug': False, 'sys': False,
-         'saved': {'previous.log': b'2026-10-30 10:00:00.000 +0.000  ==== ZhiThemes (mock) ====\n',
-                   'payload.log': b'2026-10-30 10:00:00  payload start\n'}}
+         'saved': {}}
 CUSTOM = os.environ.get('ZT_CUSTOMTILE', '')
 # game backgrounds next to it (<customtile>_bg)
 CUSTOMBG = CUSTOM + '_bg' if CUSTOM else ''

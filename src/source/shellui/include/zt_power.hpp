@@ -16,3 +16,6 @@ void zt_power_resolve(int handle);
 void zt_power_action(const char *what);
 /* UI thread, every frame (theme_tick) */
 void zt_power_tick();
+/* module thread, every 2 s (zt_sys_video.cpp): an A line when the power
+   state changes (rest mode, waking up, restart, off) */
+void zt_power_watch();

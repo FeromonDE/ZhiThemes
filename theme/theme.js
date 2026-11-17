@@ -655,8 +655,11 @@
   /* Settings and Trophies: only the "system screens" fields */
   var SYS_APP = APP === 'settings' || APP === 'trophy';
 
+  /* how many times this file ran in this JS context (health line): above 1
+     = a reload kept the context (and its timers) */
+  globalThis.__ztEvals = (globalThis.__ztEvals || 0) + 1;
   if (globalThis.__theme) return;
-  var T = globalThis.__theme = { done: {}, errors: 0, hooked: false, ctaStyles: [] };
+  var T = globalThis.__theme = { done: {}, doneN: {}, errors: 0, hooked: false, ctaStyles: [] };
   /* ZhiThemes off ("PS5 default" in Options > ZhiThemes, or a USB
      stick with ZhiThemes/no_theme): only the Home runs this file, with the
      factory values, and only adds Options menu > ZhiThemes (afterModule) */
@@ -673,10 +676,47 @@
     THEME.tabFavOn = false;
   }
 
-  function log(msg) {
-    try { console.log('THEME [' + APP + '] ' + msg); } catch (e) {}
+  /* one line in zhithemes.log; lvl = the level letter (E error, W warning,
+     A user action, D debug, H health; none = guessed by ZhiThemes) */
+  function log(msg, lvl) {
+    try { console.log('THEME [' + APP + '] ' + (lvl ? lvl + ' ' : '') + msg); } catch (e) {}
   }
+  function logE(msg) { log(msg, 'E'); }
+  /* flight recorder: short events (keys, testIDs seen for the first time,
+     so also each newly focused item) batched every 100 ms into one D line.
+     D lines go to zhithemes.log only with debug mode on; ZhiThemes always
+     keeps them in its recorder (pasted into the log after a crash). */
+  var bbQueue = [], bbTimer = null, bbIds = Object.create(null), bbIdCount = 0;
+  function bb(ev) {
+    if (bbQueue.length < 60) bbQueue.push(ev);
+    if (bbTimer) return;
+    bbTimer = setTimeout(function () {
+      bbTimer = null;
+      var q = bbQueue;
+      bbQueue = [];
+      if (q.length) log(q.join(' | '), 'D');
+    }, 100);
+  }
+  function bbTestId(id) {
+    if (bbIds[id] === 1 || bbIdCount > 5000) return;
+    bbIds[id] = 1;
+    bbIdCount++;
+    bb('new ' + id);
+  }
+  /* a long text in lines of up to 3000 characters ("name (2/4): ..."): a
+     log line holds up to 4 KB */
+  function logLong(name, text, lvl) {
+    var parts = Math.max(1, Math.ceil(text.length / 3000));
+    /* level I unless told: the guess would see "errors=0" or a field
+       name as a warning */
+    for (var i = 0; i < parts; i++)
+      log(name + (parts > 1 ? ' (' + (i + 1) + '/' + parts + ')' : '') + ': ' + text.slice(i * 3000, (i + 1) * 3000),
+          lvl || 'I');
+  }
+  /* first time: "applied: <name>"; every call is counted (the busiest ones
+     go in the health line) */
   function done(name) {
+    T.doneN[name] = (T.doneN[name] || 0) + 1;
     if (T.done[name]) return;
     T.done[name] = true;
     log('applied: ' + name);
@@ -1343,7 +1383,13 @@
       var entry = { id: me.current, bump: bump };
       me.current.on = true;
       list.push(entry);
-      if (list.length > 1 && !T.done['layer copies ' + slot]) done('layer copies ' + slot + ': ' + list.length);
+      /* logged only when it reaches a new most (the health line has the
+         count now) */
+      var most = T.copiesMost = T.copiesMost || {};
+      if (list.length > 1 && list.length > (most[slot] || 1)) {
+        most[slot] = list.length;
+        log('layer copies ' + slot + ': ' + list.length + ' (most so far)');
+      }
       list.forEach(function (x) { x.bump(function (n) { return n + 1; }); });
       return function () {
         var i = list.indexOf(entry);
@@ -1500,13 +1546,20 @@
     catch (e) { try { v.setValue(on ? 1 : 0); } catch (e2) {} }
   }
   /* the Media hub (apps) too: its poster name is the game title there */
-  if ((APP === 'hub' || APP === 'media') && hubTitleGated()) {
+  /* where the focus is (hub or Home row), asked every 150 ms: for the
+     gated title, and on older firmwares for their trophy card */
+  function hubFocusRelay150() {
+    if (T.hubFocusAsking) return;
+    T.hubFocusAsking = true;
     globalThis.__themeHubFocus = function (on) { hubTitleShow(!!on, on ? 'hub focused' : 'back on the Home'); };
     setInterval(function () { try { console.log('THEME-HUBASK ' + (globalThis.__ztHubId || '')); } catch (e) {} }, 150);
   }
+  if ((APP === 'hub' || APP === 'media') && hubTitleGated()) hubFocusRelay150();
   /* Home: the game hub page (not the Game/App Library) with isHubFocused */
   function hubFocusRelay(props) {
-    if (APP !== 'home' || !hubTitleGated() || !('isHubFocused' in props) || isLibraryUrl(props.hubUrl)) return;
+    /* also on older firmwares (Haul): their hub's old trophy card is shown
+       only in the hub view */
+    if (APP !== 'home' || !(hubTitleGated() || T.haul) || !('isHubFocused' in props) || isLibraryUrl(props.hubUrl)) return;
     var on = !!props.isHubFocused;
     if (T.hubFocusedNow === on) return;
     T.hubFocusedNow = on;
@@ -2344,15 +2397,15 @@
     if (!id) return null;
     /* unfocused, a square folder keeps its place (folderSquareView runs later in the jsx hook) */
     if (tileRatio() !== 1 && THEME.folders && folderVerticalStyle() === 'square')
-      try { folderSquareView(props); } catch (e) { T.errors++; log('folder square: ' + e); }
+      try { folderSquareView(props); } catch (e) { T.errors++; logE('folder square: ' + e); }
     /* the folder tile's keys (left/right in the open folder, back
        closes it) are on this view: set before it is made (returned it
        before the jsx hook got to folderTileKeys: the folder did not close) */
     if (THEME.folders || DEBUG.on)
-      try { folderTileKeys(props); } catch (e) { T.errors++; log('folder keys: ' + e); }
+      try { folderTileKeys(props); } catch (e) { T.errors++; logE('folder keys: ' + e); }
     /* this view goes out here, before the jsx hook's own pass */
     if (!PLAIN && props.focusable === true && typeof props.name === 'string' && props.name)
-      try { qrTileKeys(props); } catch (e) { T.errors++; log('about QR keys: ' + e); }
+      try { qrTileKeys(props); } catch (e) { T.errors++; logE('about QR keys: ' + e); }
     return fn(FocusShapeSlot, { id: id, el: fn.apply(self, args) }, args[2]);
   }
   /* jsx inside the <Tile />: image wrapper (testID experience-switcher-<ID>) */
@@ -2965,10 +3018,10 @@
       done('space around the focus');
     }
     if (APP === 'home' && THEME.rowWindow && s.selected0 && s.position0) {
-      try { rowWindow(s); } catch (e) { T.errors++; log('row window: ' + e); }
+      try { rowWindow(s); } catch (e) { T.errors++; logE('row window: ' + e); }
     }
     if (APP === 'home' && (THEME.tileEdgeFade || THEME.rowHideLeft) && s.selected0 && s.position0) {
-      try { edgeFade(s); } catch (e) { T.errors++; log('edge fade: ' + e); }
+      try { edgeFade(s); } catch (e) { T.errors++; logE('edge fade: ' + e); }
     }
     /* rowWindow: the hub view's small tile goes back to the stock place */
     if (APP === 'home' && THEME.rowWindow && s.minimizeExperience0) {
@@ -3001,7 +3054,7 @@
     var create = sheet.create;
     var replaced = function (s) {
       toMark = [];
-      try { styles(s); } catch (e) { T.errors++; log('styles: ' + e); }
+      try { styles(s); } catch (e) { T.errors++; logE('styles: ' + e); }
       var r = create.apply(this, arguments);
       /* create may return another object: the tabs one counts as well */
       if (s && r && typeof r === 'object' && s.spaceSwitcherItemText &&
@@ -3015,7 +3068,7 @@
         T.routeStyle2 = r.route;
       try {
         if (APP === 'home' && s && s.selected0 && s.position0) registerSelected(s, r);
-      } catch (e) { T.errors++; log('selected: ' + e); }
+      } catch (e) { T.errors++; logE('selected: ' + e); }
       /* create may return the same object or numbers: both are marked */
       toMark.forEach(function (p) {
         mark(p[1], s[p[0]]);
@@ -3392,10 +3445,19 @@
   function pressed(e) { return !e || !e.keyEventType || e.keyEventType === 'Down'; }
   function taken(e) { return !!(e && typeof e === 'object' && e.__zt); }
   function take(e) { if (e && typeof e === 'object') try { e.__zt = true; } catch (x) {} }
+  /* keys our handlers see: always into the flight recorder (in the log only
+     with debug mode on) */
   function keyLog(where, e) {
-    if (!DEBUG.on) return;
+    var text = 'key ' + where + ' ' + (e && e.keyEventType) + (taken(e) ? ' (taken)' : '');
+    /* one press reaches the same handler twice (two key props of one view):
+       once in the recorder */
+    var now = Date.now();
+    if (text === T.keyLogLast && (e === T.keyLogE || now - T.keyLogAt < 40)) return;
+    T.keyLogLast = text;
+    T.keyLogE = e;
+    T.keyLogAt = now;
     T.keyLogs = (T.keyLogs || 0) + 1;
-    if (T.keyLogs <= 60) log('key ' + where + ' type=' + (e && e.keyEventType) + (taken(e) ? ' (taken)' : ''));
+    if (T.keyLogs <= 3000) bb(text);
   }
   function focusIcon(pre) {
     var r = T.iconRefs && T.iconRefs[pre];
@@ -4953,15 +5015,42 @@
         T.favWaiting = true;
         (T.allWaiters = T.allWaiters || []).push(function () { T.favWaiting = false; refreshTitleRows(); });
       }
-    } else if (tab === 'zt_never') {
-      out = games.filter(function (r) { return !playedAt(r); });
     } else {
-      out = games.filter(function (r) { return playedAt(r) > 0; });
-      out.sort(function (a, b) { return playedAt(b) - playedAt(a); });
-      out = out.slice(0, Math.max(1, Math.floor(Number(THEME.tabRecentMax)) || 12));
+      /* the date of the record, else the one the Home's own row query
+         gave (notePlayed); older firmwares may leave it out of our query */
+      var when = function (r) { return playedAt(r) || (T.played && T.played[r.titleId]) || 0; };
+      if (!T.done['tab dates ' + tab]) {
+        var own = games.filter(function (r) { return playedAt(r) > 0; }).length;
+        var c0 = games[0] && games[0].conceptInfo;
+        done('tab dates ' + tab + ': ' + own + ' of ' + games.length + ' with a date, ' +
+             games.filter(function (r) { return when(r) > 0; }).length + ' with the row\'s dates' +
+             (games[0] ? ' (keys ' + Object.keys(games[0]).join(',').slice(0, 160) +
+                         (c0 && typeof c0 === 'object' ? '; conceptInfo ' + Object.keys(c0).join(',').slice(0, 160) : '') + ')' : ''));
+      }
+      if (tab === 'zt_never') {
+        out = games.filter(function (r) { return !when(r); });
+      } else {
+        out = games.filter(function (r) { return when(r) > 0; });
+        out.sort(function (a, b) { return when(b) - when(a); });
+        out = out.slice(0, Math.max(1, Math.floor(Number(THEME.tabRecentMax)) || 12));
+      }
     }
     (T.tabEmpty = T.tabEmpty || {})[tab] = !out.length;
     favEmptyUpdate();
+    /* an empty row is never drawn right; on older Homes (4.03) an empty
+       tab took the whole Home with it. The library record may not come in
+       this query there: a copy of any record stands in as the (hidden)
+       Game Library tile */
+    if (!out.length && !lib) {
+      var any = null;
+      for (var ai = 0; ai < items.length && !any; ai++) if (items[ai] && typeof items[ai] === 'object') any = items[ai];
+      if (any) {
+        lib = {};
+        for (var lk in any) lib[lk] = any[lk];
+        lib.titleId = 'NPXS40071';
+        if (!T.done['tab stand-in tile']) done('tab stand-in tile (' + tab + ')');
+      }
+    }
     if (lib && !out.length) out.push(lib);
     T.tabRows[out.map(function (r) { return r.titleId; }).join(',')] = tab;
     var line = tab + ': ' + out.length + ' of ' + items.length + ' titles';
@@ -5155,6 +5244,29 @@
     if ((cur === 'game' && next === 'media') || (cur === 'media' && next === 'game')) return null;
     return next;
   }
+  /* a tab change closes the open folder: back in its tab the strip is not
+     drawn, but T.folderOpen still said open, so X on the folder went to
+     stripLaunch (nothing) until O closed it (6.02) */
+  function tabLeftFolder(old, space) {
+    if (!T.folderOpen || old === space) return;
+    log('folder: tab ' + old + ' -> ' + space + ', open folder closed');
+    /* only the state: folderOpenSet('') also puts the folder's background
+       back, which the new tab must not get */
+    T.folderOpen = '';
+    T.folderInStrip = false;
+    T.stripIdx = 0;
+    setTimeout(folderChanged, 0);
+  }
+  /* L1/R1 presses (from which tab, to which; "next tab (by the Home)" =
+     left to the Home's own handler, which only knows Games <-> Media) */
+  var tabKeyLogs = 0;
+  function tabKeyLog(key, e, next) {
+    if (tabKeyLogs >= 3000 || !e || e.keyEventType === 'Repeat') return;
+    tabKeyLogs++;
+    /* flight recorder (D); the tab order only on the first one */
+    bb('key ' + key + ' at ' + (T.tabSel || T.space || '?') + ' -> ' + (next || 'next tab (by the Home)') +
+       (tabKeyLogs === 1 ? ' (order ' + spaceOrder().join(',') + ')' : ''));
+  }
   function hookSpaceFocus(exp) {
     var use = exp && exp.useSpaceFocus;
     if (APP !== 'home' || !extraTabs().length || typeof use !== 'function' || use.__theme) return;
@@ -5167,7 +5279,11 @@
       /* the new tab at once (a second quick press starts from it);
          the bar's own render then sees nothing new */
       var old = T.tabSel || T.space;
+      tabLeftFolder(old, space);
       T.space = space;
+      /* the bar's render (tabSeen) will find T.tabSel already moved: the
+         change is logged here */
+      if (old && old !== space) tabAction(old, space);
       if (T.tabSel && old !== space) {
         T.tabSel = space;
         try { spaceMoved(old, space); } catch (e) {}
@@ -5188,10 +5304,12 @@
           cache.value = {
             right: function (e) {
               var next = e && e.keyEventType === 'Down' ? tabNeighbour(1) : null;
+              tabKeyLog('R1', e, next);
               return next ? move(go, next) : right.apply(this, arguments);
             },
             left: function (e) {
               var next = e && e.keyEventType === 'Down' ? tabNeighbour(-1) : null;
+              tabKeyLog('L1', e, next);
               return next ? move(go, next) : left.apply(this, arguments);
             }
           };
@@ -5302,6 +5420,12 @@
      each time ("refresh" 2-3 times) and L1/R1 started from the wrong tab
      ("blocked" until pressed again). The tab change animation, the worm and
      L1/R1 follow this one only. */
+  /* a tab change (native tabs: tabSeen; the extra tabs zt_recent / zt_fav
+     / zt_never: the L1/R1 move): one "A tab" line + the health count */
+  function tabAction(from, to) {
+    T.tabChanges = (T.tabChanges || 0) + 1;
+    log('tab ' + from + ' -> ' + to, 'A');
+  }
   function tabSeen(props) {
     if (APP !== 'home' || typeof props.name !== 'string' || props.name.indexOf('space-switcher-') !== 0 ||
         props.focusable !== true)
@@ -5312,10 +5436,12 @@
     if (!T.homeReady) setTimeout(function () { homeReadySet('tabs'); }, 0);
     if (T.tabSel === sid) return;
     var old = T.tabSel;
+    if (old) tabLeftFolder(old, sid);
     T.tabSel = sid;
     T.space = sid;
     if (old) try { spaceMoved(old, sid); } catch (e) { log('tab animation: ' + e); }
     if (old) lagProbe('tab change ' + old + ' -> ' + sid, 'tabLagLogs');
+    if (old) tabAction(old, sid);
     favEmptyUpdate();
   }
   /* how busy the JS thread is for 1 s after a tab or game change: a 16 ms
@@ -5937,6 +6063,12 @@
         try {
           var id = a && a.item && a.item.id;
           if (typeof id === 'string') T.lastSelId = id;
+          /* flight recorder: each new focused tile of the row */
+          if (typeof id === 'string' && id !== T.bbFocusId) {
+            T.bbFocusId = id;
+            bb('focus ' + id + (a && typeof a.index === 'number' ? ' (' + (a.index + 1) + ')' : '') +
+               ' in ' + (T.tabSel || T.space || '?'));
+          }
           /* rowWindow: the hub view's small tile follows where the focus stands */
           if (THEME.rowWindow && a && typeof a.index === 'number') rowWindowFocus(a.index);
           /* the focused tile's shape follows the focus */
@@ -6521,10 +6653,12 @@
       if (it && hide.ids[it.id]) { gone.push(it.id); return false; }
       return true;
     }).map(function (it) {
-      if (!it || !Array.isArray(it.subItems)) return it;
+      /* subItems (Home's list) or subMenu (native records, older Homes) */
+      var key = it && Array.isArray(it.subItems) ? 'subItems' : it && Array.isArray(it.subMenu) ? 'subMenu' : '';
+      if (!key) return it;
       var c = {};
       for (var k in it) c[k] = it[k];
-      c.subItems = menuFilter(it.subItems, hide, gone);
+      c[key] = menuFilter(it[key], hide, gone);
       return c;
     });
   }
@@ -6538,6 +6672,12 @@
       if (q && typeof q.titleId === 'string') {
         T.menuTitleId = q.titleId;
         if (!T.done['native options menu']) done('native options menu (' + q.titleId + ')');
+      }
+      var self = this, args = arguments;
+      /* Home of an older firmware: the theme's items come in here */
+      if (APP === 'home' && T.haul && !T.menuFetchHooked && q && typeof q.titleId === 'string') {
+        if (!T.done['options menu items (native)']) done('options menu items (native)');
+        return composeMenu(q.titleId, function () { return orig.apply(self, args); }, nativeMenuItems);
       }
       return orig.apply(this, arguments);
     };
@@ -6571,6 +6711,7 @@
       var tileId = props.name, onFocus = props.onFocus;
       var f = function () {
         T.libFocusId = tileId;
+        if (tileId !== T.bbFocusId) { T.bbFocusId = tileId; bb('focus ' + tileId + ' in library'); }
         return onFocus.apply(this, arguments);
       };
       f.__ztLib = true;
@@ -7108,14 +7249,15 @@
                         'Copy logs to USB' + (tools.usb ? '' : ' (no USB stick)'), 'ztthemes:tool?logs');
     if (!tools.usb || busy) logs.disabled = true;
     t.push(logs);
-    /* screen dump: 1st time it turns the dump on (the apps are dumped as
-       they open), 2nd time the files go to the stick and it goes off */
-    if (!off) {
-      var dumping = !!THEME.screenDump && !globalThis.__ztDiag;
-      var dump = menuItem('zt-t-dump', busy === 'dump' ? 'Copying the screen dump...' :
-                          dumping ? 'Screen dump to USB (' + (tools.dumpFiles || 0) + ' files)' + (tools.usb ? '' : ' (no USB stick)') :
-                          'Screen dump to USB (start)', dumping || globalThis.__ztDiag ? 'ztthemes:tool?dump' : 'ztthemes:tool?dumpon');
-      if (busy || ((dumping || globalThis.__ztDiag) && !tools.usb)) dump.disabled = true;
+    /* the diagnostic build only: its screen dump and the decrypted app
+       bundles (Dumps/<fw>/: the dump is always on there) to the stick.
+       The normal build has only the logs (the problem report is made in
+       the editor's Logs tab) */
+    if (globalThis.__ztDiag) {
+      var dump = menuItem('zt-t-dump', busy === 'dump' ? 'Copying the dumps...' :
+                          'Screen dump + decrypted apps to USB (' + (tools.dumpFiles || 0) + ' files)' +
+                          (tools.usb ? '' : ' (no USB stick)'), 'ztthemes:tool?dump');
+      if (busy || !tools.usb) dump.disabled = true;
       t.push(dump);
     }
     out.push(['zt-tools', '🛠 Tools', t]);
@@ -7158,7 +7300,7 @@
   function themesAction(url) {
     var m = /^ztthemes:(\w+)\??(.*)$/.exec(url);
     if (!m || m[1] === 'none') return;
-    log('theme menu: ' + url);
+    log('theme menu: ' + url, 'A');
     if (m[1] === 'qr') { aboutQrOpen(m[2] === 'github' ? 'github' : 'kofi'); return; }
     var q = m[1] === 'qset' ? /^(\w+),([01])$/.exec(m[2]) : null;
     var cmd = m[1] === 'use' ? 'THEME-THEMEUSE ' + m[2] : m[1] === 'off' ? 'THEME-THEMEOFF' :
@@ -7333,6 +7475,14 @@
       return;
     }
     if (cmd === 'renamekb') {
+      /* older firmwares (Haul Home): the native TextField + keyboard took
+         ShellUI down right after the keyboard opened (6.02); the web editor
+         renames the folder there */
+      if (T.haul) {
+        log('folder rename: keyboard not used on this firmware, web editor instead');
+        setTimeout(function () { showToast('Rename it in the web editor: Folders (port 4444)'); }, 400);
+        return;
+      }
       var rp = folderPart(folderParts(), a[0]);
       var cur = rp ? rp.head.split('|')[0].trim() : '';
       /* after the menu has closed; the answer comes as data 'zt-rename' */
@@ -7397,40 +7547,60 @@
                               cmd === 'left' || cmd === 'right' ? 'Folder moved' : 'Moved');
     folderSave(parts, cmd + ' ' + m[2], select || p);
   }
+  /* the items of a tile's Options menu: ZhiThemes on top, the folder /
+     favourite / theme items after the system's (hidden ones taken out).
+     getNative() gives the system's list (a promise). own(list) turns the
+     theme's items into the format of that list (identity on 9.60). */
+  function composeMenu(titleId, getNative, own) {
+    var folderOn = !PLAIN && folderMenuOn();
+    /* Options > ZhiThemes on top */
+    var top = [];
+    try { aboutQrSet(false); top = [themesMenuItem()]; } catch (e) { log('theme menu error: ' + e); }
+    if (folderOn && typeof titleId === 'string' && titleId.indexOf(FOLDER) === 0) {
+      var mine = top.concat(folderMenuItems(titleId), customMenuItems(titleId));
+      log('options menu: folder ' + titleId + ' (' + mine.length + ' items)');
+      return Promise.resolve(own(mine));
+    }
+    var extra = PLAIN ? [] : (folderOn ? gameMenuItems(titleId) : []).concat(customMenuItems(titleId), favMenuItems(titleId));
+    var hide = PLAIN ? { any: false, ids: {} } : menuHidden();
+    var native = getNative();
+    if (!top.length && !extra.length && !hide.any) return native;
+    if (extra.length) log('options menu: ' + titleId + ' + ' + extra.length + ' folder items');
+    return Promise.resolve(native).then(function (items) {
+      var gone = [];
+      var list = Array.isArray(items) ? (hide.any ? menuFilter(items, hide, gone) : items) : [];
+      if (!T.done['options menu ids']) {
+        done('options menu ids (' + (Array.isArray(items) ? items.map(function (i) { return i && i.id; }).join(', ') : typeof items) + ')');
+      }
+      if (gone.length && !T.done['options menu items removed']) done('options menu items removed (' + gone.join(', ') + ')');
+      return own(top).concat(list, own(extra));
+    }, function (e) {
+      log('options menu: native options of ' + titleId + ' failed: ' + e);
+      return own(top.concat(extra));
+    });
+  }
+  /* older Homes (4.03) have no fetchExperienceOptionsByTitleId: the menu
+     reads OptionMenu.getOptionMenu({titleId}) straight away and maps its
+     records {id, label, enable, actionId, actionUrl, messageId, subMenu};
+     the theme's items go in in that format */
+  function nativeMenuItems(list) {
+    return (list || []).map(function (i) {
+      if (!i || typeof i !== 'object') return i;
+      return { id: i.id, label: i.label, enable: !i.disabled, actionId: i.actionId == null ? null : i.actionId,
+               actionUrl: i.actionUrl == null ? null : i.actionUrl,
+               subMenu: Array.isArray(i.subItems) ? nativeMenuItems(i.subItems) : null };
+    });
+  }
   function hookOptionsMenu(exp) {
     if (APP !== 'home' || !exp) return;
     var fetchFn = exp.fetchExperienceOptionsByTitleId;
     if (typeof fetchFn === 'function' && !fetchFn.__theme) {
       var fetchWrapped = function (titleId) {
-        var folderOn = !PLAIN && folderMenuOn();
-        /* Options > ZhiThemes on top */
-        var top = [];
-        try { aboutQrSet(false); top = [themesMenuItem()]; } catch (e) { log('theme menu error: ' + e); }
-        if (folderOn && typeof titleId === 'string' && titleId.indexOf(FOLDER) === 0) {
-          var own = top.concat(folderMenuItems(titleId), customMenuItems(titleId));
-          log('options menu: folder ' + titleId + ' (' + own.length + ' items)');
-          return Promise.resolve(own);
-        }
-        var extra = PLAIN ? [] : (folderOn ? gameMenuItems(titleId) : []).concat(customMenuItems(titleId), favMenuItems(titleId));
-        var hide = PLAIN ? { any: false, ids: {} } : menuHidden();
-        var native = fetchFn.apply(this, arguments);
-        if (!top.length && !extra.length && !hide.any) return native;
-        if (extra.length) log('options menu: ' + titleId + ' + ' + extra.length + ' folder items');
-        return Promise.resolve(native).then(function (items) {
-          var gone = [];
-          var list = Array.isArray(items) ? (hide.any ? menuFilter(items, hide, gone) : items) : [];
-          if (!T.done['options menu ids']) {
-            done('options menu ids (' + (Array.isArray(items) ? items.map(function (i) { return i && i.id; }).join(', ') : typeof items) + ')');
-          }
-          if (gone.length && !T.done['options menu items removed']) done('options menu items removed (' + gone.join(', ') + ')');
-          return top.concat(list, extra);
-        }, function (e) {
-          log('options menu: native options of ' + titleId + ' failed: ' + e);
-          return top.concat(extra);
-        });
+        var self = this, args = arguments;
+        return composeMenu(titleId, function () { return fetchFn.apply(self, args); }, function (l) { return l; });
       };
       fetchWrapped.__theme = true;
-      if (replace(exp, 'fetchExperienceOptionsByTitleId', fetchWrapped)) done('options menu items');
+      if (replace(exp, 'fetchExperienceOptionsByTitleId', fetchWrapped)) { T.menuFetchHooked = true; done('options menu items'); }
     }
     var keepFn = exp.useKeepInHome;
     if (typeof keepFn === 'function' && !keepFn.__theme) {
@@ -7543,6 +7713,28 @@
     };
     swapped.__theme = true;
     if (replace(exp, 'useAtomValue', swapped)) done('useAtomValue (store)');
+  }
+  /* older Homes (4.03, home_v2 04.00) keep the same state in Recoil, not
+     jotai: the row reads its list with useRecoilValue(atomFamily(space)).
+     Without this the hidden tiles (Store...) stayed and the folder tiles
+     never entered the row. Same filter as useAtomValue. */
+  function hookRecoil(exp) {
+    if (APP !== 'home' || !exp ||
+        typeof exp.useRecoilValue !== 'function' ||
+        typeof exp.atomFamily !== 'function' || exp.useRecoilValue.__theme)
+      return;
+    var original = exp.useRecoilValue;
+    var swapped = function () {
+      var v = original.apply(this, arguments);
+      if ((v === 'game' || v === 'media' || isExtraSpace(v)) && T.space !== v) {
+        T.space = v;
+        if (APP === 'home' && THEME.fakeTrophies) tileChanged();
+        if (T.folderSel) { T.folderSel = ''; setTimeout(folderChanged, 0); }
+      }
+      return filterRow(v);
+    };
+    swapped.__theme = true;
+    if (replace(exp, 'useRecoilValue', swapped)) done('useRecoilValue (store)');
   }
   /* The Home keeps the selected tile's id and looks the experience up in its
      full list (an atom read with useAtomValue): for a folder the lookup gives
@@ -8016,6 +8208,45 @@
     if (own && !T.done['white button pictures']) done('white button pictures');
     return React.createElement(rn.Image, { key: key, source: own ? { uri: own } : src, resizeMode: 'contain', style: st });
   }
+  /* IconPS.iconIds: the icons this firmware has. Older ones (4.03) have no
+     'music_and_video', so the Media tab drew an empty picture; a close one
+     from the list stands in (first the names below, then any id that
+     contains one of them) */
+  var ICON_ALTS = { music_and_video: ['media', 'video', 'movie', 'tv', 'music'],
+                    history: ['history', 'recent', 'clock', 'time'],
+                    favorite: ['favorite', 'favourite', 'star', 'heart'],
+                    'new': ['new', 'star'], game: ['game', 'controller', 'gamepad'] };
+  function iconIdSet(Icon) {
+    if (T.iconIdSet !== undefined) return T.iconIdSet;
+    var src = Icon && Icon.iconIds;
+    if (!src && T.rn && T.rn.IconPS) src = T.rn.IconPS.iconIds;
+    if (!src || typeof src !== 'object') return null;   /* not known yet: ask again later */
+    var set = {}, n = 0;
+    var add = function (s) { if (typeof s === 'string' && s && !set[s]) { set[s] = true; n++; } };
+    if (Array.isArray(src)) src.forEach(add);
+    else for (var k in src) { add(src[k]); add(k); }
+    T.iconIdSet = n ? set : null;
+    if (n) log('icons: ' + n + ' ids on this firmware');
+    return T.iconIdSet;
+  }
+  function iconOnThisFw(Icon, id) {
+    if (typeof id !== 'string' || !id) return id;
+    var set = iconIdSet(Icon);
+    if (!set || set[id]) return id;
+    var memo = (T.iconAlt = T.iconAlt || {});
+    if (id in memo) return memo[id];
+    var alts = ICON_ALTS[id] || [], pick = '';
+    for (var i = 0; i < alts.length && !pick; i++) if (set[alts[i]]) pick = alts[i];
+    if (!pick) {
+      var all = Object.keys(set);
+      for (var j = 0; j < alts.length && !pick; j++)
+        for (var q = 0; q < all.length && !pick; q++) if (all[q].toLowerCase().indexOf(alts[j]) >= 0) pick = all[q];
+    }
+    memo[id] = pick || id;
+    log('icons: "' + id + '" not on this firmware' + (pick ? ', "' + pick + '" instead' : ', nothing close') +
+        (pick ? '' : ' (ids: ' + Object.keys(set).slice(0, 60).join(',') + ')'));
+    return memo[id];
+  }
   function decoIcon(v, size, color) {
     var React = T.React, rn = T.rn;
     if (!React || !rn || typeof v !== 'string' || !v.trim()) return null;
@@ -8024,7 +8255,7 @@
       return rn.Image ? React.createElement(rn.Image, { source: { uri: 'file://' + path }, resizeMode: 'contain',
                                                          style: { width: size, height: size } }) : null;
     }
-    var Icon = iconComponent(), id = buttonIcon(v) || v.trim();
+    var Icon = iconComponent(), id = iconOnThisFw(Icon, buttonIcon(v) || v.trim());
     var st = { width: size, height: size };
     /* IconPS ignores tintColor and draws its own grey (the L1/R1 of the tabs
        group came out darker than names of the same colour): with a colour
@@ -8134,8 +8365,8 @@
     var online = presence === true || /online|available/i.test(String(
         presence && typeof presence === 'object' ? JSON.stringify(presence) : presence));
     if (T.userName === name && T.userOnline === online) return;
-    if (!T.userName) log('user: "' + name + '" status=' + String(
-        presence && typeof presence === 'object' ? JSON.stringify(presence) : presence).slice(0, 120));
+    /* no name or account details in the log (logs are sent to other people) */
+    if (!T.userName) log('user: set, ' + (online ? 'online' : 'offline'));
     T.userName = name;
     T.userOnline = online;
     setTimeout(function () {
@@ -8157,7 +8388,7 @@
     if (!T.userName && typeof globalThis.__ztUser === 'string' && globalThis.__ztUser) {
       T.userName = globalThis.__ztUser;
       T.userOnline = true;
-      log('user: "' + T.userName + '" (from the system)');
+      log('user: set (from the system)');
     }
     if (!T.userName) return null;
     var px = fontSize(THEME.userFontSize || 27) || 27;
@@ -9562,7 +9793,8 @@
      with the mapped trophy title, gamehub ~755945). */
   var NP_SUFFIXES = ['_00', ''];
   function fetchTrophies(titleId) {
-    if (!titleId || !T.require || T.trophyGotFor === titleId) return;
+    /* module 2559 is the 9.60 hub's; a Haul bundle (older firmwares) has its own ids */
+    if (!titleId || !T.require || T.haul || T.trophyGotFor === titleId) return;
     var mod;
     try { mod = T.require(2559); } catch (e) { log('trophies fetch: module 2559 ' + e); return; }
     var fn = mod && (mod.default || mod);
@@ -9599,7 +9831,7 @@
      "THEME-HUBASK"); the answer goes to the Home like the hub's own */
   function trophiesFor(titleId, after) {
     var end = function () { if (after) { var a = after; after = null; a(); } };
-    if (!titleId || !T.require) return end();
+    if (!titleId || !T.require || T.haul) return end();
     var mod;
     try { mod = T.require(2559); } catch (e) { log('trophies for ' + titleId + ': ' + e); return end(); }
     var fn = mod && (mod.default || mod);
@@ -10391,16 +10623,17 @@
   function wrapJsx(fn) {
     if (typeof fn !== 'function' || fn.__theme) return fn;
     var wrapped = function (type, props) {
+      if (props && typeof props.testID === 'string') bbTestId(props.testID);
       if (SYS_APP) {
         if (props && typeof props === 'object') {
           if (DEBUG.sys) {
-            try { seeSys(type, props, arguments[2]); } catch (e) { T.errors++; log('map: ' + e); }
+            try { seeSys(type, props, arguments[2]); } catch (e) { T.errors++; logE('map: ' + e); }
           }
           if (THEME.sysOn) {
-            try { sysStyle(type, props); } catch (e) { T.errors++; log('system screens: ' + e); }
+            try { sysStyle(type, props); } catch (e) { T.errors++; logE('system screens: ' + e); }
             if (APP === 'settings' && sysNum(THEME.sysSideOpacity) > 0 && typeof type !== 'string' &&
                 typeName(type) === 'TabViewPS' && T.Fragment && T.React && T.rn && T.rn.View) {
-              try { return sysSideWrap(fn, this, arguments, props); } catch (e) { T.errors++; log('side bar: ' + e); }
+              try { return sysSideWrap(fn, this, arguments, props); } catch (e) { T.errors++; logE('side bar: ' + e); }
             }
           }
         }
@@ -10411,10 +10644,10 @@
           focusSlotUsed() && T.React && typeof T.React.useState === 'function') {
         if (props.testID.indexOf('focused-item-') === 0) {
           var shaped = null;
-          try { shaped = focusShapeWrap(fn, this, arguments, props); } catch (e) { T.errors++; log('focus shape: ' + e); }
+          try { shaped = focusShapeWrap(fn, this, arguments, props); } catch (e) { T.errors++; logE('focus shape: ' + e); }
           if (shaped) return shaped;
         } else if (focusShapeUsed() && props.testID.indexOf('experience-switcher-') === 0 && props.style) {
-          try { shapeWrapper(props); } catch (e) { T.errors++; log('focus shape: ' + e); }
+          try { shapeWrapper(props); } catch (e) { T.errors++; logE('focus shape: ' + e); }
         }
       }
       var shapedImage = false;
@@ -10424,12 +10657,12 @@
       if (APP === 'home' && focusShapeUsed() && props && typeof props === 'object' &&
           props.source && typeof props.source === 'object' && typeof props.source.uri === 'string' && props.style &&
           (props.style === T.tileImage || props.style === T.tileImage2)) {
-        try { shapedImage = shapeImage(props); } catch (e) { T.errors++; log('focus shape: ' + e); }
+        try { shapedImage = shapeImage(props); } catch (e) { T.errors++; logE('focus shape: ' + e); }
       }
       if (APP === 'home' && !shapedImage && customTilesUsed() && props && typeof props === 'object' &&
           props.source && typeof props.source === 'object' && typeof props.source.uri === 'string' && props.style &&
           (props.style === T.tileImage || props.style === T.tileImage2)) {
-        try { tileCover(props); } catch (e) { T.errors++; log('cover: ' + e); }
+        try { tileCover(props); } catch (e) { T.errors++; logE('cover: ' + e); }
       }
       /* vertical tiles, Game / App Library and All apps: their
          icon (a dark see-through square with the symbol) was stretched; they
@@ -10440,21 +10673,21 @@
       if (tileImg && props.source && typeof props.source === 'object' && typeof props.source.uri === 'string') {
         var sysRatio = focusShapeUsed() && shapeUriFor(props.source.uri) ? formatRatio(focusFormat()) : tileRatio();
         if (sysRatio !== 1)
-          try { systemTile(props, sysRatio); } catch (e) { T.errors++; log('system tile: ' + e); }
+          try { systemTile(props, sysRatio); } catch (e) { T.errors++; logE('system tile: ' + e); }
       }
       /* the focused tile's animated picture */
       if (tileImg && animTilesUsed() && props.source &&
           typeof props.source === 'object' && typeof props.source.uri === 'string' && T.React && T.React.Fragment) {
         var animEl = null;
-        try { animEl = animTileWrap(fn, this, arguments, props); } catch (e) { T.errors++; log('animated tile: ' + e); }
+        try { animEl = animTileWrap(fn, this, arguments, props); } catch (e) { T.errors++; logE('animated tile: ' + e); }
         if (animEl) return animEl;
       }
       if (APP === 'home' && tileRatio() !== 1 && props && typeof props === 'object') {
         if (THEME.folders && folderVerticalStyle() === 'square') {
           if (props.source && typeof props.source === 'object' && props.style)
-            try { folderSquare(props); } catch (e) { T.errors++; log('folder square: ' + e); }
+            try { folderSquare(props); } catch (e) { T.errors++; logE('folder square: ' + e); }
           if (typeof props.testID === 'string')
-            try { folderSquareView(props); } catch (e) { T.errors++; log('folder square: ' + e); }
+            try { folderSquareView(props); } catch (e) { T.errors++; logE('folder square: ' + e); }
         }
       }
       /* Options menu items (Home and Game Library): key '<MENU_ID_...>-<index>' */
@@ -10568,6 +10801,20 @@
                                           children: fn.apply(this, arguments) }, arguments[2]);
         }
       }
+      /* older firmwares (below 7.x): the hub's trophy card is the old
+         "Progress / Earned" one (story-progress-view), placed so it peeked
+         into the Home view over the hints. Shown only while the focus is
+         in the hub, like the gated title */
+      if (APP === 'hub' && props && typeof props === 'object' && props.testID === 'story-progress-view' &&
+          !props.__ztOldCard && !fromLibrary() && T.rn && T.rn.Animated && T.rn.Animated.View) {
+        hubFocusRelay150();
+        var cardOp = hubTitleValue();
+        if (cardOp) {
+          props.__ztOldCard = true;
+          if (!T.done['old trophy card only in the hub view']) done('old trophy card only in the hub view');
+          return fn(T.rn.Animated.View, { style: { opacity: cardOp }, children: fn.apply(this, arguments) }, arguments[2]);
+        }
+      }
       if (APP === 'hub' && THEME.fakeTrophies && props && typeof props === 'object') hubSummary(props);
       if (APP === 'hub' && props && typeof props === 'object' &&
           typeof props.testID === 'string' && props.testID) {
@@ -10631,7 +10878,7 @@
       if (APP === 'home' && THEME.tileReflection > 0 && T.selected && props && typeof props === 'object' &&
           props.style && typeof props.style === 'object' && T.selected.has(props.style)) {
         var refl = null;
-        try { refl = tileReflection(props.children); } catch (e) { T.errors++; log('reflection: ' + e); }
+        try { refl = tileReflection(props.children); } catch (e) { T.errors++; logE('reflection: ' + e); }
         if (refl) {
           var chr = props.children;
           props.children = [refl].concat(Array.isArray(chr) ? chr : chr == null ? [] : [chr]);
@@ -10639,7 +10886,7 @@
       }
       if (APP === 'home' && THEME.rowWindow && T.rowWinBy && props && typeof props === 'object' &&
           props.style && typeof props.style === 'object' && Array.isArray(props.children)) {
-        try { rowWindowCount(props); } catch (e) { T.errors++; log('row window count: ' + e); }
+        try { rowWindowCount(props); } catch (e) { T.errors++; logE('row window count: ' + e); }
       }
       /* rowWindow: the tile name stands right of the stock focused tile; it
          follows the focused tile (same native value as the row). A child of
@@ -10727,7 +10974,7 @@
       }
       if (APP === 'home' && props && typeof props === 'object') {
         if (!PLAIN && props.focusable === true && typeof props.name === 'string' && props.name)
-          try { qrTileKeys(props); } catch (e) { T.errors++; log('about QR keys: ' + e); }
+          try { qrTileKeys(props); } catch (e) { T.errors++; logE('about QR keys: ' + e); }
         topIcons(props, type);
         seeRow(props);
         tileLeftKeys(props);
@@ -10923,12 +11170,50 @@
       if (hubGateProps && hubGateProps === props) {
         hubGateProps = null;
         try { return fn(HubPageGate, { el: fn.apply(this, arguments) }, arguments[2]); }
-        catch (e) { T.errors++; log('hub page gate: ' + e); }
+        catch (e) { T.errors++; logE('hub page gate: ' + e); }
       }
       return fn.apply(this, arguments);
     };
     wrapped.__theme = true;
     return wrapped;
+  }
+  /* ---- older firmwares: React.createElement instead of jsx ----
+     Their apps (Haul bundles, React Native 0.63) were built before the new
+     JSX: every element is React.createElement(type, props, ...children),
+     there is no jsx/jsxs to wrap. createElement is wrapped instead and each
+     call goes through the same wrapJsx code as jsx(type, props with
+     children, key). The theme's own elements keep the plain createElement
+     (T.React becomes a copy with the original). */
+  function hookCreateElement(exp) {
+    if (!exp || typeof exp !== 'object' || typeof exp.createElement !== 'function' ||
+        typeof exp.jsx === 'function' || !exp.Fragment || typeof exp.memo !== 'function' ||
+        exp.createElement.__theme)
+      return;
+    var ce = exp.createElement;
+    var asJsx = function (type, props, key) {
+      if (key !== undefined && key !== null) {
+        var p = {};
+        for (var k in props) p[k] = props[k];
+        p.key = key;
+        props = p;
+      }
+      return ce.call(this, type, props);
+    };
+    var viaJsx = wrapJsx(asJsx);
+    var wrapped = function (type, config) {
+      var n = arguments.length, props = {}, key;
+      if (config) for (var k in config) { if (k === 'key') key = config[k]; else props[k] = config[k]; }
+      if (n === 3) props.children = arguments[2];
+      else if (n > 3) props.children = Array.prototype.slice.call(arguments, 2);
+      return viaJsx.call(this, type, props, key);
+    };
+    wrapped.__theme = true;
+    try { exp.createElement = wrapped; } catch (e) { log('createElement not replaceable: ' + e); return; }
+    if (exp.createElement !== wrapped) { log('createElement not replaceable'); return; }
+    var own = Object.create(exp);
+    own.createElement = ce;
+    if (!T.React || T.React === exp) T.React = own;
+    done('jsx (createElement)');
   }
   function hookJsx(exp) {
     if (!T.Fragment && exp && exp.Fragment) T.Fragment = exp.Fragment;
@@ -10944,6 +11229,7 @@
                  (APP === 'home' ? (THEME.footer || THEME.tileNameColor)
                                  : APP === 'hub' && (THEME.hideMore || THEME.hideFriends ||
                                                      THEME.hideButtons || THEME.hideMediaButtons || THEME.hideHints));
+    if (needed && T.haul) hookCreateElement(exp);
     if (!needed || !exp ||
         typeof exp !== 'object' || typeof exp.jsx !== 'function' ||
         typeof exp.jsxs !== 'function' || !('Fragment' in exp) ||
@@ -11502,6 +11788,7 @@
       moveIcons(exp);
       hookJsx(exp);
       hookAtom(exp);
+      hookRecoil(exp);
       hookAppItems(exp);
       patchSpaces(exp, id);
       hookTitleSpace(exp);
@@ -11520,7 +11807,7 @@
       }
     } catch (e) {
       T.errors++;
-      log('error in module ' + id + ': ' + e);
+      logE('error in module ' + id + ': ' + e);
     }
   }
 
@@ -11529,6 +11816,36 @@
      module: factory.call(exports, module, exports, require). On the first call
      every factory (require.m) is wrapped and the detour goes away. */
   var callOriginal = Function.prototype.call;
+  /* how many factories a require holds (older firmwares: the first require
+     seen can be an inner bundle's, with none) */
+  function factoryCount(require) {
+    var m = require.m, n = 0;
+    if (!m || typeof m !== 'object') return 0;
+    for (var id in m) if (typeof m[id] === 'function') n++;
+    return n;
+  }
+  /* a require without factories, described for the log */
+  function requireShape(require, module) {
+    var out = [];
+    try {
+      var m = require.m, c = require.c, keys = [];
+      for (var k in require) keys.push(k);
+      out.push('keys=' + keys.slice(0, 30).join(','));
+      out.push('m=' + (m === null ? 'null' : typeof m) + (Array.isArray(m) ? '(array ' + m.length + ')' : ''));
+      if (m && typeof m === 'object') {
+        var mk = Object.keys(m);
+        out.push('m.keys=' + mk.length);
+        for (var i = 0; i < mk.length && i < 3; i++) {
+          var v = m[mk[i]];
+          out.push('m[' + mk[i] + ']=' + (v === null ? 'null' : typeof v) +
+                   (v && typeof v === 'object' ? '{' + Object.keys(v).slice(0, 8).join(',') + '}' : ''));
+        }
+      }
+      if (c && typeof c === 'object') out.push('c.keys=' + Object.keys(c).length);
+      if (module) out.push('module.i=' + module.i + ' module.id=' + module.id);
+    } catch (e) { out.push('error ' + e); }
+    return out.join(' ');
+  }
   function hookRequire(require) {
     T.require = require;
     var factories = require.m, n = 0;
@@ -11547,11 +11864,75 @@
     }
     log('require caught, ' + n + ' modules');
   }
+  /* ---- older firmwares: Haul RAM bundles ----
+     The app's own modules never sit in require.m (that stays {}): each one
+     arrives as JS text through globalThis.__haul_<bundle>.l(id, factory),
+     and the shared libraries (React, React Native) come from a separate
+     "base_dll" bundle with an ordinary require. The loader object is caught
+     when the bundle sets it, and its l is wrapped so every module of the
+     app also goes through afterModule. */
+  T.haulModules = 0;
+  function wrapHaul(name) {
+    var key = '__haul_' + name, holder;
+    try {
+      if (Object.getOwnPropertyDescriptor(globalThis, key)) return;
+      Object.defineProperty(globalThis, key, {
+        configurable: true, enumerable: true,
+        get: function () { return holder; },
+        set: function (f) {
+          holder = f;
+          T.haul = true;
+          if (!f || (typeof f !== 'object' && typeof f !== 'function')) return;
+          var load;
+          Object.defineProperty(f, 'l', {
+            configurable: true, enumerable: true,
+            get: function () { return load; },
+            set: function (fn) {
+              if (typeof fn !== 'function') { load = fn; return; }
+              load = function (id, factory) {
+                if (typeof factory !== 'function') return fn.apply(this, arguments);
+                return fn.call(this, id, function (module, exports, req) {
+                  var r = factory.call(this, module, exports, req);
+                  T.haulModules++;
+                  afterModule(module, id);
+                  return r;
+                });
+              };
+              /* the bundle names its loader (f.l.name = ...): keep that harmless */
+              try { Object.defineProperty(load, 'name', { value: 'loadSelf_' + name, writable: true, configurable: true }); } catch (e) {}
+              log('haul bundle ' + name + ': module loader wrapped');
+            }
+          });
+        }
+      });
+    } catch (e) { log('haul: ' + e); }
+  }
+  wrapHaul('application');
+
+  /* requires seen with no factories: logged, then the search goes on (up to
+     40 of them, or 20 s) */
+  var emptyRequires = 0, emptySeen = [];
+  function stopSearch(why) {
+    if (Function.prototype.call !== callOriginal && !T.hooked) {
+      Function.prototype.call = callOriginal;
+      log('require not caught (' + why + ', ' + emptyRequires + ' empty ones)');
+    }
+  }
+  setTimeout(function () { stopSearch('20 s'); }, 20000);
   Function.prototype.call = function (thisArg, module, exports, require) {
     if (!T.hooked && arguments.length === 4 &&
         typeof require === 'function' && module &&
         typeof module === 'object' && module.exports === exports &&
-        exports === thisArg && require.m && require.c) {
+        exports === thisArg && require.m && require.c &&
+        emptySeen.indexOf(require) < 0) {
+      if (!factoryCount(require)) {
+        emptySeen.push(require);
+        emptyRequires++;
+        if (emptyRequires <= 5) log('require ' + emptyRequires + ' has no factories: ' + requireShape(require, module));
+        if (emptyRequires >= 40) stopSearch('40 empty');
+        return callOriginal.apply(this, arguments);
+      }
+      if (emptyRequires) log('require caught after ' + emptyRequires + ' empty one(s)');
       T.hooked = true;
       Function.prototype.call = callOriginal;
       try { hookRequire(require); } catch (e) { log('failed: ' + e); }
@@ -11577,12 +11958,57 @@
         console.log('THEME-CACHE-KEEP icons|' + Object.keys(tallAsked).join(','));
       } catch (e) { log('cache keep: ' + e); }
     }, 30000);
+
+  /* ---- health: one "H" line a minute in each app ----
+     Where a leak of ours would show: Home layer copies (Single), listener
+     lists, runs of this file in the same JS context (a reload that keeps
+     the old timers), the longest stall of the JS thread (a 1 s timer that
+     came late) and the done() names called most in that minute. */
+  (function () {
+    var last = Date.now(), worst = 0, ticks = 0, doneSeen = {};
+    function listenerCount() {
+      var n = 0;
+      [function () { return readyListeners; }, function () { return logoListeners; },
+       function () { return folderListeners; }, function () { return playListeners; },
+       function () { return favEmptyListeners; }, function () { return T.titleListeners; },
+       function () { return wormListeners; }, function () { return qrListeners; },
+       function () { return nameListeners; }, function () { return trophyListeners; },
+       function () { return userListeners; }, function () { return favFxListeners; },
+       function () { return buttonListeners; }, function () { return statsListeners; },
+       function () { return sideListeners; }, function () { return tileListeners; },
+       function () { return musicListeners; }].forEach(function (f) {
+        try { var l = f(); if (l && l.length) n += l.length; } catch (e) {}
+      });
+      return n;
+    }
+    function healthLine() {
+      var copies = Object.keys(singles).map(function (k) { return k + ' ' + singles[k].length; }).join(', ');
+      var busy = Object.keys(T.doneN).map(function (k) { return [k, T.doneN[k] - (doneSeen[k] || 0)]; })
+        .filter(function (x) { return x[1] > 0; })
+        .sort(function (a, b) { return b[1] - a[1]; }).slice(0, 3);
+      Object.keys(T.doneN).forEach(function (k) { doneSeen[k] = T.doneN[k]; });
+      log('health: runs ' + (globalThis.__ztEvals || 1) + ' | errors ' + T.errors +
+          ' | copies ' + (copies || '-') + ' | listeners ' + listenerCount() +
+          ' | tabs ' + (T.tabChanges || 0) + ' | worst stall ' + worst + ' ms' +
+          (busy.length ? ' | busiest: ' + busy.map(function (x) {
+            return String(x[0]).slice(0, 40) + ' x' + x[1];
+          }).join(', ') : ''), 'H');
+      worst = 0;
+    }
+    T.healthLine = healthLine; /* (harness) */
+    setInterval(function () {
+      var now = Date.now(), late = now - last - 1000;
+      last = now;
+      if (late > worst) worst = late;
+      if (++ticks % 60 === 0) try { healthLine(); } catch (e) { log('health: ' + e, 'W'); }
+    }, 1000);
+  })();
   setTimeout(function () {
-    log('state: hooked=' + T.hooked + ' done=' +
-        JSON.stringify(T.done) + ' errors=' + T.errors);
+    logLong('state', 'hooked=' + T.hooked + (T.haulModules ? ' haulModules=' + T.haulModules : '') +
+        ' errors=' + T.errors + ' done=' + Object.keys(T.done).join(','));
   }, 8000);
-  log('installed: ' + JSON.stringify(THEME));
-  /* the JSON above is cut in the log: the most tested fields go on their own */
+  logLong('installed', JSON.stringify(THEME));
+  /* the most tested fields also on their own line, easy to find */
   log('options: titleMode=' + titleMode() + (oldTitles() ? ' (old fields)' : '') + 
       ' fontStyle=' + THEME.fontStyle + ' focusThickness=' + THEME.focusThickness +
       ' focusGap=' + THEME.focusGap + ' focusCorners=' + THEME.focusCorners);

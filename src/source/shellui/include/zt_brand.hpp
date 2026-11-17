@@ -1,4 +1,4 @@
-/* ZhiThemes — PS5 Home theme engine.
+/* ZhiThemes â€” PS5 Home theme engine.
    Copyright (C) 2026 Zhi (ZhiThemes author)
 
 This program is free software; you can redistribute it and/or modify it
@@ -14,13 +14,16 @@ keep the author attribution).  */
 #define ZT_NAME "ZhiThemes"
 #define ZT_AUTHOR "Zhi"
 #define ZT_VERSION "0.1.0-alpha"
-#define ZT_BUILD 376
+#define ZT_BUILD 390
 #define ZT_STR2(x) #x
 #define ZT_STR(x) ZT_STR2(x)
 #define ZT_BUILD_TEXT ZT_STR(ZT_BUILD)
-/* the diagnostic build (ZhiThemes-diag.elf, CMake ZT_DIAG=ON): debug mode
-   and the screen dump always on, start-up heartbeat, ShellUI thread states,
-   system lists in the logs. The normal build has none of it. */
+/* the diagnostic build (ZhiThemes-diag.elf, CMake ZT_DIAG=ON), only for
+   studying a new firmware: the normal build + debug mode always on (so the
+   D lines also go to the log, not only to the flight recorder), the screen
+   dump and the decrypted app bundles always (Dumps/<fw>/), fine start-up
+   steps + heartbeat ([boot]), ShellUI thread states and the process list
+   ([payload]), ShellUI's modules. All lines in the same zhithemes.log. */
 #ifndef ZT_DIAG
 #define ZT_DIAG 0
 #endif

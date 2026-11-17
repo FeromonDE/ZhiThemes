@@ -8,6 +8,9 @@
 #include "external_symbols.hpp"
 #include "defs.h"
 #include "ipc.hpp" // shellui_log
+#if defined(ZHITHEMES) && ZHITHEMES
+#include "zt_log.hpp"
+#endif
 #include <atomic>
 #include <string>
 #include <cstring>
@@ -438,4 +441,7 @@ void shellui_poll_home_reload(void) {
   }
   LOG_DEBUG("applying NPXS40002 home reload on UI thread");
   ReloadRNPSApp("NPXS40002");
+#if defined(ZHITHEMES) && ZHITHEMES
+  zt_log_reload_done();
+#endif
 }

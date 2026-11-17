@@ -4,7 +4,13 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
 ## Unreleased
 
-- **Older firmwares (e.g. 6.50):** the theme script is now injected there too. Their React Native JS executor has another name and an extra argument, so nothing ran before (no theme, no 🎨 ZhiThemes menu). Not yet confirmed on 6.50; parts of the older Home may still not follow the theme.
+- **Older firmwares (e.g. 6.50):** the theme script is now injected there too. Their React Native JS executor has another name and an extra argument, so nothing ran before (no theme, no 🎨 ZhiThemes menu). Testers on older firmwares see the theme now; parts of the older Home may still not follow it.
+- **New logs:** one file, `Logs/zhithemes.log`, with every session one after the other (about the last 16 MB). Each line has a level (error, warning, action, info, debug, health); what you do (tabs, fields saved, themes, menu, rest mode) and a health line per minute (memory, reloads, slowest moment) are logged. A session with no clean end is marked *CRASHED* at the next start, or *switched off or restarted* when the PS5 itself was. Errors, warnings and actions go to the disk at once and, with a USB drive plugged in, also to the drive.
+- **Flight recorder:** the last keys and focused tiles are kept in a small hidden file and pasted into the log after a crash.
+- **Report a problem:** a button in the editor's Logs tab makes one file to attach to a GitHub issue (what happened, system, theme values, summary, the last 3 sessions, the last keys and focus). No PSN user name or id in the logs any more. **Tools** in the 🎨 menu keeps *Copy logs to USB*.
+- **Debug mode** always maps Settings and Trophies too (no separate box).
+- Sending `ZhiThemes.elf` from the payload manager: ZhiThemes waits a little longer after the browser closes before loading (the interface sometimes froze).
+- Theme files: stricter checks on names, paths, sizes and file types when installing a theme.
 
 ## 0.1.0-alpha — first release
 

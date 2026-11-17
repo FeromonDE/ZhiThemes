@@ -23,7 +23,7 @@ This is not an app that looks like the PS5 menu. ZhiThemes changes the **real Sh
 
 <p align="center"><img src="docs/images/loop.gif" alt="ZhiThemes themes running on a PS5" width="100%"></p>
 
-> **Alpha** (0.1.x). Currently supported on PS5 firmware versions **9.00 to 13.60**. If you encounter any issues, please send a debug log (see [docs/LOGS.md](docs/LOGS.md)).
+> **Alpha** (0.1.x). Currently supported on PS5 firmware versions **9.00 to 13.60**. If you encounter any issues, please send a report (see [docs/LOGS.md](docs/LOGS.md)).
 
 ## What it can do
 
@@ -144,7 +144,7 @@ Open `http://<PS5-IP>:4444` and you get the whole theme in one page.
 - **Theme** (top bar): switch, rename, copy or delete your themes, or start a new one from the stock look.
 - **Download** saves your theme as a `.ztheme` to share it. **Install** adds one from someone else.
 - **Advanced** switch: shows the less used options. **Reset all** puts everything back to the stock PS5.
-- **Logs tab**: if something goes wrong, turn on Debug mode and download the logs for a bug report.
+- **Logs tab**: if something goes wrong, press **Report a problem…** and attach the report to a GitHub issue (Debug mode adds more detail).
 
 More in [docs/THEMES.md](docs/THEMES.md).
 
@@ -155,7 +155,7 @@ More in [docs/THEMES.md](docs/THEMES.md).
 
 ## Problems?
 
-The editor's **Logs** tab has a **Debug mode** switch and the log files to download. Every log starts with the firmware and ZhiThemes version. The same files are on the PS5 in `/data/ZhiThemes/Logs/`, and **🎨 ZhiThemes > Tools** can copy them to a USB drive. See [docs/LOGS.md](docs/LOGS.md).
+The editor's **Logs** tab shows the log (one file, every session), has a **Debug mode** switch and **Report a problem…**, which makes one file to attach to a GitHub issue. The log is on the PS5 in `/data/ZhiThemes/Logs/zhithemes.log`, and **🎨 ZhiThemes > Tools** can copy it to a USB drive. See [docs/LOGS.md](docs/LOGS.md).
 
 If a theme breaks the Home, put an empty file `ZhiThemes/no_theme` on a USB drive and plug it in: ZhiThemes stays off while the drive is in.
 

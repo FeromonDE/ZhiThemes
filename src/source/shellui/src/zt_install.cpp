@@ -45,6 +45,73 @@ later version. See LICENSE and NOTICE.  */
 namespace {
 
 const size_t kMaxText = 8u << 20;
+/* what a pack may hold: the editor's packs are a few files; a long video
+   wallpaper is the biggest thing a theme has */
+const size_t kMaxEntries = 256;          /* ZIP entries in all */
+const size_t kMaxAssets = 64;            /* files under assets/ */
+const uint64_t kMaxAsset = 2ull << 30;   /* one file, unpacked (the editor's upload limit) */
+const uint64_t kMaxPack = 4ull << 30;    /* every file, unpacked */
+
+/* the file's type from its first bytes, so a pack cannot put something
+   else under a picture / video / font name: "" when unknown */
+std::string sniff(const unsigned char *h, size_t n) {
+  auto at = [&](size_t o, const char *s) {
+    const size_t k = strlen(s);
+    return n >= o + k && memcmp(h + o, s, k) == 0;
+  };
+  if (n >= 8 && memcmp(h, "\x89PNG\r\n\x1a\n", 8) == 0)
+    return "png";
+  if (n >= 3 && h[0] == 0xFF && h[1] == 0xD8 && h[2] == 0xFF)
+    return "jpg";
+  if (at(0, "GIF87a") || at(0, "GIF89a"))
+    return "gif";
+  if (at(0, "RIFF") && at(8, "WEBP"))
+    return "webp";
+  if (at(0, "RIFF") && at(8, "WAVE"))
+    return "wav";
+  if (at(4, "ftyp"))
+    return "mp4";
+  if (n >= 4 && h[0] == 0x1A && h[1] == 0x45 && h[2] == 0xDF && h[3] == 0xA3)
+    return "webm";
+  if (at(0, "OggS"))
+    return "ogg";
+  if (at(0, "ID3") || (n >= 2 && h[0] == 0xFF && (h[1] & 0xE0) == 0xE0))
+    return "mp3";
+  if ((n >= 4 && h[0] == 0 && h[1] == 1 && h[2] == 0 && h[3] == 0) || at(0, "OTTO") || at(0, "true") ||
+      at(0, "ttcf"))
+    return "font";
+  return "";
+}
+
+/* the types a file of that kind and extension may be ("" = not allowed) */
+const char *allowed_types(const std::string &kind, const std::string &file) {
+  std::string ext;
+  const size_t dot = file.rfind('.');
+  if (dot != std::string::npos)
+    for (size_t i = dot + 1; i < file.size(); ++i)
+      ext += (char)tolower((unsigned char)file[i]);
+  const bool picture = ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "webp" || ext == "gif";
+  if (kind == "fonts")
+    return ext == "ttf" || ext == "otf" || ext == "ttc" ? "font" : "";
+  if (kind == "icons")
+    return picture ? "png jpg webp gif" : "";
+  if (kind != "wallpapers")
+    return "";
+  if (picture)
+    return "png jpg webp gif";
+  if (ext == "mp4" || ext == "m4v" || ext == "mov" || ext == "webm")
+    return "mp4 webm";
+  if (ext == "mp3" || ext == "aac" || ext == "m4a" || ext == "wav" || ext == "at9" || ext == "ogg")
+    return "mp3 mp4 wav ogg";
+  return "";
+}
+
+bool type_ok(const char *allowed, const std::string &type) {
+  if (type.empty())
+    return false;
+  const std::string list = std::string(" ") + allowed + " ";
+  return list.find(" " + type + " ") != std::string::npos;
+}
 
 bool ends_with(const std::string &s, const char *e) {
   const size_t n = strlen(e);
@@ -307,17 +374,55 @@ bool zip_text(int fd, const Entry &e, std::string &out) {
   });
 }
 
-bool zip_file(int fd, const Entry &e, const std::string &dest) {
+/* one asset to dest: never more bytes than the ZIP says (a deflated entry
+   cannot grow past its declared size), than kMaxAsset or than what is left
+   of kMaxPack (*total = bytes written so far), and its first bytes must be
+   one of the `allowed` types. *why = the reason when it is not written. */
+bool zip_file(int fd, const Entry &e, const std::string &dest, const char *allowed, uint64_t *total,
+              std::string *why) {
   const std::string temp = dest + ".part";
   const int out = open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-  if (out < 0)
+  if (out < 0) {
+    *why = "cannot write";
     return false;
-  bool ok = zip_read(fd, e, [&](const char *d, size_t n) { return write_out(out, d, n); });
+  }
+  unsigned char head[16] = {};
+  size_t got = 0;
+  uint64_t size = 0;
+  bool checked = false;
+  bool ok = zip_read(fd, e, [&](const char *d, size_t n) {
+    size += n;
+    if (size > e.usize || size > kMaxAsset || *total + size > kMaxPack) {
+      *why = size > e.usize ? "bigger than the pack says" : "too big";
+      return false;
+    }
+    if (!checked) {
+      const size_t k = std::min(n, sizeof(head) - got);
+      memcpy(head + got, d, k);
+      got += k;
+      if (got == sizeof(head) || size >= e.usize) {
+        checked = true;
+        if (!type_ok(allowed, sniff(head, got))) {
+          *why = "not the kind of file its name says";
+          return false;
+        }
+      }
+    }
+    return write_out(out, d, n);
+  });
+  if (ok && !checked && !type_ok(allowed, sniff(head, got))) {
+    *why = "not the kind of file its name says";
+    ok = false;
+  }
+  if (!ok && why->empty())
+    *why = "cannot unpack";
   ok = fsync(out) == 0 && ok;
   close(out);
   ok = ok && rename(temp.c_str(), dest.c_str()) == 0;
   if (!ok)
     unlink(temp.c_str());
+  else
+    *total += size;
   return ok;
 }
 
@@ -346,6 +451,17 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
       close(fd);
       return "broken ZIP file";
     }
+    if (entries.size() > kMaxEntries) {
+      close(fd);
+      return "too many files in this pack";
+    }
+    uint64_t declared = 0;
+    for (const Entry &e : entries)
+      declared += e.usize;
+    if (declared > kMaxPack) {
+      close(fd);
+      return "pack too big (more than 4 GB unpacked)";
+    }
     for (const Entry &e : entries) {
       if (e.name == "theme.ztheme" && !zip_text(fd, e, text)) {
         close(fd);
@@ -358,7 +474,7 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
         if (s1 == std::string::npos || e.name.find('/', s1 + 1) != std::string::npos)
           continue;
         const std::string kind = e.name.substr(7, s1 - 7);
-        if (kind == "wallpapers" || kind == "icons" || kind == "fonts")
+        if ((kind == "wallpapers" || kind == "icons" || kind == "fonts") && assets.size() < kMaxAssets)
           assets.push_back(e);
       }
     }
@@ -394,19 +510,28 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
     close(fd);
     return err;
   }
-  int files = 0;
+  int files = 0, refused = 0;
+  uint64_t total = 0;
   for (const Entry &e : assets) {
     const size_t s1 = e.name.find('/', 7);
     const std::string kind = e.name.substr(7, s1 - 7), orig = e.name.substr(s1 + 1);
     std::string file = name_ok(orig) ? orig : upload_name(orig);
+    const char *allowed = allowed_types(kind, file);
+    if (!*allowed) {
+      zt_log("install: %s left out (not a %s file type)", e.name.c_str(), kind.c_str());
+      ++refused;
+      continue;
+    }
     if (file != orig)
       for (size_t at = 0; (at = text.find(orig, at)) != std::string::npos; at += file.size())
         text.replace(at, orig.size(), file);
     const std::string dir = zt_theme_dir_of(n, kind.c_str());
     zt_mkdirs(dir);
     const std::string dest = dir + "/" + file;
-    if (!zip_file(fd, e, dest)) {
-      zt_log("install: %s FAILED (method %u, %u bytes)", e.name.c_str(), e.method, e.csize);
+    std::string why;
+    if (!zip_file(fd, e, dest, allowed, &total, &why)) {
+      zt_log("install: %s left out: %s (method %u, %u bytes)", e.name.c_str(), why.c_str(), e.method, e.csize);
+      ++refused;
       continue;
     }
     zt_dedupe(dest);
@@ -422,6 +547,8 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
     return err;
   zt_log("install: %s -> theme %s (%s, %d of %zu files%s)", path.c_str(), n.c_str(),
          zip ? "pack" : "text", files, assets.size(), there ? ", replaced the old one" : "");
+  if (refused)
+    tell(std::to_string(refused) + " file(s) of " + n + " left out (wrong type or too big, see the log)");
   return "";
 }
 

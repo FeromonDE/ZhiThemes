@@ -1847,6 +1847,28 @@ bool line_value(const std::string &line, std::string *key, size_t *vstart,
   return *vlen > 0;
 }
 
+/* A text value that names a file stays where theme files live: a plain
+   name (looked up in the theme's own folders), or a full path only under
+   the read-only system / game art folders and ZhiThemes' own folder; never
+   "..". Other texts (colours, modes, labels) have no '/' and pass. */
+bool safe_text(const std::string &s) {
+  for (unsigned char c : s)
+    if (c < 0x20 && c != 9)
+      return false;
+  if (s.find('/') == std::string::npos)
+    return true;
+  if (s.find("..") != std::string::npos)
+    return false;
+  if (s[0] != '/')
+    return true;
+  static const char *const kRoots[] = {"/system/", "/system_ex/", "/preinst/", "/user/appmeta/",
+                                       "/user/app/", "/user/data/ZhiThemes/", "/data/ZhiThemes/"};
+  for (const char *r : kRoots)
+    if (s.compare(0, strlen(r), r) == 0)
+      return true;
+  return false;
+}
+
 /* A theme value is data only: a number, true/false or a 'string' without a
    backslash (a backslash before the closing quote would let the string run
    into the code after it). Anything else is left at the stock value, so a
@@ -1855,7 +1877,8 @@ bool safe_value(const std::string &v) {
   if (v == "true" || v == "false")
     return true;
   if (v.size() >= 2 && v.front() == 39 && v.back() == 39)
-    return v.find((char)92) == std::string::npos && v.find((char)39, 1) == v.size() - 1;
+    return v.find((char)92) == std::string::npos && v.find((char)39, 1) == v.size() - 1 &&
+           safe_text(v.substr(1, v.size() - 2));
   size_t i = v[0] == '-' ? 1 : 0, digits = 0, dots = 0;
   for (; i < v.size(); ++i) {
     if (v[i] >= '0' && v[i] <= '9')
@@ -2264,7 +2287,8 @@ std::string user_name_js() {
   static bool logged = false;
   if (!logged) {
     logged = true;
-    zt_log("user: id %d name \"%s\"", id, name);
+    /* no name or account id in the log (logs are sent to other people) */
+    zt_log("user: %s", name[0] ? "set" : "none");
   }
   return out + "\"";
 }
@@ -2557,7 +2581,7 @@ void eval_theme(MonoObject *self, const char *app, unsigned hub_id = 0) {
   mono_runtime_invoke(g_eval_script, self, args, &exc);
   if (exc) {
     MonoString *text = mono_object_to_string(exc, nullptr);
-    zt_log("js: theme.js threw in %s: %.400s", app,
+    zt_logl('E', "js: theme.js threw in %s: %.2000s", app,
                    Mono_to_String(text).c_str());
     return;
   }
@@ -3437,7 +3461,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
     if (text.rfind("THEME-RENAME ", 0) == 0) {
       std::lock_guard<std::mutex> lock(g_rename_lock);
       g_rename_req = text.substr(13, 200);
-      zt_log("js: rename asked (%s)", g_rename_req.c_str());
+      zt_logl('A', "js: rename asked (%s)", g_rename_req.c_str());
       return;
     }
     /* THEME-SETQ: the same without the reload (games uninstalled from a folder) */
@@ -3455,16 +3479,16 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       } else if (key == "favorites") {
         /* console wide: favorites.txt, not the theme */
         if (zt_favorites_set(value)) {
-          zt_log("js: favourites = %.300s", value.empty() ? "(none)" : value.c_str());
+          zt_logl(quiet ? 'I' : 'A', "js: favourites = %.300s", value.empty() ? "(none)" : value.c_str());
           if (!quiet) {
             shellui_request_hub_reload();
             shellui_request_home_reload();
           }
         } else {
-          zt_log("js: favourites: cannot write " ZT_FAVORITES_FILE);
+          zt_logl('W', "js: favourites: cannot write " ZT_FAVORITES_FILE);
         }
       } else if (theme_set_field(key, value)) {
-        zt_log("js: THEME-SET%s %s = %.300s%s", quiet ? "Q" : "", key.c_str(), value.c_str(),
+        zt_logl(quiet ? 'I' : 'A', "js: THEME-SET%s %s = %.300s%s", quiet ? "Q" : "", key.c_str(), value.c_str(),
                        quiet ? "" : "; reload");
         if (!quiet) {
           shellui_request_hub_reload();
@@ -3550,15 +3574,15 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const std::string name = text.substr(15);
       const std::string err = zt_theme_menu_use(name);
       if (err.empty()) {
-        zt_log("js: menu: theme %s in use; reload", name.c_str());
+        zt_logl('A', "js: menu: theme %s in use; reload", name.c_str());
         theme_menu_reload();
       } else
-        zt_log("js: menu: theme %s: %s", name.c_str(), err.c_str());
+        zt_logl('W', "js: menu: theme %s: %s", name.c_str(), err.c_str());
       return;
     }
     if (text == "THEME-THEMEOFF") {
       zt_stock_set(true);
-      zt_log("js: menu: ZhiThemes off (PS5 default); reload");
+      zt_logl('A', "js: menu: ZhiThemes off (PS5 default); reload");
       zt_menu_notify("off (PS5 default). Options on a tile > ZhiThemes to pick a theme again.");
       theme_menu_reload();
       return;
@@ -3567,7 +3591,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const std::string path = text.substr(16);
       const std::string err = zt_theme_menu_install(path, theme_menu_reload);
       if (!err.empty()) {
-        zt_log("js: menu: install %s: %s", path.c_str(), err.c_str());
+        zt_logl('W', "js: menu: install %s: %s", path.c_str(), err.c_str());
         zt_menu_notify(err);
       }
       return;
@@ -3579,10 +3603,10 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const bool on = sp != std::string::npos && text.compare(sp + 1, 1, "1") == 0;
       const std::string err = zt_quick_set(key, on);
       if (err.empty()) {
-        zt_log("js: menu: %s = %s; reload", key.c_str(), on ? "true" : "false");
+        zt_logl('A', "js: menu: %s = %s; reload", key.c_str(), on ? "true" : "false");
         theme_menu_reload();
       } else {
-        zt_log("js: menu: %s: %s", key.c_str(), err.c_str());
+        zt_logl('W', "js: menu: %s: %s", key.c_str(), err.c_str());
         zt_menu_notify(err);
       }
       return;
@@ -3595,18 +3619,27 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
     /* Options menu > ZhiThemes > Tools: "THEME-TOOL <name>" */
     if (text.rfind("THEME-TOOL ", 0) == 0) {
       const std::string tool = text.substr(11, 16);
-      zt_log("js: menu: tool %s", tool.c_str());
+      zt_logl('A', "js: menu: tool %s", tool.c_str());
       const std::string err = zt_tool_run(tool, theme_menu_reload);
       if (!err.empty()) {
-        zt_log("js: menu: tool %s: %s", tool.c_str(), err.c_str());
+        zt_logl('W', "js: menu: tool %s: %s", tool.c_str(), err.c_str());
         zt_menu_notify(err);
       }
       return;
     }
-    if (text.rfind("THEME", 0) == 0)
-      zt_log("js: %.480s", text.c_str());
-    else if (g_console_lines.fetch_add(1) < kLoggedConsoleLines)
-      zt_log("js: console[%d] %.200s", level, text.c_str());
+    if (text.rfind("THEME", 0) == 0) {
+      /* "THEME [app] E text": theme.js gives the level letter (E W A I D H)
+         after the app; without one it is guessed from the text */
+      char lvl = 0;
+      const size_t b = text.rfind("THEME [", 0) == 0 ? text.find("] ") : std::string::npos;
+      if (b != std::string::npos && b + 3 < text.size() && text[b + 3] == ' ' &&
+          strchr("EWAIDH", text[b + 2])) {
+        lvl = text[b + 2];
+        zt_logl(lvl, "js: %.*s%.3800s", (int)(b + 2), text.c_str(), text.c_str() + b + 4);
+      } else /* "THEME-..." messages no one took: only their start */
+        zt_logl(lvl, "js: %.*s", b != std::string::npos ? 3800 : 480, text.c_str());
+    } else if (g_console_lines.fetch_add(1) < kLoggedConsoleLines)
+      zt_log("js: console[%d] %.1000s", level, text.c_str());
   }
   g_console_log_orig(msg, level, error, userarg);
 }
@@ -3622,6 +3655,60 @@ std::string zt_theme_text(const std::string &src, const char *key) {
 }
 
 std::string theme_script() { return merged_script(); }
+
+namespace {
+/* the THEME values of a theme file, in their order */
+std::vector<std::pair<std::string, std::string>> theme_values(const std::string &src) {
+  std::vector<std::pair<std::string, std::string>> out;
+  const Block b = find_block(src, "var THEME");
+  if (b.from == std::string::npos)
+    return out;
+  const std::string block = src.substr(b.from, b.to - b.from);
+  for (size_t at = 0; at <= block.size();) {
+    size_t end = block.find((char)10, at);
+    if (end == std::string::npos)
+      end = block.size();
+    const std::string line = block.substr(at, end - at);
+    std::string key;
+    size_t vs = 0, vl = 0;
+    if (line_value(line, &key, &vs, &vl))
+      out.emplace_back(key, line.substr(vs, vl));
+    at = end + 1;
+  }
+  return out;
+}
+} // namespace
+
+std::string zt_theme_values_text(const std::string &src) {
+  std::string out;
+  for (const auto &kv : theme_values(src))
+    out += kv.first + ": " + (kv.second.size() > 300 ? kv.second.substr(0, 300) + "..." : kv.second) + "\n";
+  return out;
+}
+
+int zt_theme_log_changes(const std::string &before, const std::string &after, const char *who) {
+  const auto old_values = theme_values(before), new_values = theme_values(after);
+  if (new_values.empty())
+    return 0;
+  constexpr int kMaxLines = 40;
+  int changed = 0;
+  for (const auto &kv : new_values) {
+    const std::string *was = nullptr;
+    for (const auto &o : old_values)
+      if (o.first == kv.first) {
+        was = &o.second;
+        break;
+      }
+    if (was && *was == kv.second)
+      continue;
+    if (++changed <= kMaxLines)
+      zt_logl('A', "field %s %.300s -> %.300s (%s)", kv.first.c_str(),
+              was ? was->c_str() : "(new)", kv.second.c_str(), who);
+  }
+  if (changed > kMaxLines)
+    zt_logl('A', "... %d more fields changed (%s)", changed - kMaxLines, who);
+  return changed;
+}
 
 std::string theme_games() {
   std::string home, all;
@@ -3710,7 +3797,7 @@ std::string theme_system_font(const char *sst_name) {
 __attribute__((weak)) int theme_psm_names(int) { return 0; }
 
 
-/* prx.cpp: one boot.log line per start-up step (diagnostic build) */
+/* prx.cpp: one "[boot]" log line per start-up step (diagnostic build) */
 void zt_boot_fine(const char *step);
 
 void install_homeui_js_hooks(MonoImage *react_pui, MonoImage *pui) {

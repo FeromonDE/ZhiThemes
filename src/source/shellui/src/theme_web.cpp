@@ -47,13 +47,14 @@ later version. See LICENSE and NOTICE.  */
  *   POST /theme.js    replace it (body = new script)
  *   POST /reload      reload HomeUI and the game hub, which evaluate theme.js
  *                     again
- *   GET  /log         tail of logs/zhithemes.log (this session)
+ *   GET  /log         tail of Logs/zhithemes.log
  *   GET  /log/find?q= every line of the log with one of the words a|b
+ *                     (+ the session start lines)
  *   GET  /sysinfo     ZhiThemes version, PS5 model and firmware, debug mode
- *   GET  /logs        the files of logs/ (JSON)
+ *   GET  /logs        the files of Logs/ (JSON)
  *   GET  /logs/file?name=   one of them, as a download
- *   POST /logs/delete?name= delete one (not the current log)
- *   POST /debug?on=1&sys=0  debug mode on/off (off saves debug-<date>.log)
+ *   POST /logs/delete?name= delete one (not zhithemes.log)
+ *   POST /debug?on=1&sys=0  debug mode on/off (its lines stay in zhithemes.log)
  *   GET|POST /injectdelay?s=  seconds the watcher waits after a ShellUI restart (5-120, 15)
  *   POST /quit        take the theme hooks out and stop (a newer ZhiThemes
  *                     is about to replace this one)
@@ -61,7 +62,9 @@ later version. See LICENSE and NOTICE.  */
  *   GET  /games       the Games row sent by the Home (folders tab)
  *   GET  /icon?p=...  a tile icon (.png under /user/app, /user/appmeta, /system_ex/rnps/apps)
  *   GET  /layout      the "THEME [app] layout ..." lines (visual editor)
- *   POST /log/clear   empty the current log
+ *   POST /log/clear   empty zhithemes.log (all sessions)
+ *   POST /report      Report a problem: body = what happened; answer = the
+ *                     report (.txt download)
  *
  * The reload is only queued here; ShellUI runs it on its UI thread
  * (shellui_poll_home_reload), as for the reload after injection.
@@ -408,7 +411,7 @@ void handle(int fd) {
       ok = false;
     if (!ok)
       unlink(temp.c_str());
-    zt_log("web: %s %s (%zu of %zu bytes) %s", sub.c_str(), dest.c_str(), got, want,
+    zt_logl('A', "web: upload %s %s (%zu of %zu bytes) %s", sub.c_str(), dest.c_str(), got, want,
                    ok ? "saved" : "FAILED");
     if (ok && theme_kind)
       zt_dedupe(dest);
@@ -442,11 +445,19 @@ void handle(int fd) {
     /* &personal=1 (an installed pack): the folders and custom tile choices
        of the theme in use stay */
     const std::string before = query_value(query, "personal") == "1" ? read_file(zt_theme_file().c_str()) : std::string();
+    /* the file as it was, for the "A field ..." lines */
+    const std::string old_text = read_file(file.c_str());
     if (!write_script(body, file))
       return reply(fd, 500, "Error", "text/plain", "cannot write " + file);
     if (!before.empty())
       zt_carry_personal(before, file);
-    zt_log("web: %s saved (%zu bytes)", file.c_str(), body.size());
+    static int saves = 0;
+    const std::string who = "editor save " + std::to_string(++saves);
+    const int changed = old_text.empty() ? -1
+                                         : zt_theme_log_changes(old_text, read_file(file.c_str()), who.c_str());
+    zt_logl('A', "web: %s saved (%zu bytes, %s, %s)", file.c_str(), body.size(),
+            changed < 0 ? "new file" : (std::to_string(changed) + " fields changed").c_str(),
+            who.c_str());
     /* Apply in the editor turns ZhiThemes back on (PS5 default off) */
     if (name.empty() || name == zt_theme_name())
       zt_stock_set(false);
@@ -499,9 +510,14 @@ void handle(int fd) {
     else
       return reply(fd, 404, "Not Found", "text/plain", "not found");
     if (!err.empty()) {
-      zt_log("web: %s %s: %s", path.c_str(), name.c_str(), err.c_str());
+      zt_logl('W', "web: %s %s: %s", path.c_str(), name.c_str(), err.c_str());
       return reply(fd, 400, "Bad Request", "text/plain", err);
     }
+    zt_logl('A', "theme %s %s%s%s (editor)", path.c_str() + 8, name.c_str(),
+            path == "/themes/rename" ? " -> " : path == "/themes/new" ? " from " : "",
+            path == "/themes/rename" ? query_value(query, "to").c_str()
+            : path == "/themes/new"  ? query_value(query, "from").c_str()
+                                     : "");
     if (reload) {
       shellui_request_hub_reload();
       shellui_request_home_reload();
@@ -509,7 +525,7 @@ void handle(int fd) {
     return reply(fd, 200, "OK", "application/json", zt_themes_json());
   }
   if (method == "POST" && path == "/reload") {
-    zt_log("web: HomeUI + game hub reload requested");
+    zt_logl('A', "web: HomeUI + game hub reload requested (editor)");
     shellui_request_hub_reload();
     shellui_request_home_reload();
     return reply(fd, 200, "OK", "text/plain", "reload queued");
@@ -518,7 +534,7 @@ void handle(int fd) {
     return reply(fd, 200, "OK", "text/plain; charset=utf-8",
                  read_file(kLogPath, kLogTail));
   if (method == "GET" && path == "/log/find") {
-    /* every line of the whole log (and previous.log) that has one of the words of q
+    /* every line of the whole log that has one of the words of q
        (q=rename|folder, '+' or %20 = space): the tail of /log is only 24 KB */
     std::string q = query.rfind("q=", 0) == 0 ? query.substr(2) : "";
     std::string dec;
@@ -536,27 +552,39 @@ void handle(int fd) {
       if (bar > at) words.push_back(dec.substr(at, bar - at));
       at = bar + 1;
     }
-    /* the session before first */
-    const std::string log = read_file(ZT_LOGS "/previous.log", kMaxBody) +
-                            "--- zhithemes.log ---\n" + read_file(kLogPath, kMaxBody);
-    std::string out;
-    for (size_t at = 0; at < log.size() && !words.empty();) {
-      size_t end = log.find('\n', at);
-      if (end == std::string::npos)
-        end = log.size();
-      const std::string line = log.substr(at, end - at);
-      for (const std::string &w : words)
-        if (line.find(w) != std::string::npos || line.rfind("--- zhithemes.log", 0) == 0) {
-          out += line + "\n";
-          break;
-        }
-      at = end + 1;
+    /* read in pieces (the log can be 16 MB): the session start lines are
+       always kept, so each hit shows which session it is in; the newest
+       hits win when there are too many */
+    constexpr size_t kMaxFind = 2u << 20;
+    std::string out, rest;
+    const int lf = open(kLogPath, O_RDONLY);
+    std::vector<char> buf(65536);
+    for (ssize_t n; lf >= 0 && !words.empty() && (n = read(lf, buf.data(), buf.size())) > 0;) {
+      rest.append(buf.data(), (size_t)n);
+      size_t at = 0;
+      for (size_t end; (end = rest.find('\n', at)) != std::string::npos; at = end + 1) {
+        /* (no memmem in the PS5's libc) */
+        const char *line = rest.data() + at, *line_end = rest.data() + end;
+        auto has = [&](const char *w, size_t n) {
+          return std::search(line, line_end, w, w + n) != line_end;
+        };
+        bool keep = end > at && has("==== session start", 18);
+        for (size_t w = 0; !keep && w < words.size(); ++w)
+          keep = has(words[w].data(), words[w].size());
+        if (keep)
+          out.append(line, end - at + 1);
+      }
+      rest.erase(0, at);
+      if (out.size() > kMaxFind)
+        out.erase(0, out.find('\n', out.size() - kMaxFind / 2) + 1);
     }
+    if (lf >= 0)
+      close(lf);
     return reply(fd, 200, "OK", "text/plain; charset=utf-8", out);
   }
   if (method == "GET" && path == "/layout") {
     /* where theme.js measured each element; only the newest lines matter */
-    const std::string log = read_file(kLogPath, kMaxBody);
+    const std::string log = read_file(kLogPath, 2u << 20);
     std::string out;
     for (size_t at = 0; at < log.size();) {
       size_t end = log.find('\n', at);
@@ -854,7 +882,7 @@ void handle(int fd) {
                             (dot == std::string::npos || dot == 0 ? name : name.substr(0, dot)) + "_fit.gif";
     unlink(fit.c_str());
     unlink((fit + ".meta").c_str());
-    zt_log("web: avatar %s %s", name.c_str(), gone ? "deleted" : "NOT deleted");
+    zt_logl('A', "web: avatar %s %s", name.c_str(), gone ? "deleted" : "NOT deleted");
     return gone ? reply(fd, 200, "OK", "text/plain", "deleted") : reply(fd, 404, "Not Found", "text/plain", "missing");
   }
   /* GET /customtile?name=<file>: one picture of <dir>/customtile (the
@@ -879,7 +907,7 @@ void handle(int fd) {
     const std::string file = std::string(bg ? ZT_CUSTOMBG "/" : ZT_CUSTOMTILE "/") + name;
     if (method == "POST") {
       const bool gone = unlink(file.c_str()) == 0;
-      zt_log("web: %s %s %s", bg ? "custombg" : "customtile", name.c_str(), gone ? "deleted" : "NOT deleted");
+      zt_logl('A', "web: %s %s %s", bg ? "custombg" : "customtile", name.c_str(), gone ? "deleted" : "NOT deleted");
       return gone ? reply(fd, 200, "OK", "text/plain", "deleted") : reply(fd, 404, "Not Found", "text/plain", "missing");
     }
     const std::string data = read_file(file.c_str());
@@ -1102,18 +1130,34 @@ void handle(int fd) {
     const std::string file = zt_log_path(name);
     if (file.empty())
       return reply(fd, 404, "Not Found", "text/plain", "no such log");
-    const std::string data = read_file(file.c_str());
+    /* sent in pieces (zhithemes.log can be 16 MB), up to the size it had
+       when asked (lines still being added go in the next download) */
+    const int in = open(file.c_str(), O_RDONLY);
+    struct stat st;
+    if (in < 0 || fstat(in, &st) != 0) {
+      if (in >= 0)
+        close(in);
+      return reply(fd, 404, "Not Found", "text/plain", "no such log");
+    }
     char head[384];
     const int n = snprintf(head, sizeof(head),
                            "HTTP/1.0 200 OK\r\n"
                            "Content-Type: text/plain; charset=utf-8\r\n"
                            "Content-Disposition: attachment; filename=\"%s\"\r\n"
-                           "Content-Length: %zu\r\n"
+                           "Content-Length: %lld\r\n"
                            "Cache-Control: no-store\r\n"
                            "Connection: close\r\n\r\n",
-                           name.c_str(), data.size());
-    if (n > 0 && send_all(fd, head, (size_t)n))
-      send_all(fd, data.data(), data.size());
+                           name.c_str(), (long long)st.st_size);
+    if (n > 0 && send_all(fd, head, (size_t)n)) {
+      std::vector<char> buf(65536);
+      for (off_t left = st.st_size; left > 0;) {
+        const ssize_t got = read(in, buf.data(), (size_t)std::min<off_t>(left, (off_t)buf.size()));
+        if (got <= 0 || !send_all(fd, buf.data(), (size_t)got))
+          break;
+        left -= got;
+      }
+    }
+    close(in);
     return;
   }
   if (method == "POST" && path == "/logs/delete") {
@@ -1148,17 +1192,37 @@ void handle(int fd) {
         (void)write(out, text.data(), text.size());
         close(out);
       }
-      zt_log("web: inject delay %d s", s);
+      zt_logl('A', "web: inject delay %d s", s);
     }
     int s = atoi(read_file(file.c_str()).c_str());
     if (s < 5 || s > 120)
       s = 15;
     return reply(fd, 200, "OK", "application/json", "{\"seconds\":" + std::to_string(s) + "}");
   }
+  /* Report a problem (editor): body = "what happened" (plain text); the
+     answer is the report as a download */
+  if (method == "POST" && path == "/report") {
+    std::string what = body.substr(0, 4000);
+    for (char &ch : what)
+      if (ch == '\r')
+        ch = ' ';
+    const std::string text = zt_report_text(what, "editor");
+    const std::string name = zt_report_name();
+    char head[384];
+    const int n = snprintf(head, sizeof(head),
+                           "HTTP/1.0 200 OK\r\n"
+                           "Content-Type: text/plain; charset=utf-8\r\n"
+                           "Content-Disposition: attachment; filename=\"%s\"\r\n"
+                           "Content-Length: %zu\r\n"
+                           "Cache-Control: no-store\r\n"
+                           "Connection: close\r\n\r\n",
+                           name.c_str(), text.size());
+    if (n > 0 && send_all(fd, head, (size_t)n))
+      send_all(fd, text.data(), text.size());
+    return;
+  }
   if (method == "POST" && path == "/log/clear") {
-    const int lf = open(kLogPath, O_WRONLY | O_TRUNC);
-    if (lf >= 0)
-      close(lf);
+    zt_log_clear();
     return reply(fd, 200, "OK", "text/plain", "cleared");
   }
   reply(fd, 404, "Not Found", "text/plain", "not found");

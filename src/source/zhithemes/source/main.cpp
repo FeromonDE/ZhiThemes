@@ -18,7 +18,7 @@ later version. See LICENSE and NOTICE.  */
  * injected. A previous watcher process is stopped through its pid file.
  *
  * Files: /data/ZhiThemes/Themes/<active>.ztheme; logs in /data/ZhiThemes/Logs/
- * (zhithemes.log from the module, payload.log from this payload).
+ * (zhithemes.log: the module's lines and this payload's "[payload]" lines).
  */
 
 #include <onion/conflict.h>
@@ -63,7 +63,7 @@ namespace {
 
 constexpr const char *kDir = "/user/data/ZhiThemes";
 constexpr const char *kPidFile = "/user/data/ZhiThemes/watcher.pid";
-constexpr const char *kLog = "/user/data/ZhiThemes/Logs/payload.log";
+constexpr const char *kLog = "/user/data/ZhiThemes/Logs/zhithemes.log";
 constexpr int kPort = 4444;
 
 struct NotifyRequest {
@@ -80,33 +80,48 @@ void notify(const char *fmt, ...) {
   sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
 }
 
-/* one line with its UTC time; past 1 MB the file starts again */
+/* One "[payload]" line in the module's zhithemes.log (O_APPEND: lines of
+   the two processes do not mix), with its UTC time and a level letter
+   (W when it failed, else I). The module cuts the file at its start; this
+   only stops a runaway file when no module ever starts. */
 void logf(const char *fmt, ...) {
   struct stat st;
-  if (stat(kLog, &st) == 0 && st.st_size > (1 << 20))
+  if (stat(kLog, &st) == 0 && st.st_size > (64 << 20))
     unlink(kLog);
+  mkdir(kDir, 0777);
+  mkdir("/user/data/ZhiThemes/Logs", 0777);
   const int fd = open(kLog, O_WRONLY | O_CREAT | O_APPEND, 0666);
   if (fd < 0)
     return;
-  char line[600];
-  const time_t now = time(nullptr);
-  struct tm at = {};
-  gmtime_r(&now, &at);
-  int head = snprintf(line, sizeof(line), "%04d-%02d-%02d %02d:%02d:%02d  ", at.tm_year + 1900,
-                      at.tm_mon + 1, at.tm_mday, at.tm_hour, at.tm_min, at.tm_sec);
-  if (head < 0)
-    head = 0;
+  char text[900];
   va_list ap;
   va_start(ap, fmt);
-  int n = vsnprintf(line + head, sizeof(line) - 1 - head, fmt, ap);
+  int n = vsnprintf(text, sizeof(text), fmt, ap);
   va_end(ap);
   if (n < 0)
     n = 0;
-  n += head;
-  if (n > (int)sizeof(line) - 2)
-    n = sizeof(line) - 2;
-  line[n++] = '\n';
-  (void)write(fd, line, n);
+  if (n > (int)sizeof(text) - 1)
+    n = sizeof(text) - 1;
+  text[n] = 0;
+  for (int i = 0; i < n; ++i)
+    if (text[i] == '\n' || text[i] == '\r')
+      text[i] = ' ';
+  const bool bad = strstr(text, "fail") || strstr(text, "FAIL") || strstr(text, "cannot") ||
+                   strstr(text, "error") || strstr(text, "WARNING") || strstr(text, "still missing") ||
+                   strstr(text, "safe mode") || strstr(text, "two modules");
+  struct timespec now = {};
+  clock_gettime(CLOCK_REALTIME, &now);
+  struct tm at = {};
+  gmtime_r(&now.tv_sec, &at);
+  char line[1000];
+  const int len = snprintf(line, sizeof(line), "%04d-%02d-%02d %02d:%02d:%02d.%03d %c  [payload] %s\n",
+                           at.tm_year + 1900, at.tm_mon + 1, at.tm_mday, at.tm_hour, at.tm_min,
+                           at.tm_sec, (int)(now.tv_nsec / 1000000), bad ? 'W' : 'I', text);
+  if (len > 0)
+    (void)write(fd, line, len < (int)sizeof(line) ? len : (int)sizeof(line) - 1);
+  /* always on the disk at once: few lines, and the ones around an
+     injection are the ones a full-console crash would lose */
+  fsync(fd);
   close(fd);
 }
 
@@ -577,8 +592,10 @@ void close_browser_helpers() {
       if (onion_find_pid(name) > 0)
         left = true;
     if (!left) {
-      logf("browser helpers closed after %d ms", i * 50);
-      usleep(500 * 1000);
+      /* 0.5 s was too short once: the ShellUI still froze at the module's
+         start, the same sequence working other times */
+      logf("browser helpers closed after %d ms; injecting in 2 s", i * 50);
+      sleep(2);
       return;
     }
     usleep(50 * 1000);

@@ -14,6 +14,7 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_brand.hpp"
 #include "zt_log.hpp"
 #include "theme_web.hpp"
+#include "zt_stats.hpp"
 #include <onion/net.h>
 #include <dirent.h>
 #include <errno.h>
@@ -24,6 +25,7 @@ later version. See LICENSE and NOTICE.  */
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 #include <string>
@@ -271,19 +273,58 @@ void *tool_thread(void *arg) {
       /* done: the dump goes off again (it slows every app down) */
       theme_set_bool("screenDump", false);
     }
+  } else if (tool == "report") {
+    zt_menu_notify("making the problem report...");
+    const std::string text = zt_report_text("", "PS5 menu");
+    const std::string usb = usb_target();
+    /* no stick: in Logs/ (the editor's Logs tab lists it), the 3 newest */
+    const std::string dir = usb.empty() ? std::string(ZT_LOGS) : usb + "/ZhiThemes";
+    const std::string file = dir + "/" + zt_report_name();
+    const int fd = open(file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    bool ok = fd >= 0;
+    if (ok) {
+      ok = write(fd, text.data(), text.size()) == (ssize_t)text.size();
+      fsync(fd);
+      close(fd);
+    }
+    if (!ok) {
+      err = "cannot write " + file;
+    } else {
+      c.files = 1;
+      c.bytes = (long long)text.size();
+      where = file;
+      if (usb.empty()) {
+        std::vector<std::string> old;
+        if (DIR *d = opendir(ZT_LOGS)) {
+          while (dirent *e = readdir(d))
+            if (strncmp(e->d_name, "ZhiThemes-report-", 17) == 0)
+              old.push_back(e->d_name);
+          closedir(d);
+        }
+        std::sort(old.begin(), old.end());
+        for (size_t i = 0; i + 3 < old.size(); ++i)
+          unlink((std::string(ZT_LOGS) + "/" + old[i]).c_str());
+      }
+    }
   }
   if (!err.empty()) {
     zt_log("tools: %s failed: %s", tool.c_str(), err.c_str());
     zt_menu_notify(tool + ": " + err);
   } else {
-    zt_log("tools: %s -> %s: %d files, %lld bytes, %d failed, %ld s", tool.c_str(), where.c_str(), c.files,
-           c.bytes, c.failed, (long)(time(nullptr) - t0));
+    zt_logl('A', "tools: %s -> %s: %d files, %lld bytes, %d failed, %ld s", tool.c_str(), where.c_str(), c.files,
+            c.bytes, c.failed, (long)(time(nullptr) - t0));
     /* the stick as the user sees it: /usb1/x -> USB: ZhiThemes/... */
     const size_t z = where.find("/ZhiThemes/");
     const std::string shown = z == std::string::npos ? where : where.substr(z + 1);
-    zt_menu_notify((tool == "backup" ? "themes backed up" : tool == "logs" ? "logs copied" : "screen dump copied") +
-                   std::string(" to USB: ") + shown + " (" + std::to_string(c.files) + " files, " + mb(c.bytes) +
-                   (c.failed ? ", " + std::to_string(c.failed) + " failed" : "") + ")");
+    if (tool == "report")
+      zt_menu_notify(where.rfind(ZT_LOGS, 0) == 0
+                         ? "problem report saved on the PS5 (no USB stick): get it in the editor, Logs tab: " +
+                               where.substr(where.rfind('/') + 1)
+                         : "problem report saved to USB: " + shown + " (" + mb(c.bytes) + "). Send that file.");
+    else
+      zt_menu_notify((tool == "backup" ? "themes backed up" : tool == "logs" ? "logs copied" : "screen dump copied") +
+                     std::string(" to USB: ") + shown + " (" + std::to_string(c.files) + " files, " + mb(c.bytes) +
+                     (c.failed ? ", " + std::to_string(c.failed) + " failed" : "") + ")");
   }
   (void)reload;
   finish();
@@ -345,6 +386,9 @@ std::string zt_tool_run(const std::string &tool, void (*reload)()) {
     reload();
     return "";
   }
+  /* the screen dump tools are the diagnostic build's (its menu has them) */
+  if (!ZT_DIAG && (tool == "dump" || tool == "dumpon"))
+    return "the screen dump is in ZhiThemes-diag.elf only";
   if (tool == "dumpon") {
     if (!theme_set_bool("screenDump", true))
       return "cannot write the theme file";
@@ -352,7 +396,7 @@ std::string zt_tool_run(const std::string &tool, void (*reload)()) {
     reload();
     return "";
   }
-  if (tool != "backup" && tool != "logs" && tool != "dump")
+  if (tool != "backup" && tool != "logs" && tool != "dump" && tool != "report")
     return "unknown tool " + tool;
   {
     std::lock_guard<std::mutex> lock(g_tool_lock);
@@ -369,4 +413,46 @@ std::string zt_tool_run(const std::string &tool, void (*reload)()) {
   }
   pthread_detach(t);
   return "";
+}
+
+/* homeui_js_inject.cpp */
+std::string zt_theme_values_text(const std::string &src);
+
+std::string zt_report_name() { return "ZhiThemes-report-" + stamp() + ".txt"; }
+
+std::string zt_report_text(const std::string &what, const char *from) {
+  std::string theme_text;
+  const std::string file = zt_theme_file();
+  if (const int fd = open(file.c_str(), O_RDONLY); fd >= 0) {
+    std::vector<char> buf(1 << 16);
+    for (ssize_t n; (n = read(fd, buf.data(), buf.size())) > 0 && theme_text.size() < (8u << 20);)
+      theme_text.append(buf.data(), (size_t)n);
+    close(fd);
+  }
+  const time_t now = time(nullptr);
+  struct tm tm = {};
+  gmtime_r(&now, &tm);
+  char made[40];
+  strftime(made, sizeof(made), "%Y-%m-%d %H:%M:%S UTC", &tm);
+  timespec up = {};
+  clock_gettime(CLOCK_MONOTONIC, &up);
+  const long mins = (long)(up.tv_sec / 60);
+  std::string r = "ZhiThemes problem report\n";
+  r += std::string("Made: ") + made + " (" + from + ")\n";
+  r += std::string("ZhiThemes ") + ZT_VERSION + " (build " + std::to_string(ZT_BUILD) + ") | PS5 firmware " +
+       (zt_fw_text().empty() ? "unknown" : zt_fw_text()) + " | PS5 on for " + std::to_string(mins / 60) + " h " +
+       std::to_string(mins % 60) + " min\n";
+  r += "Theme in use: " + (zt_stock_on() ? std::string("none (PS5 default)") : zt_theme_name()) + "\n";
+  r += "What happened: " + (what.empty() ? std::string("(not written: made from the PS5 menu)") : what) + "\n\n";
+  r += "== System ==\n" + zt_sysinfo_json() + "\n" + zt_stats_json() + "\n";
+  r += "themes: " + zt_themes_json() + "\n\n";
+  r += "== Values of the theme in use (" + zt_theme_name() + ") ==\n" + zt_theme_values_text(theme_text) + "\n";
+  r += zt_log_report(3, 4u << 20);
+  /* what only the flight recorder has (debug mode off): the keys and the
+     newly seen testIDs (focused items) of this session, newest 300 KB */
+  const std::string rec = zt_log_recorder_tail(300u << 10);
+  r += "\n== Flight recorder of this session: keys and focus (newest at the end) ==\n" +
+       (rec.empty() ? std::string("(empty)\n") : rec);
+  zt_logl('A', "report: made (%s, %zu bytes)", from, r.size());
+  return r;
 }

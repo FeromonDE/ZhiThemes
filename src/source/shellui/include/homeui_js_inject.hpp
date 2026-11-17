@@ -51,3 +51,8 @@ int theme_unload();
 /* THEME number / string value of theme.js (zt_native_theme.cpp) */
 double zt_theme_number(const std::string &src, const char *key, double fallback);
 std::string zt_theme_text(const std::string &src, const char *key);
+/* "A field <key> <old> -> <new>" lines in the log for the THEME values that
+   differ between two theme files (an editor save); returns how many */
+int zt_theme_log_changes(const std::string &before, const std::string &after, const char *who);
+/* "key: value" lines of a theme file's THEME block (Report a problem) */
+std::string zt_theme_values_text(const std::string &src);

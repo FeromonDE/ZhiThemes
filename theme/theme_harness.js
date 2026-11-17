@@ -84,6 +84,13 @@ const modules = {
     exports.atomFamily = () => () => ({});
     exports.useAtomValue = () => LIST;
   },
+  // Recoil (older Homes, 4.03): the same list through useRecoilValue
+  4031: function (module, exports) {
+    const LIST = [{ id: 'NPXS40047' }, { id: 'PPSA18026' }, { id: 'PPSA01467' }];
+    exports.atomFamily = () => () => ({});
+    exports.selectorFamily = () => () => ({});
+    exports.useRecoilValue = () => LIST;
+  },
   // name next to the focused tile
   2302: function (module, exports, req) {
     exports.default = req(1).StyleSheet.create({
@@ -185,6 +192,10 @@ const modules = {
     const a = jotai.useAtomValue({}), b = jotai.useAtomValue({});
     exports.rowIds = a.map((e) => e.id);
     exports.sameRef = a === b;
+    const recoil = req(4031);
+    const ra = recoil.useRecoilValue({}), rb = recoil.useRecoilValue({});
+    exports.rowIdsRecoil = ra.map((e) => e.id);
+    exports.sameRefRecoil = ra === rb;
     exports.nameTile = req(2302).default.experienceTitleContainer;
     const root = req(2).jsxs('View', { style: req(261).default.container,
                                        children: [{ key: 'a' }, { key: 'b' }] });
@@ -333,6 +344,8 @@ const out = {
   friendsCard: entry.friendsCard,
   rowIds: entry.rowIds,
   sameRef: entry.sameRef,
+  rowIdsRecoil: entry.rowIdsRecoil,
+  sameRefRecoil: entry.sameRefRecoil,
   nameTile: entry.nameTile,
   rootChildren: entry.rootChildren,
   footer: entry.footer,

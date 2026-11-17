@@ -124,9 +124,15 @@ void zt_menu_notify(const std::string &text);
 std::string zt_tools_json();
 /* one of the menu's on/off fields into the active theme; "" or the reason */
 std::string zt_quick_set(const std::string &key, bool on);
-/* reload | cache | dumpon | backup | logs | dump (the last three in a thread,
-   to the first USB stick); "" or the reason */
+/* reload | cache | dumpon | backup | logs | dump | report (the last four in
+   a thread, to the first USB stick; report without a stick: Logs/); "" or
+   the reason */
 std::string zt_tool_run(const std::string &tool, void (*reload)());
+/* "Report a problem": one text with what happened, the system, the active
+   theme's values and the last sessions of the log (no user name or IDs) */
+std::string zt_report_text(const std::string &what, const char *from);
+/* "ZhiThemes-report-<date>.txt" */
+std::string zt_report_name();
 
 /* mkdir -p of a folder under ZT_DIR */
 void zt_mkdirs(const std::string &path);

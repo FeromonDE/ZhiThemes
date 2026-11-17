@@ -2192,11 +2192,8 @@
   }
   function fmtSize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   function logKind(name) {
-    if (name === 'zhithemes.log') return 'this session';
-    if (name === 'previous.log') return 'the session before (look here after a crash)';
-    if (name === 'payload.log') return 'ZhiThemes.elf (injection, ShellUI restarts)';
-    if (/^debug-/.test(name)) return 'debug session';
-    if (/^crash-/.test(name)) return 'did not close while debugging (crash, rest mode or power off)';
+    if (name === 'zhithemes.log') return 'all sessions (newest at the end)';
+    if (/^ZhiThemes-report-/.test(name)) return 'problem report made on the PS5 (send this file)';
     return '';
   }
   function downloadLog(name) {
@@ -2244,8 +2241,7 @@
     status(on ? 'starting debug mode…' : 'stopping debug mode…');
     return request('POST', '/debug?on=' + (on ? 1 : 0) + '&sys=' + (sys ? 1 : 0)).then(function (t) {
       var r = JSON.parse(t);
-      status(on ? 'debug mode on: use the PS5, then stop it here' : r.saved ? 'debug log saved: ' + r.saved : 'debug mode off', 'ok');
-      if (!on && r.saved && confirm('The debug log was saved as ' + r.saved + '. Download it now?')) downloadLog(r.saved);
+      status(on ? 'debug mode on: use the PS5, then stop it here' : 'debug mode off (its lines are in zhithemes.log)', 'ok');
       return loadSysinfo();
     }).then(function () { if (current === 'log') showLog(logExtra); }).catch(fail);
   }
@@ -2270,12 +2266,62 @@
       });
     top.appendChild(sec);
 
+    /* Report a problem: one .txt (what happened, the system, the theme's
+       values, the last 3 sessions of the log) downloaded to this PC */
+    var rsec = document.createElement('section');
+    rsec.className = 'section';
+    rsec.innerHTML = '<h2>Report a problem</h2><p class="tip">Right after something goes wrong: one file with what ' +
+      'happened, your theme\'s values and the last sessions of the log, to send with a GitHub issue.</p>' +
+      '<div class="row"><button class="ropen">Report a problem…</button></div>' +
+      '<div class="rbox" style="display:none">' +
+      '<textarea maxlength="4000" style="width:100%;box-sizing:border-box;height:96px;min-height:0;resize:vertical" ' +
+      'placeholder="What did you do, and what happened? (what you pressed, what you saw)"></textarea>' +
+      '<div class="row"><button class="rmake">Make the report</button> <button class="rcancel">Cancel</button> ' +
+      '<span class="tip" style="margin:0"></span></div><p class="tip rdone" style="display:none"></p></div>';
+    var rbox = rsec.querySelector('.rbox'), ropen = rsec.querySelector('.ropen'),
+        rtext = rsec.querySelector('textarea'), rbtn = rsec.querySelector('.rmake'),
+        rmsg = rsec.querySelector('.row span'), rdone = rsec.querySelector('.rdone');
+    ropen.onclick = function () {
+      rbox.style.display = '';
+      ropen.parentNode.style.display = 'none';
+      rtext.focus();
+    };
+    rsec.querySelector('.rcancel').onclick = function () {
+      rbox.style.display = 'none';
+      ropen.parentNode.style.display = '';
+    };
+    rbtn.onclick = function () {
+      rbtn.disabled = true;
+      rmsg.textContent = 'making the report…';
+      request('POST', '/report', rtext.value || '').then(function (t) {
+        var stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15);
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([t], { type: 'text/plain' }));
+        a.download = 'ZhiThemes-report-' + stamp + '.txt';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+        rmsg.textContent = 'saved: ' + a.download + ' (' + fmtSize(t.length) + ')';
+        /* where to send it: a GitHub issue with the file attached */
+        var issues = ((sysInfo && sysInfo.home) || 'https://github.com/itsRealZhi/ZhiThemes').replace(/\/$/, '') + '/issues/new';
+        rdone.innerHTML = 'Now open an issue on GitHub: <a target="_blank" rel="noopener"></a> — say in a line what ' +
+          'happened and <b>attach</b> the file <b></b> (drag it into the issue).';
+        rdone.querySelector('a').href = issues;
+        rdone.querySelector('a').textContent = issues;
+        rdone.querySelectorAll('b')[1].textContent = a.download;
+        rdone.style.display = '';
+      }).catch(function (e) { rmsg.textContent = 'failed: ' + e.message; })
+        .then(function () { rbtn.disabled = false; });
+    };
+    top.appendChild(rsec);
+
     var dsec = document.createElement('section');
     dsec.className = 'section';
-    dsec.innerHTML = '<h2>Debug mode</h2><p class="tip">Turn it on, use the PS5 where something goes wrong (Home, a game hub, ' +
-      'Settings…), then turn it off: that session is saved as <b>debug-&lt;date&gt;.log</b> to download below. If the PS5 or ' +
-      'the theme crashes while it is on, the log is kept as <b>crash-&lt;date&gt;.log</b> (the 2 newest of each stay). Every log starts with the ' +
-      'firmware and ZhiThemes version, and each line has its time (UTC). The logs are also on the PS5 in ' +
+    dsec.innerHTML = '<h2>Debug mode</h2><p class="tip">Everything goes to one file, <b>zhithemes.log</b>: every session ' +
+      'one after the other (about the last 16 MB), each starting with the firmware, the ZhiThemes version and the theme. ' +
+      'A session that did not end cleanly is marked <b>CRASHED</b> at the next start (or, when the PS5 was switched off or restarted, ' +
+      'with a warning that says so). Each line has its time (UTC) and a ' +
+      'letter: E error, W warning, A what you did, I info, D debug, H health. Debug mode adds more lines (keys, the screen ' +
+      'map, also of Settings and Trophies, which makes them slower): turn it on, use the PS5 where something goes wrong, then turn it off. The log is also on the PS5 in ' +
       '<b>/data/ZhiThemes/Logs/</b> (FTP or USB). Debug mode is never saved in a theme.</p>';
     var row = document.createElement('div');
     row.className = 'row';
@@ -2286,15 +2332,9 @@
     on.checked = !!info.debug;
     var lab = document.createElement('b');
     lab.textContent = info.debug ? 'Debug mode is on' : 'Debug mode';
-    var sysLab = document.createElement('label');
-    sysLab.className = 'tip';
-    sysLab.style.margin = '0 0 0 12px';
-    sysLab.innerHTML = '<input type="checkbox"> also map Settings and Trophies (slow)';
-    var sys = sysLab.firstChild;
-    sys.checked = !!info.sys;
-    on.onchange = function () { setDebug(on.checked, sys.checked); };
-    sys.onchange = function () { if (on.checked) setDebug(true, sys.checked); };
-    row.appendChild(sw); row.appendChild(lab); row.appendChild(sysLab);
+    /* debug mode also maps Settings and Trophies (no separate switch) */
+    on.onchange = function () { setDebug(on.checked, on.checked); };
+    row.appendChild(sw); row.appendChild(lab);
     dsec.appendChild(row);
     top.appendChild(dsec);
 
@@ -2323,12 +2363,12 @@
 
     var fsec = document.createElement('section');
     fsec.className = 'section';
-    fsec.innerHTML = '<h2>Saved logs</h2><div class="row"><button id="llr">Refresh</button></div><div id="loglist"></div>';
+    fsec.innerHTML = '<h2>Log file</h2><div class="row"><button id="llr">Refresh</button></div><div id="loglist"></div>';
     top.appendChild(fsec);
 
     var lsec = document.createElement('section');
     lsec.className = 'section';
-    lsec.innerHTML = '<h2>Live log (this session)</h2><div class="row"><button id="lr">Refresh</button>' +
+    lsec.innerHTML = '<h2>Live log</h2><div class="row"><button id="lr">Refresh</button>' +
       '<button id="lc">Clear</button><button id="ld">Download</button><span class="tip" style="margin:0">Last 150 lines</span></div>' +
       '<pre id="log" class="short"></pre>';
     top.appendChild(lsec);
@@ -2336,7 +2376,10 @@
     document.getElementById('llr').onclick = refreshLogList;
     document.getElementById('lr').onclick = refreshLog;
     document.getElementById('ld').onclick = function () { downloadLog('zhithemes.log'); };
-    document.getElementById('lc').onclick = function () { request('POST', '/log/clear').then(refreshLog).catch(fail); };
+    document.getElementById('lc').onclick = function () {
+      if (!confirm('Empty zhithemes.log on the PS5? All the sessions in it go (download it first if you need it).')) return;
+      request('POST', '/log/clear').then(refreshLog).catch(fail);
+    };
     refreshLog();
     refreshLogList();
     if (!sysInfo) loadSysinfo().then(function (i) { if (i && current === 'log') showLog(logExtra); });
@@ -7021,8 +7064,44 @@
   /* a name the PS5 refuses (too long, other letters) is sent as
      uploadName(name) and written in renamed[old] = new (the theme text is
      changed to match) */
+  /* the same checks as the PS5's Install folder: a file's first bytes must
+     be what its name says (picture / video / sound / font), at most 64
+     files, 2 GB each, 4 GB in all */
+  function sniffType(u8) {
+    var at = function (o, s) { for (var i = 0; i < s.length; i++) if (u8[o + i] !== s.charCodeAt(i)) return false; return u8.length >= o + s.length; };
+    if (at(0, '\x89PNG\r\n\x1a\n')) return 'png';
+    if (u8[0] === 0xFF && u8[1] === 0xD8 && u8[2] === 0xFF) return 'jpg';
+    if (at(0, 'GIF87a') || at(0, 'GIF89a')) return 'gif';
+    if (at(0, 'RIFF') && at(8, 'WEBP')) return 'webp';
+    if (at(0, 'RIFF') && at(8, 'WAVE')) return 'wav';
+    if (at(4, 'ftyp')) return 'mp4';
+    if (u8[0] === 0x1A && u8[1] === 0x45 && u8[2] === 0xDF && u8[3] === 0xA3) return 'webm';
+    if (at(0, 'OggS')) return 'ogg';
+    if (at(0, 'ID3') || (u8[0] === 0xFF && (u8[1] & 0xE0) === 0xE0)) return 'mp3';
+    if ((u8[0] === 0 && u8[1] === 1 && u8[2] === 0 && u8[3] === 0) || at(0, 'OTTO') || at(0, 'true') || at(0, 'ttcf')) return 'font';
+    return '';
+  }
+  function packTypes(kind, name) {
+    var ext = (/\.([^.]+)$/.exec(name) || ['', ''])[1].toLowerCase();
+    var pic = /^(png|jpe?g|webp|gif)$/.test(ext);
+    if (kind === 'fonts') return /^(ttf|otf|ttc)$/.test(ext) ? ['font'] : [];
+    if (kind === 'icons') return pic ? ['png', 'jpg', 'webp', 'gif'] : [];
+    if (kind !== 'wallpapers') return [];
+    if (pic) return ['png', 'jpg', 'webp', 'gif'];
+    if (/^(mp4|m4v|mov|webm)$/.test(ext)) return ['mp4', 'webm'];
+    if (/^(mp3|aac|m4a|wav|at9|ogg)$/.test(ext)) return ['mp3', 'mp4', 'wav', 'ogg'];
+    return [];
+  }
   function uploadAssets(files, theme, renamed) {
     var names = Object.keys(files).filter(function (n) { return /^assets\/(wallpapers|icons|fonts)\/[^\/]+$/.test(n); });
+    var left = [], total = 0;
+    names = names.slice(0, 64).filter(function (n) {
+      var p = n.split('/'), d = files[n], ok = packTypes(p[1], p[2]).indexOf(sniffType(d)) >= 0 &&
+        d.length <= 2 * 1024 * 1024 * 1024 && total + d.length <= 4 * 1024 * 1024 * 1024;
+      if (ok) total += d.length; else left.push(p[2]);
+      return ok;
+    });
+    if (left.length) alert('Left out of this pack (wrong file type or too big):\n' + left.join('\n'));
     var i = 0, th = theme ? '&theme=' + encodeURIComponent(theme) : '';
     var next = function () {
       if (i >= names.length) return Promise.resolve(names.length);
