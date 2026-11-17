@@ -24,6 +24,8 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_mosaic.hpp"
 #include "zt_native_theme.hpp"
 #include "zt_storage.hpp"
+#include "zt_dump_bundle.hpp"
+#include <errno.h>
 
 #include <algorithm>
 #include <atomic>
@@ -2358,36 +2360,63 @@ std::string dump_dir() {
   return dir;
 }
 
-/* copies one file; false when it could not */
+/* Run on the existing dump worker, never on the Home's rendering thread.
+   The on-disk application.ps.bundle is encrypted even after it was loaded. */
 bool dump_copy(const std::string &from, const std::string &to) {
   const int in = open(from.c_str(), O_RDONLY);
-  if (in < 0)
-    return false;
-  const std::string part = to + ".part";
-  const int out = open(part.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-  if (out < 0) {
+  if (in < 0) return false;
+  struct stat st {};
+  if (fstat(in, &st) || st.st_size <= 0 || st.st_size > (64 << 20)) {
     close(in);
     return false;
   }
-  std::vector<char> buf(1 << 16);
-  bool ok = true;
-  for (;;) {
-    const ssize_t n = read(in, buf.data(), buf.size());
-    if (n < 0)
-      ok = false;
-    if (n <= 0)
-      break;
-    if (write(out, buf.data(), (size_t)n) != n) {
-      ok = false;
-      break;
-    }
+  std::vector<unsigned char> buf((size_t)st.st_size);
+  size_t at = 0;
+  while (at < buf.size()) {
+    const ssize_t n = read(in, buf.data()+at, buf.size()-at);
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) break;
+    at += (size_t)n;
   }
   close(in);
-  close(out);
-  if (ok)
-    ok = rename(part.c_str(), to.c_str()) == 0;
-  else
-    unlink(part.c_str());
+  if (at != buf.size()) return false;
+  if (!zt_dump_plain_bundle(buf.data(),buf.size())) {
+    if (buf.size() < 32 || memcmp(buf.data(),"RNPSHEDR",8)) {
+      zt_log("dump: unknown bundle format %s",from.c_str());
+      return false;
+    }
+    const int dev = open("/dev/rnps",O_RDWR);
+    if (dev < 0 || !ioctl) {
+      if (dev >= 0) close(dev);
+      zt_log("dump: RNPS decrypt device unavailable for %s",from.c_str());
+      return false;
+    }
+    ioctl_C0105203_args args {};
+    args.buffer = buf.data();
+    args.size = (int)buf.size();
+    args.error = (int)0x800f1225u;
+    const int result = ioctl(dev,(int)0xc0105203u,&args);
+    close(dev);
+    if (result != 0 || args.error != 0 || !zt_dump_plain_bundle(buf.data(),buf.size())) {
+      zt_log("dump: RNPS decrypt failed %s result=%d error=0x%x (no encrypted dump saved)",
+             from.c_str(),result,(unsigned)args.error);
+      return false;
+    }
+  }
+  const std::string part = to + ".part";
+  const int out = open(part.c_str(),O_WRONLY|O_CREAT|O_TRUNC,0666);
+  if (out < 0) return false;
+  at = 0;
+  while (at < buf.size()) {
+    const ssize_t n = write(out,buf.data()+at,buf.size()-at);
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) break;
+    at += (size_t)n;
+  }
+  bool ok = at == buf.size() && fsync(out) == 0;
+  if (close(out) != 0) ok = false;
+  if (ok) ok = rename(part.c_str(),to.c_str()) == 0;
+  if (!ok) unlink(part.c_str());
   return ok;
 }
 
@@ -2412,15 +2441,13 @@ void *dump_worker(void *) {
       if (!isalnum((unsigned char)c) && c != '.' && c != '_' && c != '-')
         c = '_';
     const std::string to = dump_dir() + "/" + name;
-    struct stat a {}, b {};
+    struct stat a {};
     if (stat(from.c_str(), &a) != 0) {
       zt_log("dump: %s not readable", from.c_str());
       continue;
     }
-    if (stat(to.c_str(), &b) == 0 && b.st_size == a.st_size)
-      continue;
     const bool ok = dump_copy(from, to);
-    zt_log("dump: bundle %s -> %s (%ld KB)%s", from.c_str(), to.c_str(), (long)(a.st_size >> 10),
+    zt_log("dump: decrypted bundle %s -> %s (%ld KB)%s", from.c_str(), to.c_str(), (long)(a.st_size >> 10),
            ok ? "" : " FAILED");
   }
 }

@@ -2,7 +2,13 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 378
+## Unreleased — build 379 (diagnostic prerequisite)
+
+- Screen dump now decrypts RNPS containers through the console's RNPS device and validates the code payload before saving.
+- Existing encrypted dumps are replaced even when their byte size matches. Failed decryption preserves the previous file and logs the failure.
+- This fixes dump collection only. The trophy provider is still unresolved: the uploaded Home and game-hub files contained encrypted payloads.
+
+## Build 378
 
 - Time out pending trophy service calls and release the request queue after errors or missing data.
 - Share in-flight requests per game and prioritize the latest focused title.

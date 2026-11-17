@@ -24,6 +24,8 @@ jobs:
           echo "LLVM_CONFIG=/usr/bin/llvm-config-18" >> "$GITHUB_ENV"
       - name: Test theme
         run: |
+          clang++-18 -std=c++11 theme/test_dump_bundle.cpp -o "$RUNNER_TEMP/test_dump_bundle"
+          "$RUNNER_TEMP/test_dump_bundle"
           node --check theme/theme.js
           node theme/test_trophies.js
           node theme/test_reflection.js
@@ -65,7 +67,7 @@ jobs:
           sha256sum release/ZhiThemes.elf > release/ZhiThemes.elf.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: ZhiThemes-build378
+          name: ZhiThemes-build379
           path: |
             release/ZhiThemes.elf
             release/ZhiThemes.elf.sha256
