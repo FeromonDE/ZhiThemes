@@ -26,6 +26,8 @@ jobs:
         run: |
           clang++-18 -std=c++11 theme/test_dump_bundle.cpp -o "$RUNNER_TEMP/test_dump_bundle"
           "$RUNNER_TEMP/test_dump_bundle"
+          clang++-18 -std=c++11 -Isrc/third_party/cjson theme/test_title_names.cpp src/third_party/cjson/cJSON.cpp -o "$RUNNER_TEMP/test_title_names"
+          "$RUNNER_TEMP/test_title_names"
           node --check theme/theme.js
           node theme/test_trophies.js
           node theme/test_trophies_offline.js
@@ -69,7 +71,7 @@ jobs:
           sha256sum release/ZhiThemes.elf > release/ZhiThemes.elf.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: ZhiThemes-build383
+          name: ZhiThemes-build384
           path: |
             release/ZhiThemes.elf
             release/ZhiThemes.elf.sha256

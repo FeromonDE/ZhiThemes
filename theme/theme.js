@@ -9630,6 +9630,9 @@
     var id = v.id || v.titleId, conf = v.titleConf || v, record = v.titleRecord || v.record || v;
     var name = conf.name || conf.title;
     if (!/^(10|20):NPWR\d{5}_00$/.test(id) || typeof name !== 'string' || !name) return;
+    /* Trophy item rows also carry titleId, but their names are award names.
+       Only title definitions with platforms identify the game itself. */
+    if (!Array.isArray(conf.platforms)) return;
     var number = function (n) { return typeof n === 'number' && isFinite(n) && n >= 0 ? n : null; };
     var message = { id: id, name: name, platforms: conf.platforms, progress: number(record.progress),
       earned: ['Platinum', 'Gold', 'Silver', 'Bronze'].map(function (grade) { return number(record['numUnlocked' + grade]); }) };
@@ -9639,7 +9642,11 @@
     console.log('THEME-DUMP trophy-records ' + (state.count++ ? 1 : 0) + '\n' + text + '\n');
   }
   function trophyNameKey(name) {
-    return typeof name === 'string' ? name.replace(/[\u2122\u00ae\u00a9]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() : '';
+    var key = typeof name === 'string' ? name.replace(/[\u2122\u00ae\u00a9]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() : '';
+    /* Exact language pair confirmed by the console's Home/catalog/record
+       dumps. Keep this even when the mounted publisher metadata contains
+       only English. Platform and duplicate-set checks still apply. */
+    return key === '\u043f\u0440\u0430\u0433\u043c\u0430\u0442\u0430' ? 'pragmata' : key;
   }
   /* Metadata is attached to each Home request, never inferred from whichever
      tile happens to be focused when an asynchronous answer arrives. */
@@ -9648,9 +9655,13 @@
     try { games = JSON.parse(text); } catch (e) { return; }
     if (!Array.isArray(games)) return;
     games.slice(0, 10000).forEach(function (g) {
-      if (!g || !/^[A-Z]{4}\d{5}$/.test(g.id) || typeof g.name !== 'string' || g.name === g.id) return;
+      if (!g || !/^[A-Z]{4}\d{5}$/.test(g.id)) return;
       var names = (T.trophyNames = T.trophyNames || {})[g.id] || [];
-      if (names.indexOf(g.name) < 0 && names.length < 8) names.push(g.name);
+      var supplied = [g.name].concat(Array.isArray(g.names) ? g.names.slice(0, 64) : []);
+      supplied.forEach(function (name) {
+        if (typeof name === 'string' && name && name !== g.id && name.length <= 512 && names.indexOf(name) < 0 && names.length < 64)
+          names.push(name);
+      });
       T.trophyNames[g.id] = names;
     });
   }

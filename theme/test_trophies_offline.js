@@ -164,6 +164,33 @@ async function main(){
     h.trophyGameNames(JSON.stringify([{id:'PPSA02530',name:'PRAGMATA'},{id:'PPSA00002',name:'Other game'}]));
     h.trophyGameNames(JSON.stringify([{id:'PPSA02530',name:'Прагмата'}]));
   }
+  // Exact build 383 console reproduction: Home supplies only PRAGMATA;
+  // the native PS5 catalog calls the set Прагмата. This failed with 0
+  // matches before canonicalizing the reviewed language pair.
+  {
+    const h=harness();h.trophyGameNames(JSON.stringify([{id:'PPSA02530',name:'PRAGMATA'}]));
+    const n=catalogNative([conf]);
+    const data=await h.trophyOfflineFetcher(n.api,{launchedUser:1})({npTitleId:'PPSA02530_00'});
+    assert.equal(data.progress,8);assert.deepEqual(data.earnedTrophies,{platinum:0,gold:0,silver:1,bronze:4});
+    assert.equal(n.calls.find(c=>c[0]==='getTitleRecord')[1].titleId,conf.titleId);
+  }
+  // Publisher-localized names support translations unrelated to English
+  // spelling; matching uses metadata aliases, not transliteration or fuzzing.
+  {
+    const h=harness();
+    h.trophyGameNames(JSON.stringify([{id:'PPSA02530',name:'English game',names:['English game','Совсем другое название']} ]));
+    const n=catalogNative([{...conf,name:'Совсем другое название'}]);
+    assert.equal((await h.trophyOfflineFetcher(n.api,{launchedUser:1})({npTitleId:'PPSA02530_00'})).progress,8);
+    assert.deepEqual(h.T.trophyNames.PPSA02530,['English game','Совсем другое название']);
+  }
+  // Two independently installed PS5 stacks with the reviewed translated
+  // name remain ambiguous, even if only one happens to have earned trophies.
+  {
+    const h=harness();h.trophyGameNames(JSON.stringify([{id:'PPSA02530',name:'PRAGMATA'}]));
+    const n=catalogNative([conf,{...conf,titleId:'20:NPWR88888_00',name:'Pragmata'}]);
+    await assert.rejects(h.trophyOfflineFetcher(n.api,{launchedUser:1})({npTitleId:'PPSA02530_00'}),/catalog: 2 matches/);
+    assert(!n.calls.some(c=>c[0]==='getTitleRecord'));
+  }
   {
     const h=harness();metadata(h);
     const n=catalogNative([{...conf,titleId:'10:NPWR99999_00',platforms:['ps4']},conf]);

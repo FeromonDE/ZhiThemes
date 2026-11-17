@@ -146,3 +146,36 @@ separate users/explicit accounts and late identity replies, and replay the
 production row prop shapes without a React DevTools hook. Console testing
 of this change remains necessary; the account difference is verified, but
 its effect on PPSA02530 has not yet been measured on the user's console.
+
+## Confirmed localization mismatch in build 384
+
+The supplied build 383 catalog diagnostic contains `gameId: PPSA02530`,
+only the expected name `pragmata`, and platform `prospero`. Its native rows
+include `20:NPWR53259_00` with the name `Прагмата`. The independent screen
+record for that ID confirms progress 8 and earned counts `[0,0,1,4]`.
+Thus the zero-match catalog failure is explained by the different title
+languages; resolving account identity alone did not fix this failure.
+
+The name key now canonicalizes the exact English/Russian pair verified by
+those files. This is an explicit localized-name alias, not a hardcoded NPWR
+or PPSA-to-trophy binding. Candidate platform and unique-set checks remain
+mandatory. A second PS5 stack with either name makes selection ambiguous.
+
+For other localized titles, installed-game metadata now carries a `names`
+array parsed from all language objects in `param.json.localizedParameters`.
+The existing default display name is retained. The parser uses the bundled
+cJSON reader, decodes Unicode/quoted strings, deduplicates aliases and bounds
+them to 64 names of at most 512 bytes per game. This data is relayed with the
+existing per-ID request snapshot, so queued/focused neighbours keep their
+own aliases. No runtime translation or transliteration is attempted.
+
+The screen-capture file also included individual award names after opening
+the game's list; those rows share their parent's titleId. They are now
+excluded unless the captured definition has a platforms array. In particular,
+an award called "Pragmata" is not evidence of an English game-definition name.
+
+Regression tests reproduce the console's English-only Home name and Russian
+catalog record, assert 8% and `[0,0,1,4]`, reject duplicate region stacks, and
+cover unrelated publisher translations, malformed/escaped metadata and award
+rows. These tests use simulated native responses. Build 384 itself still
+requires confirmation on the user's console.

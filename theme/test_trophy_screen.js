@@ -25,6 +25,8 @@ for(const [app,on]of [['home',true],['hub',true],['trophy',false]]){
   const off=harness(app,on);off.capture({data:loaded});assert.equal(off.lines.length,0);
 }
 h.capture({data:{...loaded,id:'PPSA02530'}});assert.equal(h.lines.length,2);
+h.capture({rowData:{titleId:row.id,title:'An individual trophy award'}});
+assert.equal(h.lines.length,2,'award names must not be recorded as alternate game titles');
 // Capturing useful data is independent of React DevTools and the map's
 // 220-entry limit; cap distinct diagnostic updates to prevent file growth.
 for(let i=0;i<600;i++)h.capture({data:{...loaded,name:'Synthetic '+i}});

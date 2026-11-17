@@ -2,7 +2,13 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 383
+## Unreleased — build 384
+
+- Match the console-verified English/Russian title pair PRAGMATA/Прагмата. The catalog and UI dumps show that the different names prevented finding the actual 8% record.
+- Read every publisher-localized title name from param.json and relay the exact aliases by application ID. Keep platform and duplicate-set checks; do not infer identity from earned counts or approximate spelling.
+- Exclude individual trophy award names from trophy-records.txt; those rows carry a parent titleId but do not identify the game itself.
+
+## Build 383
 
 - Resolve the local user's decimal-string account ID with native Account.getInfo before offline trophy queries, matching the system Trophies app instead of always querying `me`.
 - Preserve 64-bit account IDs without numeric conversion, respect explicit accounts and retain a bounded `me` fallback when account information is unavailable.
