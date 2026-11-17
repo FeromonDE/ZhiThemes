@@ -21,6 +21,7 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_storage.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -75,7 +76,7 @@ namespace {
 constexpr int kPort = 4444;
 /* the theme file is Themes/<active>.ztheme (zt_theme_file()) */
 constexpr const char *kLogPath = ZT_LOGS "/zhithemes.log";
-bool g_web_quit = false; /* set by POST /quit */
+std::atomic<bool> g_web_quit{false}; /* set by POST /quit */
 time_t g_started = time(nullptr); /* when this copy of the module started */
 constexpr size_t kMaxHeader = 16u << 10;
 constexpr size_t kMaxBody = 24u << 20; /* font files can be a few MB */
@@ -254,9 +255,14 @@ struct SgdbImgJob {
   const char *mime;
   const char *who; /* the site, in the error text */
   size_t max;
+  bool preview = false;
+  bool priority = false;
 };
+
+bool g_sgdb_download_active = false; /* protected by g_asset_lock */
+
 void sgdb_img_send(int fd, const std::string &url, const char *mime, const char *who = "SteamGridDB",
-                   size_t max = 400u << 20) {
+                   size_t max = 400u << 20, bool preview = false, bool priority = false) {
   bool head_sent = false, client_ok = true;
   long http = 0, bad = 0;
   std::string err;
@@ -293,7 +299,7 @@ void sgdb_img_send(int fd, const std::string &url, const char *mime, const char 
         }
         return true;
       },
-      http, err);
+      http, err, preview, priority, [] { return g_web_quit.load(); });
   if (!head_sent) {
     const std::string why = bad ? "HTTP " + std::to_string(bad) : err.empty() ? std::to_string(http) : err;
     reply(fd, 502, "Bad Gateway", "text/plain", std::string(who) + ": " + why);
@@ -303,12 +309,14 @@ void sgdb_img_send(int fd, const std::string &url, const char *mime, const char 
 }
 void *sgdb_img_client(void *arg) {
   SgdbImgJob *j = (SgdbImgJob *)arg;
-  sgdb_img_send(j->fd, j->url, j->mime, j->who, j->max);
+  sgdb_img_send(j->fd, j->url, j->mime, j->who, j->max, j->preview, j->priority);
   close(j->fd);
-  delete j;
   pthread_mutex_lock(&g_asset_lock);
+  if (j->priority)
+    g_sgdb_download_active = false;
   --g_asset_clients;
   pthread_mutex_unlock(&g_asset_lock);
+  delete j;
   return nullptr;
 }
 
@@ -603,9 +611,9 @@ void handle(int fd) {
    * SteamGridDB (Tiles tab), the PS5 asks and answers the editor:
    *   GET  /sgdb/search?q=<name>            games with that name (API JSON)
    *   GET  /sgdb/grids?id=<game>&fmt=2x3|1x1|92x43|16x9|logo&page=<n>  pictures (API JSON)
-   *   GET  /sgdb/img?u=<cdn url>            a thumbnail or a full picture
-   *   POST /sgdb/save?u=<cdn url>&id=<titleId>&fmt=2x3|1x1|92x43
-   *        -> customtile/<titleId>_<fmt>_<n>.<png|jpg>, n = the highest + 1
+   *   GET  /sgdb/img?kind=preview|download&u=<cdn url>  a thumbnail or a full picture
+   *        (download = the picture chosen: a slot of its own, no total timeout)
+   * The editor saves the chosen picture itself (/customtile, /custombg).
    * The API key comes in the X-Key header (the editor's steamGridKey field).
    */
   /*
@@ -774,7 +782,7 @@ void handle(int fd) {
         return reply(fd, 502, "Bad Gateway", "text/plain", "SteamGridDB: " + err);
       return reply(fd, http == 200 ? 200 : 502, http == 200 ? "OK" : "Bad Gateway", "application/json", out);
     }
-    if ((method == "GET" && path == "/sgdb/img") || (method == "POST" && path == "/sgdb/save")) {
+    if (method == "GET" && path == "/sgdb/img") {
       url = query_value(query, "u");
       const size_t dot = url.rfind('.');
       std::string ext = dot == std::string::npos ? "" : url.substr(dot + 1);
@@ -785,21 +793,27 @@ void handle(int fd) {
       /* the animated pictures (webp, and their thumbnails) are only
          shown in the editor; the editor sends the PS5 a PNG */
       const bool anim_ext = ext == "webp" || ext == "gif" || ext == "webm" || ext == "mp4";
-      if (ext != "png" && ext != "jpg" && !(anim_ext && path == "/sgdb/img"))
+      if (ext != "png" && ext != "jpg" && !anim_ext)
         return reply(fd, 400, "Bad Request", "text/plain", "png or jpg pictures only");
-      if (path == "/sgdb/img") {
+      {
         /* also the full picture (the editor cuts the 16:9 background from it) */
         const char *mime = ext == "png" ? "image/png" : ext == "jpg" ? "image/jpeg" : ext == "webp" ? "image/webp"
                          : ext == "gif" ? "image/gif" : ext == "webm" ? "video/webm" : "video/mp4";
         /* handed on as it comes from the CDN (no second download, the
            editor sees the progress), from a thread of its own so the
            editor's other requests do not wait behind a big picture */
-        auto *job = new SgdbImgJob{fd, url, mime, "SteamGridDB", 400u << 20};
+        const std::string kind = query_value(query, "kind");
+        const bool priority = kind == "download";
+        auto *job = new SgdbImgJob{fd, url, mime, "SteamGridDB", 400u << 20, kind == "preview", priority};
         pthread_t t;
         pthread_mutex_lock(&g_asset_lock);
-        const bool room = g_asset_clients < 4;
-        if (room)
+        const bool room = priority ? !g_sgdb_download_active
+                                   : g_asset_clients - (int)g_sgdb_download_active < 4;
+        if (room) {
           ++g_asset_clients;
+          if (priority)
+            g_sgdb_download_active = true;
+        }
         pthread_mutex_unlock(&g_asset_lock);
         if (room && pthread_create(&t, nullptr, sgdb_img_client, job) == 0) {
           pthread_detach(t);
@@ -808,61 +822,16 @@ void handle(int fd) {
         }
         if (room) {
           pthread_mutex_lock(&g_asset_lock);
+          if (priority)
+            g_sgdb_download_active = false;
           --g_asset_clients;
           pthread_mutex_unlock(&g_asset_lock);
         }
-        sgdb_img_send(fd, job->url, job->mime);
         delete job;
-        return;
+        return reply(fd, 503, "Service Unavailable", "text/plain",
+                     priority ? "An artwork download is still running. Try again when it finishes."
+                              : "The artwork preview slots are busy. Try again.");
       }
-      std::string id = query_value(query, "id");
-      bool ok_id = id.size() == 9;
-      for (size_t i = 0; ok_id && i < 9; ++i)
-        ok_id = i < 4 ? isalpha((unsigned char)id[i]) : isdigit((unsigned char)id[i]);
-      if (!ok_id || (fmt != "2x3" && fmt != "1x1" && fmt != "92x43" && fmt != "16x9"))
-        return reply(fd, 400, "Bad Request", "text/plain", "bad title id or format");
-      if (fmt == "16x9" && ext != "png")
-        return reply(fd, 400, "Bad Request", "text/plain", "png heroes only");
-      for (char &c : id)
-        c = (char)toupper((unsigned char)c);
-      if (!zt_sgdb_get(url, "", out, http, err, 24u << 20) || http != 200 || out.empty())
-        return reply(fd, 502, "Bad Gateway", "text/plain", "SteamGridDB: " + (err.empty() ? std::to_string(http) : err));
-      /* the next n of this game and format (any extension, any case);
-         backgrounds (16x9) go to custombg */
-      const std::string dir = fmt == "16x9" ? ZT_CUSTOMBG : ZT_CUSTOMTILE;
-      zt_mkdirs(dir);
-      int max = 0;
-      const std::string pre = id + "_" + fmt + "_";
-      if (DIR *d = opendir(dir.c_str())) {
-        while (dirent *e = readdir(d))
-          if (strncasecmp(e->d_name, pre.c_str(), pre.size()) == 0)
-            max = std::max(max, atoi(e->d_name + pre.size()));
-        closedir(d);
-      }
-      const std::string name = pre + std::to_string(max + 1) + "." + ext;
-      const std::string dest = dir + "/" + name, temp = dest + (fmt == "16x9" ? ".hero" : ".part");
-      const int lf = open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-      bool ok = lf >= 0;
-      for (size_t off = 0; ok && off < out.size();) {
-        const ssize_t n = write(lf, out.data() + off, out.size() - off);
-        ok = n > 0;
-        off += ok ? (size_t)n : 0;
-      }
-      if (lf >= 0)
-        close(lf);
-      /* a hero becomes the 1920x1080 background (written straight to dest) */
-      /* pos = where the 16:9 window of the zoomed hero sits (editor) */
-      const std::string pos = query_value(query, "pos");
-      ok = ok && (fmt == "16x9" ? zt_hero_background(temp, dest, pos.empty() ? 0.5 : atof(pos.c_str()))
-                                : rename(temp.c_str(), dest.c_str()) == 0);
-      if (fmt == "16x9")
-        unlink(temp.c_str());
-      zt_log("sgdb: %s %s (%zu bytes)", name.c_str(), ok ? "saved" : "NOT saved", out.size());
-      if (!ok) {
-        unlink(temp.c_str());
-        return reply(fd, 500, "Error", "text/plain", "cannot write " + name);
-      }
-      return reply(fd, 200, "OK", "text/plain", name);
     }
     return reply(fd, 404, "Not Found", "text/plain", "not found");
   }
@@ -1042,6 +1011,12 @@ void handle(int fd) {
     if (font.empty())
       return reply(fd, 404, "Not Found", "text/plain", "no access");
     return reply(fd, 200, "OK", "font/ttf", font);
+  }
+  /* Home reloads in this ShellUI (the editor shows it next to Apply) */
+  if (method == "GET" && path == "/reloads") {
+    char text[24];
+    snprintf(text, sizeof(text), "%d", zt_log_reloads());
+    return reply(fd, 200, "OK", "text/plain", text);
   }
   if (method == "GET" && path == "/version") {
     /* which build, when this copy started and its hooks: after sending a
@@ -1311,6 +1286,10 @@ void *server_thread(void *) {
 constexpr int kVideoPort = 4445;
 constexpr int kVideoMaxClients = 8;
 int g_video_clients = 0;
+/* for the health line: requests answered and refused (all 8 taken) since
+   the module started; players of an old Home context that keep looping
+   after a reload show up as more requests a minute and full slots */
+unsigned g_video_accepted = 0, g_video_refused = 0;
 pthread_mutex_t g_video_lock = PTHREAD_MUTEX_INITIALIZER;
 /* accept() on the PS5 does not time out (SO_RCVTIMEO is ignored), so
    after POST /quit the old module's video server kept port 4445 until the
@@ -1493,6 +1472,10 @@ void *video_server(void *) {
       pthread_mutex_lock(&g_video_lock);
       const bool room = g_video_clients < kVideoMaxClients;
       g_video_clients += room;
+      if (room)
+        ++g_video_accepted;
+      else
+        ++g_video_refused;
       pthread_mutex_unlock(&g_video_lock);
       if (!room) {
         close(fd);
@@ -1545,6 +1528,14 @@ void video_stop() {
 }
 
 } // namespace
+
+void zt_video_counts(int *open, unsigned *accepted, unsigned *refused) {
+  pthread_mutex_lock(&g_video_lock);
+  *open = g_video_clients;
+  *accepted = g_video_accepted;
+  *refused = g_video_refused;
+  pthread_mutex_unlock(&g_video_lock);
+}
 
 void theme_web_start() {
   pthread_t thread;

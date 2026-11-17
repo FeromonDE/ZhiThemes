@@ -326,6 +326,8 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._sgdb('GET')
         u = urllib.parse.urlparse(self.path)
         q = dict(urllib.parse.parse_qsl(u.query))
+        if u.path == '/reloads':
+            return self._send(200, str(state.get('reloads', 1)), 'text/plain')
         if u.path == '/injectdelay':
             return self._send(200, '{"seconds":%d}' % state.get('inject', 15), 'application/json')
         if u.path == '/themes':
@@ -488,7 +490,8 @@ class H(http.server.BaseHTTPRequestHandler):
             state['log'].append('web: theme.js saved (%d bytes)' % len(body.encode()))
             return self._send(200, 'saved')
         if self.path == '/reload':
-            state['log'] += ['web: HomeUI reload requested',
+            state['reloads'] = state.get('reloads', 1) + 1
+            state['log'] +=['web: HomeUI reload requested',
                              'js: THEME installed: (mock)', 'js: THEME applied: constants'] + measures()
             return self._send(200, 'reload queued')
         if self.path == '/log/clear':

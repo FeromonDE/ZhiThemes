@@ -1147,8 +1147,18 @@ void zt_memory_log(pid_t pid, const char *why) {
   if (mono >= 0)
     snprintf(mono_text, sizeof(mono_text), "mono %.1f MB (%+.1f since start, %+.1f since reload)",
              mono, mono - mono_start, mono - mono_reload);
-  zt_logl('H', "health (%s): %s | %s | reloads %d | injection %d", why, mono_text,
-          zt_stats_memory_line().c_str(), reloads, inject_number());
+  /* video players: connections open now, requests since the last line */
+  int v_open = 0;
+  unsigned v_acc = 0, v_ref = 0;
+  zt_video_counts(&v_open, &v_acc, &v_ref);
+  static unsigned v_acc_seen = 0, v_ref_seen = 0;
+  char video_text[96];
+  snprintf(video_text, sizeof(video_text), "videos open %d, asked %u, refused %u", v_open,
+           v_acc - v_acc_seen, v_ref - v_ref_seen);
+  v_acc_seen = v_acc;
+  v_ref_seen = v_ref;
+  zt_logl('H', "health (%s): %s | %s | reloads %d | injection %d | %s", why, mono_text,
+          zt_stats_memory_line().c_str(), reloads, inject_number(), video_text);
 }
 
 /* diagnostic build: the modules loaded in this ShellUI, for comparing

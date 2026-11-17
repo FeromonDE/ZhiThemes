@@ -2599,6 +2599,22 @@ std::mutex g_name_lock;
 std::string g_hub_name, g_sent_name;
 MonoObject *g_home_executor = nullptr;
 uint32_t g_home_executor_handle = 0;
+/* the JS thread of that executor (its RunScript comes there). A Home reload
+   makes a new context; the old one can still print THEME-ASK for a moment
+   from its own thread, and using the new executor from there asserts
+   ("Thread access assertion failed") and ShellUI fell ~7 s later (9.60,
+   two editor saves 5 s apart). Only answered on the Home's own thread. */
+pthread_t g_home_thread;
+std::atomic<bool> g_home_thread_set{false};
+MonoObject *home_executor_here() {
+  if (!g_home_executor || !g_home_thread_set.load() || !pthread_equal(g_home_thread, pthread_self())) {
+    static std::atomic<int> logged{0};
+    if (g_home_executor && logged.fetch_add(1) < 5)
+      zt_log("js: Home request from another JS thread (old context after a reload?), not answered there");
+    return nullptr;
+  }
+  return g_home_executor;
+}
 /* the game hub's executor, for requests from the Home (trophies of a game of
    an open folder: "THEME-TROPHY-ASK <id>" from the Home, handed to the hub
    when it prints "THEME-HUBASK", on the hub's own thread) */
@@ -2707,6 +2723,9 @@ std::string js_quote(const std::string &in) {
 }
 
 void deliver_hub_name() {
+  MonoObject *executor = home_executor_here();
+  if (!executor)
+    return; /* stays not sent: the Home's own thread gets it on its next ask */
   std::string name;
   {
     std::lock_guard<std::mutex> lock(g_name_lock);
@@ -2727,7 +2746,7 @@ void deliver_hub_name() {
   void *args[3] = {mono_string_new(domain, src.c_str()),
                    mono_string_new(domain, "theme-name.js"), &g_eval_plain};
   MonoObject *exc = nullptr;
-  mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
+  mono_runtime_invoke(g_eval_script, executor, args, &exc);
   if (exc) {
     MonoString *text = mono_object_to_string(exc, nullptr);
     zt_log("js: name delivery threw: %.300s", Mono_to_String(text).c_str());
@@ -2935,6 +2954,9 @@ std::string installed_games() {
 }
 
 void deliver_hub_data() {
+  MonoObject *executor = home_executor_here();
+  if (!executor || !g_eval_script)
+    return; /* nothing marked as sent */
   std::vector<std::pair<std::string, std::string>> out;
   {
     std::lock_guard<std::mutex> lock(g_name_lock);
@@ -2946,7 +2968,7 @@ void deliver_hub_data() {
       out.push_back(kv);
     }
   }
-  if (out.empty() || !g_home_executor || !g_eval_script)
+  if (out.empty())
     return;
   static int logged = 0;
   for (const auto &kv : out) {
@@ -2956,7 +2978,7 @@ void deliver_hub_data() {
     void *args[3] = {mono_string_new(domain, src.c_str()),
                      mono_string_new(domain, "theme-data.js"), &g_eval_plain};
     MonoObject *exc = nullptr;
-    mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
+    mono_runtime_invoke(g_eval_script, executor, args, &exc);
     if (exc) {
       MonoString *text = mono_object_to_string(exc, nullptr);
       zt_log("js: data delivery threw: %.300s", Mono_to_String(text).c_str());
@@ -3033,6 +3055,8 @@ void RunScript_Hook(MonoObject *self, MonoObject *bundle) {
       mono_gchandle_free(g_home_executor_handle);
     g_home_executor_handle = mono_gchandle_new(self, true);
     g_home_executor = self;
+    g_home_thread = pthread_self();
+    g_home_thread_set.store(true);
     std::lock_guard<std::mutex> lock(g_name_lock);
     g_sent_name.clear(); /* the new Home context has no name yet */
     g_sent_data.clear();
@@ -3525,7 +3549,8 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
     /* the debug panel (debugOverlay) asks about once a second, from
        the Home's own thread: the numbers go back with __ztStats(json) */
     if (text == "THEME-STATS") {
-      if (!g_home_executor || !g_eval_script)
+      MonoObject *executor = home_executor_here();
+      if (!executor || !g_eval_script)
         return;
       const std::string src = "globalThis.__ztStats && globalThis.__ztStats('" +
                               js_quote(zt_stats_json()) + "');";
@@ -3533,7 +3558,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       void *args[3] = {mono_string_new(domain, src.c_str()),
                        mono_string_new(domain, "theme-stats.js"), &g_eval_plain};
       MonoObject *exc = nullptr;
-      mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
+      mono_runtime_invoke(g_eval_script, executor, args, &exc);
       static int logged = 0;
       if (exc) {
         if (logged++ < 3) {
@@ -3549,7 +3574,8 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
        own thread, when a menu opens) for the themes, USB / Install files and
        the PS5 default state; answered with __ztThemeMenu(json) */
     if (text == "THEME-THEMES") {
-      if (!g_home_executor || !g_eval_script)
+      MonoObject *executor = home_executor_here();
+      if (!executor || !g_eval_script)
         return;
       const std::string json = zt_theme_menu_json();
       const std::string src = ascii_js("globalThis.__ztThemeMenu && globalThis.__ztThemeMenu('" +
@@ -3558,7 +3584,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       void *args[3] = {mono_string_new(domain, src.c_str()),
                        mono_string_new(domain, "theme-menu.js"), &g_eval_plain};
       MonoObject *exc = nullptr;
-      mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
+      mono_runtime_invoke(g_eval_script, executor, args, &exc);
       static int logged = 0;
       if (exc) {
         if (logged++ < 3) {

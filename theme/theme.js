@@ -1377,9 +1377,17 @@
         typeof React.useRef !== 'function')
       return props.children;
     var me = React.useRef(null), st = React.useState(0), bump = st[1];
-    if (!me.current) me.current = {};
+    if (!me.current) me.current = { renders: 0 };
+    /* for the health line: when each copy was mounted, on which tab, and
+       whether it still renders (a copy that never renders again after a
+       bump is no longer on screen: unmounted without its cleanup) */
+    me.current.renders++;
+    me.current.lastRender = Date.now();
     React.useEffect(function () {
       var list = singles[slot] = singles[slot] || [];
+      me.current.born = Date.now();
+      me.current.tab = T.tabSel || '-';
+      me.current.noBack = !!props.noBack;
       var entry = { id: me.current, bump: bump };
       me.current.on = true;
       list.push(entry);
@@ -1469,9 +1477,9 @@
       return children;
     return [React.createElement(ReadyGate, { key: 'theme-ready-gate' }, children)];
   }
-  function single(slot, children) {
+  function single(slot, children, noBack) {
     if (!T.React || !children || !children.length) return children;
-    return [T.React.createElement(Single, { key: 'single-' + slot, slot: slot }, children)];
+    return [T.React.createElement(Single, { key: 'single-' + slot, slot: slot, noBack: noBack }, children)];
   }
   /* 0 on the Home, 1 once it went up to the hub (the small tile in
      the corner with its name); without the lift value, always 0 */
@@ -11123,6 +11131,7 @@
           T.root && props && typeof props === 'object' && props.style === T.root) {
         var children = props.children;
         children = Array.isArray(children) ? children.slice() : children == null ? [] : [children];
+        T.rootRenders = (T.rootRenders || 0) + 1;
         var bg = backgroundElements();
         if (bg.length) {
           children = single('back', homeLayer('theme-layer-back', bg)).concat(children);
@@ -11164,7 +11173,7 @@
         /* Options > ZhiThemes > About: the Ko-fi QR code (null while closed) */
         if (APP === 'home' && !PLAIN && T.React && typeof T.React.useState === 'function')
           front.push(T.React.createElement(AboutQr, { key: 'theme-about-qr' }));
-        props.children = front.length ? children.concat(single('front', homeLayer('theme-layer-front', readyGate(front))))
+        props.children = front.length ? children.concat(single('front', homeLayer('theme-layer-front', readyGate(front)), !bg.length))
                                       : children;
       }
       if (hubGateProps && hubGateProps === props) {
@@ -11981,26 +11990,106 @@
       });
       return n;
     }
+    /* 2 s before the line every copy is asked to render again; the ones
+       that did are alive (still mounted), the rest are left over */
+    var probeAt = 0, rootLast = 0;
+    function copiesProbe() {
+      probeAt = Date.now();
+      Object.keys(singles).forEach(function (k) {
+        singles[k].forEach(function (x) { try { x.bump(function (n) { return n + 1; }); } catch (e) {} });
+      });
+    }
+    function copiesText(k) {
+      var l = singles[k], n = l.length;
+      if (n <= 3 || !probeAt) return k + ' ' + n;
+      var alive = 0, noBack = 0, tabs = {};
+      l.forEach(function (x) {
+        var c = x.id || {};
+        if (c.lastRender >= probeAt) alive++;
+        if (c.noBack) noBack++;
+        tabs[c.tab] = (tabs[c.tab] || 0) + 1;
+      });
+      var first = l[0].id || {}, age = first.born ? Math.round((Date.now() - first.born) / 1000) : -1;
+      return k + ' ' + n + ' (alive ' + alive + ', no back ' + noBack + ', tabs ' +
+        Object.keys(tabs).map(function (t) { return t + ' ' + tabs[t]; }).join(' ') +
+        ', oldest ' + age + ' s)';
+    }
+    /* After a tab change the Home leaves the old front layer behind without
+       running its cleanup (measured on 9.60: 39 copies, 2 still render).
+       Each entry keeps that old tree alive through its bump: the copies
+       that did not render after the probe are dropped (never the last one,
+       the copy on screen). */
+    function copiesPrune() {
+      if (!probeAt) return;
+      Object.keys(singles).forEach(function (k) {
+        var l = singles[k], n = l.length;
+        if (n <= 1) return;
+        var keep = l.filter(function (x, i) {
+          return i === n - 1 || (x.id && x.id.lastRender >= probeAt);
+        });
+        if (keep.length === n) return;
+        l.length = 0;
+        keep.forEach(function (x) { l.push(x); });
+        if (T.copiesMost) T.copiesMost[k] = keep.length;
+        log('layer copies ' + k + ': ' + (n - keep.length) + ' left over dropped, ' + keep.length + ' kept');
+      });
+    }
+    /* this JS context's own memory, from Hermes (HermesInternal is there
+       on the PS5's Hermes builds; other engines: nothing). The first time
+       the names it gives are logged once. */
+    var heapNamesLogged = false;
+    function jsHeapText() {
+      var HI = typeof HermesInternal !== 'undefined' ? HermesInternal : null;
+      if (!HI || typeof HI.getInstrumentedStats !== 'function') return '';
+      var s = HI.getInstrumentedStats() || {};
+      if (!heapNamesLogged) {
+        heapNamesLogged = true;
+        log('js heap fields: ' + Object.keys(s).join(','));
+      }
+      var mb = function (k) { return typeof s[k] === 'number' ? (s[k] / 1048576).toFixed(1) : '?'; };
+      return ' | js heap ' + mb('js_heapSize') + ' MB, used ' + mb('js_allocatedBytes') + ' MB' +
+        (typeof s.js_externalBytes === 'number' ? ', external ' + mb('js_externalBytes') + ' MB' : '') +
+        (typeof s.js_numGCs === 'number' ? ', gcs ' + s.js_numGCs : '');
+    }
     function healthLine() {
-      var copies = Object.keys(singles).map(function (k) { return k + ' ' + singles[k].length; }).join(', ');
+      var copies = Object.keys(singles).map(copiesText).join(', ');
+      var heap = '';
+      try { heap = jsHeapText(); } catch (e) { heap = ' | js heap: ' + e; }
+      try { copiesPrune(); } catch (e) { log('copies prune: ' + e, 'W'); }
       var busy = Object.keys(T.doneN).map(function (k) { return [k, T.doneN[k] - (doneSeen[k] || 0)]; })
         .filter(function (x) { return x[1] > 0; })
         .sort(function (a, b) { return b[1] - a[1]; }).slice(0, 3);
       Object.keys(T.doneN).forEach(function (k) { doneSeen[k] = T.doneN[k]; });
+      var rootSeen = rootLast;
+      rootLast = T.rootRenders || 0;
       log('health: runs ' + (globalThis.__ztEvals || 1) + ' | errors ' + T.errors +
-          ' | copies ' + (copies || '-') + ' | listeners ' + listenerCount() +
-          ' | tabs ' + (T.tabChanges || 0) + ' | worst stall ' + worst + ' ms' +
+          ' | copies ' + (copies || '-') +
+          (T.rootRenders ? ' | root renders ' + (T.rootRenders - rootSeen) : '') +
+          ' | listeners ' + listenerCount() +
+          ' | tabs ' + (T.tabChanges || 0) + ' | worst stall ' + worst + ' ms' + heap +
           (busy.length ? ' | busiest: ' + busy.map(function (x) {
             return String(x[0]).slice(0, 40) + ' x' + x[1];
           }).join(', ') : ''), 'H');
       worst = 0;
     }
     T.healthLine = healthLine; /* (harness) */
+    /* the heap once, 10 s after this context started: with Home reloads a
+       few seconds apart the minute line never comes, and this one gives
+       each new context's size (growing from reload to reload = something
+       kept from one context to the next) */
+    setTimeout(function () {
+      try {
+        var h = jsHeapText();
+        if (h) log('health (10 s after start)' + h.replace(/^ \|/, ':'), 'H');
+      } catch (e) {}
+    }, 10000);
     setInterval(function () {
       var now = Date.now(), late = now - last - 1000;
       last = now;
       if (late > worst) worst = late;
-      if (++ticks % 60 === 0) try { healthLine(); } catch (e) { log('health: ' + e, 'W'); }
+      ++ticks;
+      if (ticks % 60 === 58) try { copiesProbe(); } catch (e) {}
+      if (ticks % 60 === 0) try { healthLine(); } catch (e) { log('health: ' + e, 'W'); }
     }, 1000);
   })();
   setTimeout(function () {

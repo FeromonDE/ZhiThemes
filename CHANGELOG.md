@@ -11,6 +11,8 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 - **Debug mode** always maps Settings and Trophies too (no separate box).
 - Sending `ZhiThemes.elf` from the payload manager: ZhiThemes waits a little longer after the browser closes before loading (the interface sometimes froze).
 - Theme files: stricter checks on names, paths, sizes and file types when installing a theme.
+- **Home stability:** old copies of the theme layers that the Home leaves behind after tab changes are now dropped, and data from an old Home (after quick saves in the editor) is no longer answered on the wrong thread, which could bring the interface down. The editor shows how many times the Home was reloaded next to *Apply*.
+- **SteamGridDB downloads are faster** (thanks to @kasobos67, PR #11): pictures come in parallel, the picture you choose has its own slot and starts while thumbnails are still loading, and big downloads keep going as long as data arrives. Thumbnails are retried when the PS5 is busy. The big preview shows the thumbnail with a **▶ Show the full animation** button, and every picture you save now shows a progress bar.
 
 ## 0.1.0-alpha — first release
 
