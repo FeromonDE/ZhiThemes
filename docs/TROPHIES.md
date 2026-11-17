@@ -1,10 +1,9 @@
 # Localized Home trophy lookup
 
-On PS5 13.20 the observed Home title `PRAGMATA` (PPSA02530) has a native
-PS5 trophy definition named `Прагмата` (`20:NPWR53259_00`). The system
-Trophies screen reports 8%, with earned counts `[0, 0, 1, 4]`. The native
-NP-title index can be empty even though that record exists. Matching only
-the Home's default-language name then misses the set.
+Home metadata and the native trophy catalog can name the same game in
+different languages. If the native NP-title index has no mapping, matching
+only the Home display name can miss an existing trophy set. This is a
+general lookup problem across titles and language pairs.
 
 The verified 13.20 hub service is module 2578's named `fetchTitleData` export;
 module 2559 is not that firmware's provider. The adapter validates that
@@ -27,6 +26,8 @@ The default display name remains the same. Names are parsed with the bundled
 cJSON library, deduplicated and bounded to 64 aliases per application. The
 console-verified PRAGMATA/Прагмата pair is also canonicalized explicitly for
 mounts that only expose English metadata. No trophy-set ID is hardcoded.
+Other translations are matched through publisher-provided localized names;
+translations absent from all metadata still need a reliable alias or ID mapping.
 
 The existing Home/hub console relay carries metadata snapshots by game ID.
 Replies use per-title keys (`trophies-<id>`) so prefetch replies do not replace
@@ -36,6 +37,12 @@ records or blocking the queue for later games. These changes stay within
 SceShellUI; they add no process, network service, SDK dependency or runtime path.
 
 ## Evidence and verification
+
+The hardware-confirmed reproduction on PS5 13.20 is Home `PRAGMATA`
+(PPSA02530) versus native `Прагмата` (`20:NPWR53259_00`), with 8% progress
+and earned counts `[0, 0, 1, 4]`. Pragmata is the regression example, not
+the scope of the general metadata lookup. Other games and languages have
+not been separately verified on hardware.
 
 The supplied decrypted Hermes v89 payloads have source hashes:
 
