@@ -9651,16 +9651,132 @@
     if (legacy && typeof exp === 'function') return { fn: exp, owner: null, label: 'module' };
     return visit(exp, null, '', 0);
   }
+  function trophyErrorText(error) {
+    var parts = [], seen = [];
+    var visit = function (value, depth) {
+      if (value == null || depth > 3 || seen.indexOf(value) >= 0) return;
+      if (typeof value !== 'object' && typeof value !== 'function') {
+        var text = String(value).slice(0, 160);
+        if (parts.indexOf(text) < 0) parts.push(text);
+        return;
+      }
+      seen.push(value);
+      ['message', 'name', 'errorMessage', 'code', 'vshErrorHexCode', 'psnErrorCode', 'httpErrorCode'].forEach(function (key) {
+        try {
+          var item = value[key];
+          if (item != null && (typeof item === 'string' || typeof item === 'number')) visit(item, depth + 1);
+        } catch (e) {}
+      });
+      ['error', 'cause'].forEach(function (key) { try { visit(value[key], depth + 1); } catch (e) {} });
+    };
+    visit(error, 0);
+    return (parts.join(' | ') || 'unknown error').slice(0, 480);
+  }
+  /* The stock runWithAccessor chooses ONLINE whenever its capability check
+     succeeds. The widget only needs local records, including unsynced ones.
+     These API names, arguments and the 'offline' mode are verified in the
+     user's 13.20 HBC. Keep the accessor private to this request. */
+  function trophyOfflineFetcher(api, user) {
+    var methods = ['createAccessor', 'deleteAccessor', 'getPlayedTitleIdListByNpTitleId', 'getTitleConf', 'getTitleRecord'];
+    if (!api || !user) return null;
+    for (var k = 0; k < methods.length; k++) if (typeof api[methods[k]] !== 'function') return null;
+    return function (args) {
+      var accessor, opened = false, deadline = Date.now() + 2400;
+      var call = function (method, params, cleanup) {
+        return new Promise(function (resolve, reject) {
+          var settled = false;
+          var timer = setTimeout(function () {
+            settled = true;
+            reject(new Error(method + ': timeout'));
+          }, cleanup ? 500 : Math.max(1, Math.min(1200, deadline - Date.now())));
+          Promise.resolve().then(function () { return api[method](params); }).then(function (result) {
+            if (settled) {
+              /* A timed-out create still owns a native handle if it completes
+                 late. Do not leave it allocated after the queue moved on. */
+              if (method === 'createAccessor' && result != null)
+                call('deleteAccessor', { accessorId: result }, true).catch(function (e) { log('trophies cleanup: ' + trophyErrorText(e)); });
+              return;
+            }
+            settled = true;
+            clearTimeout(timer);
+            resolve(result);
+          }, function (error) {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            reject(new Error(method + ': ' + trophyErrorText(error)));
+          });
+        });
+      };
+      var release = function (value, error) {
+        var finish = function () { if (error) throw error; return value; };
+        if (!opened) return finish();
+        opened = false;
+        return call('deleteAccessor', { accessorId: accessor }, true).then(finish, function (e) {
+          log('trophies cleanup: ' + trophyErrorText(e));
+          return finish();
+        });
+      };
+      var query = function (method) {
+        return call(method, { accessorId: accessor, npTitleId: args.npTitleId,
+                              accountId: args.accountId === undefined ? 'me' : args.accountId });
+      };
+      return call('createAccessor', { userId: args.userId === undefined ? user.launchedUser : args.userId,
+                                      mode: 'offline' }).then(function (id) {
+        if (id == null) throw new Error('createAccessor: missing handle');
+        accessor = id;
+        opened = true;
+        return query('getPlayedTitleIdListByNpTitleId');
+      }).then(function (ids) {
+        if (Array.isArray(ids) && !ids.length && typeof api.getTitleIdListByNpTitleId === 'function')
+          return query('getTitleIdListByNpTitleId');
+        return ids;
+      }).then(function (ids) {
+        if (!Array.isArray(ids) || !ids.length) throw new Error('local trophy title not found');
+        var read = function (index) {
+          var id = ids[index], conf;
+          return call('getTitleConf', { accessorId: accessor, titleId: id }).then(function (v) {
+            conf = v;
+            return call('getTitleRecord', { accessorId: accessor, titleId: id,
+                         accountId: args.accountId === undefined ? 'me' : args.accountId });
+          }).then(function (record) {
+            if (!conf || !record) throw new Error('local trophy conf/record missing');
+            var names = ['Platinum', 'Gold', 'Silver', 'Bronze'], defined = {}, earned = {};
+            var hasCounts = false;
+            names.forEach(function (name) {
+              var n = record['numUnlocked' + name];
+              if (typeof n === 'number' && isFinite(n) && n >= 0) hasCounts = true;
+              earned[name.toLowerCase()] = n | 0;
+              defined[name.toLowerCase()] = conf['num' + name] | 0;
+            });
+            if (!hasCounts) throw new Error('local trophy record has no earned counts');
+            return { earnedTrophies: earned, definedTrophies: defined, progress: record.progress };
+          }).catch(function (error) {
+            if (index + 1 < ids.length && Date.now() < deadline) return read(index + 1);
+            throw error;
+          });
+        };
+        return read(0);
+      }).then(function (value) { return release(value, null); }, function (error) { return release(null, error); });
+    };
+  }
   /* Verified in the user's 13.20 game-hub HBC (source hash
      6281c2fc2085b197285788df14feb56ecdcccdfb): module 2577 has an
      anonymous default export, so its function name is not discoverable.
      Its service dependency 2578 exports fetchTitleData({npTitleId,
-     userId?, accountId?}). It reads local TrophyAccessor records and
-     already returns earnedTrophies, definedTrophies and progress. */
+     userId?, accountId?}). Its stock helper selects an accessor mode;
+     prefer our private offline reader for local, unsynced records. */
   function trophyLocalExport(exp) {
     try {
-      if (exp && typeof exp.fetchTitleData === 'function')
-        return { fn: exp.fetchTitleData, owner: exp, label: 'fetchTitleData (local trophies)' };
+      if (exp && typeof exp.fetchTitleData === 'function') {
+        try {
+          var native = T.require(210).TrophyAccessor;
+          var user = T.require(8).User;
+          var offline = trophyOfflineFetcher(native, user);
+          if (offline) return { fn: offline, owner: null, label: 'TrophyAccessor (offline)' };
+        } catch (e) {}
+        return { fn: exp.fetchTitleData, owner: exp, label: 'fetchTitleData' };
+      }
     } catch (e) {}
     return null;
   }
@@ -9700,12 +9816,10 @@
       T.trophyLocalChecked = true;
       try {
         var local = T.require(2578);
-        var service = trophyLocalExport(local);
-        if (service) {
-          /* observe also wakes requests queued before the service loaded */
-          observeTrophyFetch(local, 2578);
-          if (T.trophyFetcher) return T.trophyFetcher;
-        }
+        if (T.trophyFetcher) return T.trophyFetcher;
+        /* observe also wakes requests queued before the service loaded */
+        observeTrophyFetch(local, 2578);
+        if (T.trophyFetcher) return T.trophyFetcher;
       } catch (e) {}
     }
     /* Compatibility with the verified 9.60 default export in 2559. */
@@ -9796,7 +9910,7 @@
       try {
         var p = provider.fn.call(provider.owner, { npTitleId: np });
         if (p && typeof p.then === 'function') p.then(receive, function (err) {
-          fail('failed: ' + String(err && (err.message || err.error) || err || 'unknown error').slice(0, 160));
+          fail('failed: ' + trophyErrorText(err));
         });
         else receive(p);
       } catch (e) { fail('failed: ' + String(e).slice(0, 160)); }

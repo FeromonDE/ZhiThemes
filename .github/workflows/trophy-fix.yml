@@ -28,6 +28,7 @@ jobs:
           "$RUNNER_TEMP/test_dump_bundle"
           node --check theme/theme.js
           node theme/test_trophies.js
+          node theme/test_trophies_offline.js
           node theme/test_reflection.js
           node theme/test_editor_safety.js
           for app in home hub settings trophy; do
@@ -67,7 +68,7 @@ jobs:
           sha256sum release/ZhiThemes.elf > release/ZhiThemes.elf.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: ZhiThemes-build380
+          name: ZhiThemes-build381
           path: |
             release/ZhiThemes.elf
             release/ZhiThemes.elf.sha256

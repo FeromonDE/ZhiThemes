@@ -2,7 +2,13 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 380
+## Unreleased — build 381
+
+- Read trophy records through a private offline TrophyAccessor instead of letting the stock helper choose online mode.
+- Preserve earned counts for unsynced games, retry later title mappings when an earlier mapping fails, and close native handles on errors/timeouts (including late create replies).
+- Report the failing native method and nested error codes rather than just TrophyHelperError.
+
+## Build 380
 
 - Resolve the local trophy service verified in the user's decrypted 13.20 hub: named fetchTitleData in module 2578, rather than the anonymous progress wrapper in 2577 or the unrelated 2559 module.
 - Load the verified service even when the native trophy card is not mounted, and validate the named export before calling it.

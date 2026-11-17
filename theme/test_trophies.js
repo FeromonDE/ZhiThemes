@@ -245,7 +245,7 @@ verified.global.__themeTrophyAsk('PPSA02530,PPSA00002');
 assert(verified.messages.length===2,'local progress is delivered for both games');
 assert(verified.messages[0].e[1]===1 && verified.messages[0].p===24,'local earned counts and progress retained');
 assert(localArgs.join(',')==='PPSA02530_00,PPSA00002_00','correct NP IDs passed to the verified service');
-assert(localRequires.join(',')==='2578','one verified service loaded without probing arbitrary factories');
+assert(localRequires.join(',')==='2578,210','verified service and optional native API checked without probing arbitrary factories');
 assert(!verified.timers.size,'service completion clears watchdogs');
 
 // Loading the wrong module shape must never call an arbitrary anonymous
