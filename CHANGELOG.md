@@ -2,7 +2,13 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — build 379 (diagnostic prerequisite)
+## Unreleased — build 380
+
+- Resolve the local trophy service verified in the user's decrypted 13.20 hub: named fetchTitleData in module 2578, rather than the anonymous progress wrapper in 2577 or the unrelated 2559 module.
+- Load the verified service even when the native trophy card is not mounted, and validate the named export before calling it.
+- Keep queue timeouts, per-game bridge replies, caching and legacy 9.60 compatibility.
+
+## Build 379 (diagnostic prerequisite)
 
 - Screen dump now decrypts RNPS containers through the console's RNPS device and validates the code payload before saving.
 - Existing encrypted dumps are replaced even when their byte size matches. Failed decryption preserves the previous file and logs the failure.

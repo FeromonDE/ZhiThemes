@@ -222,4 +222,55 @@ late.drain();
 assert(late.cachedTrophies('PPSA00001') && late.cachedTrophies('PPSA00002'),
   'late provider retries every waiting title');
 
+// Actual 13.20 export layout: the progress wrapper is anonymous in
+// 2577; 2559 is unrelated. Its service 2578 has a stable named member.
+const localArgs=[], localRequires=[];
+const localService={fetchTitleData:function opaque(args){
+  assert(this===localService,'local service receiver preserved');
+  assert(args && typeof args.npTitleId==='string','local service takes a parameter object');
+  assert(args.userId===undefined && args.accountId===undefined,'use the service launched-user defaults');
+  localArgs.push(args.npTitleId);
+  return immediate(trophyData);
+}};
+Object.defineProperty(localService.fetchTitleData,'name',{value:''});
+const verified=makeHub(()=>{});
+delete verified.state.trophyFetcher;
+verified.state.require=id=>{localRequires.push(id);
+  if(id===2578)return localService;
+  if(id===2559)return {default:{unrelated:true}};
+  throw Error('unexpected factory '+id);
+};
+verified.state.require.c={};
+verified.global.__themeTrophyAsk('PPSA02530,PPSA00002');
+assert(verified.messages.length===2,'local progress is delivered for both games');
+assert(verified.messages[0].e[1]===1 && verified.messages[0].p===24,'local earned counts and progress retained');
+assert(localArgs.join(',')==='PPSA02530_00,PPSA00002_00','correct NP IDs passed to the verified service');
+assert(localRequires.join(',')==='2578','one verified service loaded without probing arbitrary factories');
+assert(!verified.timers.size,'service completion clears watchdogs');
+
+// Loading the wrong module shape must never call an arbitrary anonymous
+// UI export. Verified legacy 9.60 progress remains available as fallback.
+let unrelatedCalls=0, legacyCalls=0;
+const legacy=makeHub(()=>{});
+delete legacy.state.trophyFetcher;
+legacy.state.require=id=>{
+  if(id===2578)return {default(){unrelatedCalls++;throw Error('unrelated UI');}};
+  if(id===2559)return {default(args){legacyCalls++;return immediate(trophyData);}};
+  throw Error('unexpected factory');
+};
+legacy.state.require.c={};
+legacy.fetchTrophies('PPSA00001');
+assert(legacyCalls===1 && unrelatedCalls===0,'invalid local service fails closed and keeps legacy support');
+assert(legacy.messages[0].e[1]===1,'legacy earned trophies unchanged');
+
+// A service loaded after an earlier failed lookup wakes the waiting games.
+const discovered=makeHub(()=>{});
+delete discovered.state.trophyFetcher;
+discovered.state.require=()=>({default:{}});
+discovered.state.require.c={};
+discovered.global.__themeTrophyAsk('PPSA02530');
+discovered.observeTrophyFetch(localService,2578);
+discovered.drain();
+assert(discovered.cachedTrophies('PPSA02530').e[1]===1,'late local service retries pending requests');
+
 console.log('Trophy regression tests passed: discovery, caching, timeouts, queue recovery, shared requests, focus order and late replies.');

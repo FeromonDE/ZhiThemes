@@ -9651,9 +9651,22 @@
     if (legacy && typeof exp === 'function') return { fn: exp, owner: null, label: 'module' };
     return visit(exp, null, '', 0);
   }
+  /* Verified in the user's 13.20 game-hub HBC (source hash
+     6281c2fc2085b197285788df14feb56ecdcccdfb): module 2577 has an
+     anonymous default export, so its function name is not discoverable.
+     Its service dependency 2578 exports fetchTitleData({npTitleId,
+     userId?, accountId?}). It reads local TrophyAccessor records and
+     already returns earnedTrophies, definedTrophies and progress. */
+  function trophyLocalExport(exp) {
+    try {
+      if (exp && typeof exp.fetchTitleData === 'function')
+        return { fn: exp.fetchTitleData, owner: exp, label: 'fetchTitleData (local trophies)' };
+    } catch (e) {}
+    return null;
+  }
   function observeTrophyFetch(exp, id) {
     if (APP !== 'hub' || !THEME.fakeTrophies || T.trophyFetcher) return;
-    var found = trophyFetchExport(exp, false);
+    var found = trophyFetchExport(exp, false) || (String(id) === '2578' ? trophyLocalExport(exp) : null);
     if (!found) return;
     T.trophyFetcher = found;
     log('trophies fetch provider: module ' + id + ' / ' + found.label);
@@ -9680,8 +9693,22 @@
         if (T.trophyFetcher) return T.trophyFetcher;
       }
     }
-    /* Compatibility with 9.60, including a nested/named export in 2559.
-       Other firmware versions use the observed export above. */
+    /* A single service module identified from the actual 13.20 dump.
+       Require its named API, never invoke an anonymous default from a
+       guessed factory. This also works when the hub's cards never mount. */
+    if (!T.trophyLocalChecked) {
+      T.trophyLocalChecked = true;
+      try {
+        var local = T.require(2578);
+        var service = trophyLocalExport(local);
+        if (service) {
+          /* observe also wakes requests queued before the service loaded */
+          observeTrophyFetch(local, 2578);
+          if (T.trophyFetcher) return T.trophyFetcher;
+        }
+      } catch (e) {}
+    }
+    /* Compatibility with the verified 9.60 default export in 2559. */
     if (!T.trophyLegacyChecked) {
       T.trophyLegacyChecked = true;
       try {
