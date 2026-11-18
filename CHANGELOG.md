@@ -13,6 +13,16 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 - Theme files: stricter checks on names, paths, sizes and file types when installing a theme.
 - **Home stability:** old copies of the theme layers that the Home leaves behind after tab changes are now dropped, and data from an old Home (after quick saves in the editor) is no longer answered on the wrong thread, which could bring the interface down. The editor shows how many times the Home was reloaded next to *Apply*.
 - **SteamGridDB downloads are faster** (thanks to @kasobos67, PR #11): pictures come in parallel, the picture you choose has its own slot and starts while thumbnails are still loading, and big downloads keep going as long as data arrives. Thumbnails are retried when the PS5 is busy. The big preview shows the thumbnail with a **▶ Show the full animation** button, and every picture you save now shows a progress bar.
+- **Older firmwares (4.03, 6.02, 7.00)**, thanks to the testers @Akegata (4.03), TearsOfAnzar (6.02) and @garfa82 (7.00):
+  - Hidden tiles (PS Store, All Apps…) leave the row on 4.03 too, and Options on a tile has 🎨 ZhiThemes and the folder menu there.
+  - Recently played / Never played are filled from every game on the older Home, with the right last-played dates; the Favourites tab only shows when it has at least one favourite.
+  - Rename folder opens the system keyboard dialog on older Homes (it brought the interface down before).
+  - L1 / R1 move through the extra tabs on 6.02.
+  - Fake trophies on the Home read the older game page's own trophy card, and that old card no longer shows on the Home.
+  - The open folder is closed when you change tabs, so ✕ picks a folder again straight away.
+  - The native focus frame gets the theme's glow, colour and size on firmwares without colour tokens (7.00, 6.02); the colour tokens themselves (Settings colours) still do not work there.
+  - Icons missing on a firmware (Media tab, controller in the top bar) use a close stand-in or are not drawn, instead of an empty picture.
+  - If the Home does not start again after a reload, the log says so and what to do.
 
 ## 0.1.0-alpha — first release
 

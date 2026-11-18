@@ -412,6 +412,9 @@ bool resolve_mono_symbols(pid_t pid) {
   KERNEL_DLSYM(libmono, mono_jit_info_get_code_start);
   KERNEL_DLSYM(libmono, mono_method_get_class);
   KERNEL_DLSYM(libmono, mono_class_get_name);
+  KERNEL_DLSYM(libmono, mono_class_get_namespace);
+  KERNEL_DLSYM(libmono, mono_image_get_table_rows);
+  KERNEL_DLSYM(libmono, mono_class_get);
 
   const bool ok =
       mono_object_to_string && mono_get_root_domain && mono_property_get_get_method &&
@@ -1298,6 +1301,7 @@ int zhithemes_main(pid_t pid, uint64_t old_authid, const OrbisKernelSwVersion &s
       zt_power_watch();  /* rest mode / waking up -> A line (fsync) */
       zt_log_box_sync(); /* flight recorder to the disk */
     }
+    zt_log_home_watch(); /* a reload with no theme.js in the Home (stuck JS thread) */
     if (s % 60 == 0) {
       zt_log_usb_check();
       zt_memory_log(pid, "minute");

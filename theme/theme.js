@@ -3109,7 +3109,7 @@
           enumerable: true, configurable: true,
           get: function () { return fn; }
         });
-      } catch (e) { log('icon ' + name + ' not replaceable: ' + e); }
+      } catch (e) { log(name + ' not replaceable: ' + e); }
     }
     return o[name] === fn;
   }
@@ -3318,7 +3318,7 @@
     if (pressed(e)) {
       tabMoveSound(step);
       try { ref.focus(); } catch (x) { log('tabs: focus ' + next + ': ' + x); }
-      if ((T.tabStepLogs = (T.tabStepLogs || 0) + 1) <= 6) log('tabs: ' + (step > 0 ? 'right' : 'left') + ' ' + name.slice(15) + ' -> ' + next);
+      if ((T.tabStepLogs = (T.tabStepLogs || 0) + 1) <= 40) log('tabs: ' + (step > 0 ? 'right' : 'left') + ' ' + name.slice(15) + ' -> ' + next);
     }
     return false;
   }
@@ -4627,6 +4627,7 @@
                       'localConceptId', 'pic0PathWithTs', 'pinnedStatus', 'sndPathWithTs', 'titleId', 'titleName'];
   var APP_SORT = [{ fieldName: 'sortPriority', ordering: 'ascend' }, { fieldName: 'altPinnedStatus', ordering: 'descend' },
                   { fieldName: 'lastAccessDate', ordering: 'descend' }];
+  var APP_SORT_OLD = [{ fieldName: 'sortPriority', ordering: 'ascend' }, { fieldName: 'lastAccessDate', ordering: 'descend' }];
   /* the query again in `delay` ms: after a failure (it failed right
      after each reload, BuildOrderClause), when a folder opens, after Delete
      in the Options menu (a game of a folder leaves no trace in the row) */
@@ -4647,7 +4648,9 @@
     T.titlesGet = getItems;
     /* the order: the one that worked last, else ours, else the Home's;
        each failure tries the next (BuildOrderClause NullReference) */
-    var sorts = [T.goodSort, APP_SORT, T.appSort, [{ fieldName: 'lastAccessDate', ordering: 'descend' }]]
+    /* older Homes (4.03) have no altPinnedStatus column: the query failed
+       at each reload before the next order worked */
+    var sorts = [T.goodSort, T.haul ? APP_SORT_OLD : APP_SORT, T.appSort, [{ fieldName: 'lastAccessDate', ordering: 'descend' }]]
       .filter(function (s, i, all) { return s && all.indexOf(s) === i; });
     var sortUsed = sorts[(T.titlesFails || 0) % sorts.length];
     var spaces = ['game', 'media'], got = {}, left = spaces.length, failed = false;
@@ -4784,7 +4787,7 @@
       try {
         if (res && typeof res === 'object' && Array.isArray(res.items)) {
           notePlayed(res.items);
-          var items = ownBgRecords(rowLimit(folderRecords(res.items)));
+          var items = ownBgRecords(rowLimit(folderRecords(hiddenRecords(res.items))));
           if (items !== res.items) {
             var copy = {};
             for (var k in res) copy[k] = res[k];
@@ -4867,9 +4870,72 @@
     var out = [];
     if (APP !== 'home') return out;
     if (THEME.tabRecentOn) out.push({ id: 'zt_recent', name: THEME.tabRecentName || 'Recently played' });
-    if (THEME.tabFavOn) out.push({ id: 'zt_fav', name: THEME.tabFavName || 'Favourites' });
+    /* older Homes (4.03): an empty Favourites tab left only the hidden Game
+       Library tile in the row and the keys never came back (L1/R1 dead
+       until a reload), so there the tab shows once it has a game */
+    if (THEME.tabFavOn && !(T.haul && !favList().length))
+      out.push({ id: 'zt_fav', name: THEME.tabFavName || 'Favourites' });
     if (THEME.tabNeverOn) out.push({ id: 'zt_never', name: THEME.tabNeverName || 'Never played' });
     return out;
+  }
+  /* Older Homes (4.03): every tab's list comes from one call,
+     fetchTitleByUserId (module with spaceIds + itemColumnForConcept), an
+     array in the order of spaceIds; the row keeps the first 11 of each. Our
+     tabs never reach setSearchCondition there, so their lists are made here
+     from every title (tabFilter), like tabItems does on newer Homes. */
+  function hookTitleFetch(exp, id) {
+    if (APP !== 'home' || !exp || !Array.isArray(exp.spaceIds) || !exp.itemColumnForConcept) return;
+    var inst = exp.default;
+    if (!inst || typeof inst.fetchTitleByUserId !== 'function' || inst.fetchTitleByUserId.__theme) return;
+    var orig = inst.fetchTitleByUserId, ids = exp.spaceIds;
+    var w = function () {
+      var r = orig.apply(this, arguments);
+      if (!r || typeof r.then !== 'function' || !extraTabs().length) return r;
+      return r.then(function (a) {
+        /* newer Homes asked for our tabs themselves (tabItems): nothing to do */
+        var need = ids.some(function (sp) { return extraTab(sp) && !T.done['tab query ' + sp]; });
+        if (!need) return a;
+        if (T.allRecords) return tabAnswers(ids, a);
+        /* every title comes a moment after the Home starts: wait a little */
+        return new Promise(function (ok) {
+          var went = false, go = function () { if (!went) { went = true; ok(tabAnswers(ids, a)); } };
+          (T.allWaiters = T.allWaiters || []).push(go);
+          setTimeout(go, 1500);
+        });
+      });
+    };
+    w.__theme = true;
+    try { inst.fetchTitleByUserId = w; } catch (e) {}
+    if (inst.fetchTitleByUserId === w) done('tabs: title fetch of the older Home (module ' + id + ')');
+    else log('tabs: fetchTitleByUserId not replaceable');
+  }
+  function tabAnswers(ids, a) {
+    try {
+      if (!Array.isArray(a)) return a;
+      var out = a.slice(), changed = false;
+      ids.forEach(function (sp, i) {
+        var tab = extraTab(sp);
+        /* a Home that asked for the tab itself went through tabItems */
+        if (!tab || T.done['tab query ' + tab.id]) return;
+        /* every title, else the Games row (without our folder tiles) */
+        var base = T.allRecords && T.allRecords.game ||
+                   ((a[ids.indexOf('game')] && a[ids.indexOf('game')].items) || []).filter(function (r) {
+                     return !(r && typeof r.titleId === 'string' && r.titleId.indexOf(FOLDER) === 0);
+                   });
+        var res = a[i] && typeof a[i] === 'object' ? a[i] : {}, c = {};
+        for (var k in res) c[k] = res[k];
+        c.items = tabFilter(tab.id, base.slice());
+        out[i] = c;
+        changed = true;
+        if (!T.done['tab list (older Home) ' + tab.id])
+          done('tab list (older Home) ' + tab.id + ': ' + c.items.length + ' of ' + base.length +
+               (T.allRecords ? '' : ' (row only, every title not here yet)'));
+      });
+      return changed ? out : a;
+    } catch (e) {
+      log('tabs (older Home): ' + e);
+      return a;
+    }
   }
   function extraTab(id) {
     if (typeof id !== 'string' || id.indexOf('zt_') !== 0) return null;
@@ -4880,9 +4946,13 @@
   function isExtraSpace(v) { return !!extraTab(v); }
   /* when a record was last played (ms); 0 = never. conceptInfo.lastPlayedDate
      is what the Home itself reads (conceptLastPlayedDate) */
+  /* the record's own lastPlayedDate or conceptInfo's, the later valid one
+     (4.03: every title has an empty top-level one, the date is in conceptInfo) */
   function playedAt(r) {
-    var v = r && (r.lastPlayedDate != null && r.lastPlayedDate !== '' ? r.lastPlayedDate
-                                                                     : r.conceptInfo && r.conceptInfo.lastPlayedDate);
+    if (!r) return 0;
+    return Math.max(playedValue(r.lastPlayedDate), playedValue(r.conceptInfo && r.conceptInfo.lastPlayedDate));
+  }
+  function playedValue(v) {
     if (v == null || v === '') return 0;
     var t = typeof v === 'number' ? v : Date.parse(String(v));
     if (!(t > 0) && /^\d+$/.test(String(v))) t = Number(v);
@@ -4896,7 +4966,8 @@
     var m = T.played = T.played || {}, changed = false;
     items.forEach(function (r) {
       if (!r || typeof r.titleId !== 'string' || /^(NPXS|ZTFOLDER)/.test(r.titleId)) return;
-      var t = playedAt(r);
+      /* a query without dates never takes away a date the row gave */
+      var t = Math.max(playedAt(r), m[r.titleId] || 0);
       if (m[r.titleId] !== t) { m[r.titleId] = t; changed = true; }
       if (playedLogs < 4) {
         playedLogs++;
@@ -5030,6 +5101,14 @@
       if (!T.done['tab dates ' + tab]) {
         var own = games.filter(function (r) { return playedAt(r) > 0; }).length;
         var c0 = games[0] && games[0].conceptInfo;
+        /* the raw dates of a title the row says was played */
+        var known = games.filter(function (r) { return T.played && T.played[r.titleId] > 0; })[0];
+        if (known) {
+          try {
+            log('tab dates ' + tab + ': ' + known.titleId + ' lastPlayedDate=' + JSON.stringify(known.lastPlayedDate) +
+                ' conceptInfo.lastPlayedDate=' + JSON.stringify(known.conceptInfo && known.conceptInfo.lastPlayedDate));
+          } catch (e) {}
+        }
         done('tab dates ' + tab + ': ' + own + ' of ' + games.length + ' with a date, ' +
              games.filter(function (r) { return when(r) > 0; }).length + ' with the row\'s dates' +
              (games[0] ? ' (keys ' + Object.keys(games[0]).join(',').slice(0, 160) +
@@ -5271,61 +5350,82 @@
   function tabKeyLog(key, e, next) {
     if (tabKeyLogs >= 3000 || !e || e.keyEventType === 'Repeat') return;
     tabKeyLogs++;
-    /* flight recorder (D); the tab order only on the first one */
-    bb('key ' + key + ' at ' + (T.tabSel || T.space || '?') + ' -> ' + (next || 'next tab (by the Home)') +
-       (tabKeyLogs === 1 ? ' (order ' + spaceOrder().join(',') + ')' : ''));
+    /* flight recorder (D); the tab order only on the first one; the first
+       presses also in the log (6.02: L1/R1 in our tabs did nothing) */
+    var line = 'key ' + key + ' at ' + (T.tabSel || T.space || '?') + ' (space ' + (T.space || '?') + ') -> ' +
+               (next || 'next tab (by the Home)') + (tabKeyLogs === 1 ? ' (order ' + spaceOrder().join(',') + ')' : '');
+    if (tabKeyLogs <= 40) log('tabs: ' + line); else bb(line);
+  }
+  /* our L1/R1 for a pair of the Home's handlers (+ its
+     focusSpaceDefaultPosition), the same functions while they stay the same */
+  var spaceKeyCache = { right: null, left: null, go: null, value: null };
+  function spaceKeys(right, left, go) {
+    var cache = spaceKeyCache;
+    if (cache.right !== right || cache.left !== left || cache.go !== go) {
+      cache.right = right; cache.left = left; cache.go = go;
+      var r = function (e) {
+        var next = e && e.keyEventType === 'Down' ? tabNeighbour(1) : null;
+        tabKeyLog('R1', e, next);
+        return next ? spaceMove(go, next) : right.apply(this, arguments);
+      };
+      var l = function (e) {
+        var next = e && e.keyEventType === 'Down' ? tabNeighbour(-1) : null;
+        tabKeyLog('L1', e, next);
+        return next ? spaceMove(go, next) : left.apply(this, arguments);
+      };
+      r.__ztTab = l.__ztTab = true;
+      cache.value = { right: r, left: l };
+    }
+    return cache.value;
+  }
+  /* older Homes (6.02): the tab bar component gets onLKeyDown /
+     onRKeyDown / focusSpaceDefaultPosition as props (a useMemo of the Home);
+     the useSpaceFocus swap did not reach it there (no key of ours in the
+     log, L1/R1 in our tabs did nothing: the Home's own only knows Games <->
+     Media). Ours are put on those props too */
+  function spaceKeyProps(props) {
+    if (APP !== 'home' || !props || typeof props.onRKeyDown !== 'function' || typeof props.onLKeyDown !== 'function' ||
+        typeof props.focusSpaceDefaultPosition !== 'function' || props.onRKeyDown.__ztTab || !extraTabs().length) return;
+    var k = spaceKeys(props.onRKeyDown, props.onLKeyDown, props.focusSpaceDefaultPosition);
+    props.onRKeyDown = k.right;
+    props.onLKeyDown = k.left;
+    if (!T.done['tabs: L1/R1 on the bar props']) done('tabs: L1/R1 on the bar props');
+  }
+  function spaceMove(go, space) {
+    try {
+      var sound = T.rn && T.rn.SystemSoundPS;
+      if (sound && typeof sound.playByID === 'function') sound.playByID('psfx_change_space');
+    } catch (e) {}
+    /* the new tab at once (a second quick press starts from it);
+       the bar's own render then sees nothing new */
+    var old = T.tabSel || T.space;
+    tabLeftFolder(old, space);
+    T.space = space;
+    /* the bar's render (tabSeen) will find T.tabSel already moved: the
+       change is logged here */
+    if (old && old !== space) tabAction(old, space);
+    if (T.tabSel && old !== space) {
+      T.tabSel = space;
+      try { spaceMoved(old, space); } catch (e) {}
+      favEmptyUpdate();
+    }
+    go(space);
+    return false;
   }
   function hookSpaceFocus(exp) {
     var use = exp && exp.useSpaceFocus;
     if (APP !== 'home' || !extraTabs().length || typeof use !== 'function' || use.__theme) return;
-    var cache = { right: null, left: null, go: null, value: null };
-    var move = function (go, space) {
-      try {
-        var sound = T.rn && T.rn.SystemSoundPS;
-        if (sound && typeof sound.playByID === 'function') sound.playByID('psfx_change_space');
-      } catch (e) {}
-      /* the new tab at once (a second quick press starts from it);
-         the bar's own render then sees nothing new */
-      var old = T.tabSel || T.space;
-      tabLeftFolder(old, space);
-      T.space = space;
-      /* the bar's render (tabSeen) will find T.tabSel already moved: the
-         change is logged here */
-      if (old && old !== space) tabAction(old, space);
-      if (T.tabSel && old !== space) {
-        T.tabSel = space;
-        try { spaceMoved(old, space); } catch (e) {}
-        favEmptyUpdate();
-      }
-      go(space);
-      return false;
-    };
     var wrapped = function () {
       var focus = use.apply(this, arguments);
       try {
         if (!focus || typeof focus.onRKeyDown !== 'function' || typeof focus.onLKeyDown !== 'function' ||
             typeof focus.focusSpaceDefaultPosition !== 'function')
           return focus;
-        var right = focus.onRKeyDown, left = focus.onLKeyDown, go = focus.focusSpaceDefaultPosition;
-        if (cache.right !== right || cache.left !== left || cache.go !== go) {
-          cache.right = right; cache.left = left; cache.go = go;
-          cache.value = {
-            right: function (e) {
-              var next = e && e.keyEventType === 'Down' ? tabNeighbour(1) : null;
-              tabKeyLog('R1', e, next);
-              return next ? move(go, next) : right.apply(this, arguments);
-            },
-            left: function (e) {
-              var next = e && e.keyEventType === 'Down' ? tabNeighbour(-1) : null;
-              tabKeyLog('L1', e, next);
-              return next ? move(go, next) : left.apply(this, arguments);
-            }
-          };
-        }
+        var k = spaceKeys(focus.onRKeyDown, focus.onLKeyDown, focus.focusSpaceDefaultPosition);
         var own = {};
-        for (var k in focus) own[k] = focus[k];
-        own.onRKeyDown = cache.value.right;
-        own.onLKeyDown = cache.value.left;
+        for (var key in focus) own[key] = focus[key];
+        own.onRKeyDown = k.right;
+        own.onLKeyDown = k.left;
         return own;
       } catch (e) { log('tabs: L1/R1 ' + e); }
       return focus;
@@ -5406,15 +5506,20 @@
     var m = /^ztfav:(add|remove)\?([A-Za-z]{4}\d{5})$/.exec(url);
     if (!m) return;
     var key = m[2].toUpperCase(), list = favList().filter(function (t) { return t !== key; });
+    var hadNone = !favList().length;
     if (m[1] === 'add') list.unshift(key);
     THEME.favorites = list.join(',');
+    /* older Homes show the tab only with games in it: the first one in or
+       the last one out adds / removes the tab, which needs a reload */
+    var tabChange = T.haul && hadNone !== !list.length;
     /* the star over the tile once the menu has gone */
     setTimeout(function () { favEffect(m[1] === 'add', key); }, 250);
     /* the menu closes first; then the rows again, or a reload when the Home
        gave no listeners */
     setTimeout(function () {
-      var n = refreshTitleRows();
-      log('favourites: ' + m[1] + ' ' + key + ' -> ' + (THEME.favorites || '(none)') + (n ? ' (rows again, ' + n + ')' : ' (reload)'));
+      var n = tabChange ? 0 : refreshTitleRows();
+      log('favourites: ' + m[1] + ' ' + key + ' -> ' + (THEME.favorites || '(none)') + (n ? ' (rows again, ' + n + ')' : ' (reload)') +
+          (tabChange ? ' (the Favourites tab ' + (list.length ? 'appears' : 'goes') + ')' : ''));
       try { console.log((n ? 'THEME-SETQ' : 'THEME-SET') + ' favorites ' + THEME.favorites); } catch (e) {}
     }, 400);
   }
@@ -6673,8 +6778,10 @@
   /* the titleId every Options menu asks the system for (OptionMenu.getOptionMenu
      of the native module wrapper); the Game Library's menu has no other way */
   function hookNativeOptionMenu(exp) {
+    /* an object on 9.60; on 4.03 a class with a static getOptionMenu */
     var om = exp && exp.OptionMenu;
-    if (!om || typeof om !== 'object' || typeof om.getOptionMenu !== 'function' || om.getOptionMenu.__theme) return;
+    if (!om || (typeof om !== 'object' && typeof om !== 'function') ||
+        typeof om.getOptionMenu !== 'function' || om.getOptionMenu.__theme) return;
     var orig = om.getOptionMenu;
     var w = function (q) {
       if (q && typeof q.titleId === 'string') {
@@ -6691,6 +6798,7 @@
     };
     w.__theme = true;
     if (!replace(om, 'getOptionMenu', w)) log('native OptionMenu not replaceable');
+    else if (!T.done['native options menu hook']) done('native options menu hook');
   }
   /* Game Library: "Add to folder ..." items at the end of the menu, made like
      its own items (same component); flat, the library has no submenu here */
@@ -7473,6 +7581,93 @@
     add.subItems = folderTargets('zt-add', id, T.space === 'media' ? 'media' : 'game', '');
     return [add];
   }
+  /* Rename folder on the older Homes (Haul): the UI3 TextField of the newer
+     ones took ShellUI down there (6.02). Their own Game Library names a game
+     list with a TextInput, and their network settings open the keyboard with
+     beginEdit() + focus() on it: the same here, inside the system dialog
+     (DialogPS, which holds the focus and closes with O). */
+  var renameListeners = [];
+  function renameAskOld(fid, cur) {
+    var TI = T.rn && T.rn.TextInput, D = T.DialogPS;
+    var ok = !!TI && (typeof TI === 'function' || typeof TI === 'object') &&
+             !!D && (typeof D === 'function' || typeof D === 'object') && !!T.React;
+    log('folder rename (old Home): ' + fid + ' TextInput ' + typeof TI + ', DialogPS ' + typeof D +
+        (ok ? ', dialog asked' : ', not available'));
+    if (!ok) return false;
+    /* after the Options menu has closed */
+    setTimeout(function () {
+      T.renameAsk = { id: fid, name: cur, n: ((T.renameAsk && T.renameAsk.n) || 0) + 1 };
+      renameListeners.forEach(function (f) { try { f(); } catch (e) {} });
+    }, 400);
+    return true;
+  }
+  function FolderRenameDialog() {
+    var React = T.React, rn = T.rn;
+    var tick = React.useState(0)[1];
+    var input = React.useRef(null), text = React.useRef('');
+    /* the front layer can be mounted more than once (tab copies): only the
+       first copy draws the dialog */
+    var me = React.useRef(null);
+    if (!me.current) me.current = {};
+    if (!T.renameHost) T.renameHost = me.current;
+    React.useEffect(function () {
+      var f = function () { tick(function (n) { return n + 1; }); };
+      renameListeners.push(f);
+      return function () {
+        var i = renameListeners.indexOf(f);
+        if (i >= 0) renameListeners.splice(i, 1);
+        if (T.renameHost === me.current) {
+          T.renameHost = null;
+          renameListeners.forEach(function (g) { try { g(); } catch (e) {} });
+        }
+      };
+    }, []);
+    var ask = T.renameHost === me.current ? T.renameAsk : null, n = ask ? ask.n : 0;
+    React.useEffect(function () {
+      if (!ask) return;
+      text.current = ask.name || '';
+      /* the keyboard, once the dialog is on screen */
+      var t = setTimeout(function () {
+        var r = input.current;
+        try {
+          if (r && typeof r.beginEdit === 'function') r.beginEdit();
+          if (r && typeof r.focus === 'function') r.focus();
+          log('folder rename (old Home): keyboard asked (beginEdit ' + typeof (r && r.beginEdit) +
+              ', focus ' + typeof (r && r.focus) + ')');
+        } catch (e) { log('folder rename (old Home): keyboard ' + e, 'E'); }
+      }, 500);
+      return function () { clearTimeout(t); };
+    }, [n]);
+    if (!ask) return null;
+    var close = function (save, why) {
+      if (T.renameAsk !== ask) return;
+      T.renameAsk = null;
+      var nm = String(text.current || '').trim();
+      log('folder rename (old Home): ' + why + (save ? ', name "' + nm + '"' : ''));
+      renameListeners.forEach(function (f) { try { f(); } catch (e) {} });
+      if (save && nm && nm !== ask.name)
+        setTimeout(function () { folderAction('ztfolder:rename?' + ask.id + ',' + nm); }, 300);
+    };
+    var typed = function (e) {
+      var v = e && e.nativeEvent && e.nativeEvent.text;
+      if (typeof v === 'string') text.current = v;
+    };
+    var px = fontSize(30) || 30;
+    return React.createElement(T.DialogPS, {
+        visible: true, presentationStyle: 'popup', widthStyle: 'basic', title: 'Rename folder',
+        hideOnBackButton: true, testID: 'zt-folder-rename',
+        onShow: function () { log('folder rename (old Home): dialog shown'); },
+        onRequestClose: function () { close(false, 'closed'); },
+        buttons: { positive: { text: React.createElement(rn.Text, null, 'Done'),
+                               onPress: function () { close(true, 'Done'); } } } },
+      React.createElement(rn.TextInput, {
+        ref: input, testID: 'zt-folder-rename-input', defaultValue: ask.name, maxLength: 40,
+        keyboardType: 'default', keyboardWindowType: 'default', autoCapitalize: 'none',
+        style: { width: 640, height: Math.round(px * 2.2), fontSize: px, color: '#ffffff' },
+        onChangeText: function (v) { if (typeof v === 'string') text.current = v; },
+        onSubmitEditing: function (e) { typed(e); close(true, 'keyboard done'); },
+        onEndEditing: function (e) { typed(e); log('folder rename (old Home): keyboard closed'); } }));
+  }
   function folderAction(url) {
     var m = /^ztfolder:(\w+)\?(.*)$/.exec(url);
     if (!m) return;
@@ -7486,13 +7681,15 @@
       /* older firmwares (Haul Home): the native TextField + keyboard took
          ShellUI down right after the keyboard opened (6.02); the web editor
          renames the folder there */
+      var rp = folderPart(folderParts(), a[0]);
+      var cur = rp ? rp.head.split('|')[0].trim() : '';
       if (T.haul) {
+        /* the system's own dialog and keyboard instead (renameAskOld) */
+        if (renameAskOld(a[0], cur)) return;
         log('folder rename: keyboard not used on this firmware, web editor instead');
         setTimeout(function () { showToast('Rename it in the web editor: Folders (port 4444)'); }, 400);
         return;
       }
-      var rp = folderPart(folderParts(), a[0]);
-      var cur = rp ? rp.head.split('|')[0].trim() : '';
       /* after the menu has closed; the answer comes as data 'zt-rename' */
       setTimeout(function () {
         try { console.log('THEME-RENAME ' + a[0] + '|' + cur); } catch (e) {}
@@ -7743,6 +7940,26 @@
     };
     swapped.__theme = true;
     if (replace(exp, 'useRecoilValue', swapped)) done('useRecoilValue (store)');
+    else {
+      /* 4.03: the export is neither writable nor configurable. The hidden
+         tiles then leave the records of the row's query (hiddenRecords) */
+      T.hideInItems = true;
+      if (!T.done['hidden tiles in the app list']) done('hidden tiles in the app list (useRecoilValue fixed)');
+    }
+  }
+  /* the row's records without the tiles the theme hides (Store, All Apps...),
+     for Homes whose state hook cannot be replaced */
+  var hiddenLogs = 0;
+  function hiddenRecords(items) {
+    if (!T.hideInItems || !Array.isArray(items)) return items;
+    var ids = removedIds(), gone = [];
+    var res = items.filter(function (r) {
+      if (r && typeof r.titleId === 'string' && ids[r.titleId]) { gone.push(r.titleId); return false; }
+      return true;
+    });
+    if (!gone.length) return items;
+    if (hiddenLogs++ < 4) log('row: hidden ' + gone.join(','));
+    return res;
   }
   /* The Home keeps the selected tile's id and looks the experience up in its
      full list (an atom read with useAtomValue): for a folder the lookup gives
@@ -8223,7 +8440,9 @@
   var ICON_ALTS = { music_and_video: ['media', 'video', 'movie', 'tv', 'music'],
                     history: ['history', 'recent', 'clock', 'time'],
                     favorite: ['favorite', 'favourite', 'star', 'heart'],
-                    'new': ['new', 'star'], game: ['game', 'controller', 'gamepad'] };
+                    'new': ['new', 'star'], game: ['game', 'controller', 'gamepad'],
+                    /* the top bar's controller (4.03 has no ps5_wireless_controller) */
+                    ps5_wireless_controller: ['controller', 'dualsense', 'gamepad', 'ds4', 'joystick', 'game'] };
   function iconIdSet(Icon) {
     if (T.iconIdSet !== undefined) return T.iconIdSet;
     var src = Icon && Icon.iconIds;
@@ -8243,16 +8462,23 @@
     if (!set || set[id]) return id;
     var memo = (T.iconAlt = T.iconAlt || {});
     if (id in memo) return memo[id];
-    var alts = ICON_ALTS[id] || [], pick = '';
-    for (var i = 0; i < alts.length && !pick; i++) if (set[alts[i]]) pick = alts[i];
-    if (!pick) {
-      var all = Object.keys(set);
-      for (var j = 0; j < alts.length && !pick; j++)
-        for (var q = 0; q < all.length && !pick; q++) if (all[q].toLowerCase().indexOf(alts[j]) >= 0) pick = all[q];
+    /* each name in order: itself, else an id that contains it */
+    var alts = ICON_ALTS[id] || [], pick = '', all = Object.keys(set);
+    for (var i = 0; i < alts.length && !pick; i++) {
+      if (set[alts[i]]) { pick = alts[i]; break; }
+      for (var q = 0; q < all.length && !pick; q++) if (all[q].toLowerCase().indexOf(alts[i]) >= 0) pick = all[q];
     }
-    memo[id] = pick || id;
-    log('icons: "' + id + '" not on this firmware' + (pick ? ', "' + pick + '" instead' : ', nothing close') +
-        (pick ? '' : ' (ids: ' + Object.keys(set).slice(0, 60).join(',') + ')'));
+    /* nothing close: no icon (it drew an empty picture) */
+    memo[id] = pick;
+    log('icons: "' + id + '" not on this firmware' + (pick ? ', "' + pick + '" instead' : ', nothing close: not drawn'));
+    /* nothing close: every id of this firmware once, to pick one by hand */
+    if (!pick && !T.iconIdsLogged) {
+      T.iconIdsLogged = true;
+      var ids = Object.keys(set);
+      for (var c = 0; c < ids.length; c += 120)
+        log('icons on this firmware (' + (c + 1) + '-' + Math.min(c + 120, ids.length) + ' of ' + ids.length + '): ' +
+            ids.slice(c, c + 120).join(','));
+    }
     return memo[id];
   }
   function decoIcon(v, size, color) {
@@ -8264,6 +8490,7 @@
                                                          style: { width: size, height: size } }) : null;
     }
     var Icon = iconComponent(), id = iconOnThisFw(Icon, buttonIcon(v) || v.trim());
+    if (!id) return null;
     var st = { width: size, height: size };
     /* IconPS ignores tintColor and draws its own grey (the L1/R1 of the tabs
        group came out darker than names of the same colour): with a colour
@@ -9834,6 +10061,34 @@
     };
     next();
   }
+  /* Older Homes (Haul, 6.02): no 2559 fetch and no 2558 hook, but the hub
+     draws its own old trophy card and its parts get the numbers as props:
+     story-progress-progress {point: %}, story-progress-earned {num, maxnum},
+     story-progress-unlocked-gl/sl/bz-num {num}, the platinum icon only when
+     one is earned (story-progress-pt-icon). The children are made before
+     the card (story-progress-view), so the card closes one reading. */
+  var oldCard = {};
+  function oldCardTrophies(props) {
+    var id = props.testID, num = function (v) { return typeof v === 'number' ? v : /^\d+$/.test(String(v)) ? Number(v) : null; };
+    if (id === 'story-progress-progress') oldCard.p = num(props.point);
+    else if (id === 'story-progress-earned') { oldCard.n = num(props.num); oldCard.max = num(props.maxnum); }
+    else if (id === 'story-progress-unlocked-gl-num') oldCard.gl = num(props.num);
+    else if (id === 'story-progress-unlocked-sl-num') oldCard.sl = num(props.num);
+    else if (id === 'story-progress-unlocked-bz-num') oldCard.bz = num(props.num);
+    else if (id === 'story-progress-pt-icon') oldCard.pt = 1;
+    else if (id === 'story-progress-error-view') oldCard.err = true;
+    if (id !== 'story-progress-view') return;
+    var c = oldCard, tid = hubTitleId();
+    oldCard = {};
+    if (!tid || fromLibrary()) return;
+    if (c.err || (c.p == null && c.n == null)) {
+      if (!T.done['old trophy card: no data']) done('old trophy card: no data (' + (c.err ? 'error view' : 'no record') + ')');
+      return;
+    }
+    T.trophyGotFor = tid;
+    sendTrophyData({ id: tid, e: [c.pt | 0, c.gl | 0, c.sl | 0, c.bz | 0], p: c.p });
+    if (!T.done['trophies from the old card']) done('trophies from the old card (' + tid + ': ' + c.p + '%, ' + c.n + '/' + c.max + ')');
+  }
   /* a game of an open folder on the Home: its trophies are asked here
      (ZhiThemes hands "THEME-TROPHY-ASK <id>" over when the hub prints
      "THEME-HUBASK"); the answer goes to the Home like the hub's own */
@@ -10809,6 +11064,8 @@
                                           children: fn.apply(this, arguments) }, arguments[2]);
         }
       }
+      if (APP === 'hub' && THEME.fakeTrophies && T.haul && props && typeof props === 'object' &&
+          typeof props.testID === 'string' && props.testID.indexOf('story-progress-') === 0) oldCardTrophies(props);
       /* older firmwares (below 7.x): the hub's trophy card is the old
          "Progress / Earned" one (story-progress-view), placed so it peeked
          into the Home view over the hints. Shown only while the focus is
@@ -11009,6 +11266,7 @@
           if (THEME.folders && T.React && typeof T.React.useState === 'function') hubGateProps = props;
         }
         tabItem(props);
+        spaceKeyProps(props);
         tabSeen(props);
         tabPill(props);
         tabIcons(props);
@@ -11160,6 +11418,8 @@
         front = front.concat(decoElements());
         if (THEME.folders && T.React && APP === 'home')
           front.push(T.React.createElement(FolderStrip, { key: 'theme-folder-strip' }));
+        if (THEME.folders && T.haul && T.React && APP === 'home' && typeof T.React.useState === 'function')
+          front.push(T.React.createElement(FolderRenameDialog, { key: 'theme-folder-rename' }));
         if (THEME.menuMove && T.React && APP === 'home')
           front.push(T.React.createElement(MenuAnchor, { key: 'theme-menu-anchor' }));
         var extra = THEME.footer ? footerElement() : null;
@@ -11784,6 +12044,8 @@
       }
       if (!T.IconPS && exp.IconPS && typeof exp.IconPS !== 'string') T.IconPS = exp.IconPS;
       if (!T.FocusLayer && exp.FocusLayerPS && typeof exp.FocusLayerPS !== 'string') T.FocusLayer = exp.FocusLayerPS;
+      /* the system dialog (older Homes: the folder rename) */
+      if (!T.DialogPS && exp.DialogPS && typeof exp.DialogPS !== 'string') T.DialogPS = exp.DialogPS;
       /* the system menu parts (the Power button's menu) */
       if (!T.rnps && exp.OptionsMenuPS && exp.MenuListItemPS && typeof exp.OptionsMenuPS !== 'string') { T.rnps = exp; done('system menu parts'); }
       if (!T.useLink && typeof exp.useLink === 'function') { T.useLink = exp.useLink; done('useLink'); }
@@ -11800,6 +12062,7 @@
       hookRecoil(exp);
       hookAppItems(exp);
       patchSpaces(exp, id);
+      hookTitleFetch(exp, id);
       hookTitleSpace(exp);
       hookSpaceFocus(exp);
       hookDefaultTile(exp);

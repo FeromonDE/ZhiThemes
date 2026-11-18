@@ -1646,6 +1646,78 @@ void focus_hide_for_qr(bool on) {
   zt_log("focus: frame %s for the QR code (%d widgets)", on ? "hidden" : "back", n);
 }
 
+/* diagnostic build only, once per session, on firmwares without
+   UISystem.get_StyleManager: every Sce.PlayStation.PUI type whose name
+   speaks of styles, tokens or colours goes to the log with its getters and
+   fields, plus every method of UISystem, to find what holds the colour
+   tokens there */
+void diag_style_probe() {
+#if ZT_DIAG
+  static bool probed = false;
+  if (probed || !g_pui)
+    return;
+  probed = true;
+  const auto interesting = [](const char *s) {
+    if (!s)
+      return false;
+    for (const char *w : {"style", "token", "color", "colour", "theme", "palette"})
+      if (strcasestr(s, w))
+        return true;
+    return false;
+  };
+  /* all = every method; otherwise getters, Instance and the interesting ones */
+  const auto members = [&](MonoClass *k, bool all) {
+    std::string out;
+    void *it = nullptr;
+    while (mono_class_get_methods && mono_method_get_name && out.size() < 3000) {
+      MonoMethod *m = mono_class_get_methods(k, &it);
+      if (!m)
+        break;
+      const char *n = mono_method_get_name(m);
+      if (!n || (!all && strncmp(n, "get_", 4) != 0 && !interesting(n) && !strcasestr(n, "instance")))
+        continue;
+      out += out.empty() ? "" : ",";
+      out += n;
+    }
+    it = nullptr;
+    std::string fields;
+    while (mono_class_get_fields && mono_field_get_name && fields.size() < 1000) {
+      MonoClassField *f = mono_class_get_fields(k, &it);
+      if (!f)
+        break;
+      const char *n = mono_field_get_name(f);
+      if (!n || (!all && !interesting(n) && !strcasestr(n, "instance")))
+        continue;
+      fields += fields.empty() ? "" : ",";
+      fields += n;
+    }
+    return out + " | fields " + (fields.empty() ? "-" : fields);
+  };
+  if (MonoClass *ui = mono_class_from_name(g_pui, "Sce.PlayStation.PUI", "UISystem"))
+    zt_log("diag: UISystem members: %s", members(ui, true).c_str());
+  else
+    zt_log("diag: UISystem class missing");
+  if (!mono_image_get_table_rows || !mono_class_get || !mono_class_get_name) {
+    zt_log("diag: style scan unavailable (rows=%d get=%d name=%d)", mono_image_get_table_rows != nullptr,
+           mono_class_get != nullptr, mono_class_get_name != nullptr);
+    return;
+  }
+  const int rows = mono_image_get_table_rows(g_pui, 2 /* TypeDef */);
+  zt_log("diag: style scan of %d types in Sce.PlayStation.PUI", rows);
+  int hits = 0;
+  for (int i = 2; i <= rows && hits < 120; ++i) { /* row 1 = <Module> */
+    MonoClass *k = mono_class_get(g_pui, 0x02000000u | (uint32_t)i);
+    const char *n = k ? mono_class_get_name(k) : nullptr;
+    if (!interesting(n))
+      continue;
+    const char *ns = mono_class_get_namespace ? mono_class_get_namespace(k) : nullptr;
+    ++hits;
+    zt_log("diag: style type %s.%s: %s", ns ? ns : "?", n, members(k, false).c_str());
+  }
+  zt_log("diag: style scan done, %d types", hits);
+#endif
+}
+
 void apply_focus_color(const std::string &script) {
   if (!g_pui) {
     zt_log("focus: Sce.PlayStation.PUI image missing");
@@ -1658,16 +1730,25 @@ void apply_focus_color(const std::string &script) {
   MonoObject *exc = nullptr;
   MonoObject *sm =
       get_sm ? mono_runtime_invoke(get_sm, nullptr, nullptr, &exc) : nullptr;
-  if (!sm || exc) {
-    zt_log("focus: UISystem.StyleManager unavailable");
-    return;
+  /* older firmwares (6.02, 7.00) have no UISystem.StyleManager: only the
+     colour tokens need it. The frame itself (colour table = line and glow,
+     thickness, gap, corners, shimmer) goes through FocusRenderManager and
+     the focus widgets, so it is still applied. */
+  if (exc)
+    sm = nullptr;
+  MonoObject *colours = sm ? token_dictionary(sm, "ActiveColorToken") : nullptr;
+  if (!colours) {
+    static bool told = false;
+    if (!told) {
+      told = true;
+      zt_log("focus: UISystem.StyleManager unavailable: colour tokens skipped, "
+             "frame colour, glow and size still applied");
+    }
+    diag_style_probe();
   }
-  MonoObject *colours = token_dictionary(sm, "ActiveColorToken");
-  if (!colours)
-    return;
   /* debug mode (Logs tab): every colour and shape token of this firmware
      goes to Dumps/<firmware>/, to compare consoles */
-  if (!g_tokens_dumped && zt_debug_on()) {
+  if (colours && !g_tokens_dumped && zt_debug_on()) {
     g_tokens_dumped = true;
     dump_tokens(colours, token_dump_path("tokens_color.txt").c_str(), true);
     if (MonoObject *shapes = token_dictionary(sm, "ActiveShapeToken"))
@@ -1694,12 +1775,15 @@ void apply_focus_color(const std::string &script) {
                          channel("focusGlowB", 255),
                          unit("focusGlowAlpha", 1)};
 
-  for (SavedToken &t : g_focus_tokens)
-    log_resolved(sm, t.key, "before");
+  if (colours)
+    for (SavedToken &t : g_focus_tokens)
+      log_resolved(sm, t.key, "before");
 
   int in_set = 0;
 
   for (SavedToken &t : g_focus_tokens) {
+    if (!colours)
+      break;
     MonoString *key = mono_string_new(mono_domain_get(), t.key);
     void *get_args[1] = {key};
     if (!t.saved) {
@@ -1727,11 +1811,13 @@ void apply_focus_color(const std::string &script) {
     call(colours, "set_Item", 2, set_args, t.key, &written);
     in_set += written;
   }
-  zt_log("focus: tokens set (line %s, glow %s%s)",
-                 line_on ? "theme" : "stock", glow_on ? "theme" : "stock",
-                 hide ? ", hidden" : "");
-  for (SavedToken &t : g_focus_tokens)
-    log_resolved(sm, t.key, "after dictionary");
+  if (colours) {
+    zt_log("focus: tokens set (line %s, glow %s%s)",
+                   line_on ? "theme" : "stock", glow_on ? "theme" : "stock",
+                   hide ? ", hidden" : "");
+    for (SavedToken &t : g_focus_tokens)
+      log_resolved(sm, t.key, "after dictionary");
+  }
 
   /* the frames that already exist (see colour_elements) */
   colour_elements(line_on ? line : nullptr, 0, hide);
@@ -1779,6 +1865,8 @@ void apply_focus_color(const std::string &script) {
      with the few entries given, which blanked every other colour (button
      backgrounds, top bar icons) in v7. */
   (void)in_set;
+  if (!colours)
+    return;
   apply_token_overrides(colours, script);
   apply_shape_overrides(sm, script);
 }
@@ -3051,6 +3139,7 @@ void RunScript_Hook(MonoObject *self, MonoObject *bundle) {
     zt_log("js: RunScript '%.200s'%s%s", id.c_str(),
                    app ? " -> " : "", app ? app : "");
   if (app && strcmp(app, "home") == 0) {
+    zt_log_home_started(); /* the Home's bundle runs again (reload watch) */
     if (g_home_executor_handle)
       mono_gchandle_free(g_home_executor_handle);
     g_home_executor_handle = mono_gchandle_new(self, true);

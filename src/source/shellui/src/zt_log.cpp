@@ -770,9 +770,51 @@ namespace {
 std::atomic<int> g_reloads{0};
 }
 
+namespace {
+/* the last Home reload still waiting for theme.js in the Home: its number
+   (0 = none waiting) and when (ms, monotonic) */
+std::atomic<int> g_home_wait_reload{0};
+std::atomic<long long> g_home_wait_since{0};
+std::atomic<int> g_home_stuck_logged{0};
+long long home_watch_ms() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+}
+
 void zt_log_reload_done() {
   const int n = g_reloads.fetch_add(1) + 1;
   zt_logl('I', "reload: Home reloaded (%d in this session)", n);
+  /* a reload while one is still waiting keeps the older start time: the
+     Home has not run theme.js since then */
+  if (!g_home_wait_reload.load())
+    g_home_wait_since.store(home_watch_ms());
+  g_home_wait_reload.store(n);
+}
+
+void zt_log_home_started() {
+  const int waited = g_home_wait_reload.exchange(0);
+  if (waited && g_home_stuck_logged.load()) {
+    zt_logl('I', "reload: the Home started again (reload %d)", waited);
+    g_home_stuck_logged.store(0);
+  }
+}
+
+void zt_log_home_watch() {
+  const int n = g_home_wait_reload.load();
+  if (!n || g_home_stuck_logged.load())
+    return;
+  const long long waited = home_watch_ms() - g_home_wait_since.load();
+  /* the first reload of a session: a ShellUI that has just started (after a
+     crash or at boot) runs the Home only when the user is in (4.03: 38 s
+     after the injection), so it gets longer */
+  if (waited < (n == 1 ? 90000 : 15000))
+    return;
+  g_home_stuck_logged.store(1);
+  zt_logl('W', "reload: the Home did not start after reload %d (no Home bundle for %lld s); "
+               "if only the background shows and the PS button works, its JS thread is stuck: "
+               "put the PS5 in rest mode or restart it", n, waited / 1000);
 }
 
 int zt_log_reloads() { return g_reloads.load(); }

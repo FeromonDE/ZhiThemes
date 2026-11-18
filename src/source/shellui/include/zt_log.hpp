@@ -73,6 +73,12 @@ std::string zt_log_report(int sessions, size_t max_log);
 /* The Home was reloaded (UI thread): counted and logged. */
 void zt_log_reload_done();
 int zt_log_reloads();
+/* Watch on the Home after a reload: the Home's bundle ran again (RunScript)
+   -> zt_log_home_started; zt_log_home_watch (once a second) writes a W line
+   when a reload got no Home bundle within 15 s, 90 s for the session's first
+   one (its JS thread stuck: only the background and the PS button work). */
+void zt_log_home_started();
+void zt_log_home_watch();
 
 /* Debug mode (editor's Logs tab). */
 bool zt_debug_on();
