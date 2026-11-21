@@ -5396,12 +5396,19 @@
     var cache = spaceKeyCache;
     if (cache.right !== right || cache.left !== left || cache.go !== go) {
       cache.right = right; cache.left = left; cache.go = go;
+      /* held down (Repeat): no more tabs */
+      var still = function (e) {
+        if (e && e.keyEventType === 'Repeat') { take(e); return true; }
+        return false;
+      };
       var r = function (e) {
+        if (still(e)) return false;
         var next = e && e.keyEventType === 'Down' ? tabNeighbour(1) : null;
         tabKeyLog('R1', e, next);
         return next ? spaceMove(go, next) : right.apply(this, arguments);
       };
       var l = function (e) {
+        if (still(e)) return false;
         var next = e && e.keyEventType === 'Down' ? tabNeighbour(-1) : null;
         tabKeyLog('L1', e, next);
         return next ? spaceMove(go, next) : left.apply(this, arguments);
@@ -6392,8 +6399,23 @@
     log('folder ' + id + ': games from every title (' + games.length + ')');
     return T.folders[id];
   }
+  /* a game started from the strip (or the PS button / a game over the
+     Home): the Home goes to the background and the folder closes, so it is
+     closed when the Home comes back */
+  function folderAwayWatch() {
+    var AS = T.rn && T.rn.AppState;
+    if (T.folderAS || !AS || typeof AS.addEventListener !== 'function') return;
+    T.folderAS = true;
+    try {
+      AS.addEventListener('change', function (st) {
+        if (!/background/i.test(String(st || '')) || !T.folderOpen) return;
+        log('folder: Home in the background, folder closed');
+        try { folderOpenSet(''); } catch (e) { T.folderOpen = ''; log('folder close error: ' + e); }
+      });
+    } catch (e) { T.folderAS = false; log('folder: no AppState ' + e); }
+  }
   function folderOpenSet(id) {
-    if (id) folderEntry(id);
+    if (id) { folderEntry(id); folderAwayWatch(); }
     T.folderOpen = id || '';
     T.stripIdx = 0;
     pulseButton('x');
@@ -7183,6 +7205,9 @@
     }
     var sel = typeof select === 'string' ? select : select && kept.indexOf(select) >= 0 ? FOLDER + kept.indexOf(select) : '';
     log('folder menu: ' + why + ' -> folders: ' + value.slice(0, 300) + (sel ? ' (then select ' + sel + ')' : ''));
+    /* Game / App Library: saved without the reload, so more games can be
+       added; the reload comes when the library is left */
+    if (APP === 'library') { libraryFolderSave(value, mosaics, sel); return; }
     if (quiet) {
       /* nothing the Home lists changes: no reload, this Home goes on with it */
       THEME.folders = value;
@@ -7218,6 +7243,67 @@
         console.log('THEME-SET folders ' + value);
       } catch (e) {}
     }, 400);
+  }
+  /* the library is a page the Home draws, and O out of it does not change
+     its AppState: it tells the Home (data 'zt-libfold'), and the Home
+     reloads when the library page loses the focus (homeLibraryLeft) */
+  function libraryFolderSave(value, mosaics, sel) {
+    THEME.folders = value;   /* the next menu already has it */
+    try {
+      mosaics.forEach(function (m) { console.log('THEME-MOSAIC ' + m); });
+      console.log('THEME-SETQ folders ' + value);
+    } catch (e) {}
+    var p = T.libPending && Date.now() - T.libPending.at < 600000 ? T.libPending : null;
+    var n = ((p && p.n) || 0) + 1;
+    /* the Home's own message ("Added to <folder>") after the reload:
+       every folder of this visit, once each */
+    var texts = ((p && p.texts) || []).slice();
+    if (T.toastNext && T.toastNext.text && texts.indexOf(T.toastNext.text) < 0) texts.push(T.toastNext.text);
+    T.toastNext = null;
+    var added = texts.filter(function (t) { return t.indexOf('Added to ') === 0; });
+    var toast = added.length && added.length === texts.length
+      ? 'Added to ' + added.map(function (t) { return t.slice(9); }).join(', ')
+      : texts[texts.length - 1] || '';
+    T.libPending = { sel: sel, texts: texts, toast: toast, n: n, at: Date.now() };
+    log('folder menu: saved (' + n + ' change' + (n > 1 ? 's' : '') + '), Home reload when the library closes');
+    try {
+      console.log('THEME-DATA zt-libfold ' + JSON.stringify({ t: Date.now(), n: n, sel: sel, toast: toast || '', value: value }));
+    } catch (e) {}
+    setTimeout(folderChanged, 0);
+  }
+  /* Home: folders changed in the library, waiting for it to close */
+  function homeLibFoldData(text) {
+    var s = null;
+    try { s = JSON.parse(String(text)); } catch (e) { return; }
+    if (!s || !s.t || typeof s.value !== 'string' || s.t === T.libFoldSeen) return;
+    T.libFoldSeen = s.t;
+    T.libFold = s;
+    log('folder: ' + s.n + ' change' + (s.n > 1 ? 's' : '') + ' in the library, Home reload when it closes' +
+        (T.libVidIn === true ? '' : ' (library page not focused now)'));
+    /* the library page already left (or never seen with the focus):
+       checked again a moment later */
+    if (T.libVidIn !== true)
+      setTimeout(function () { if (T.libFold === s && T.libVidIn !== true) homeLibraryLeft('library not focused'); }, 1500);
+  }
+  function homeLibraryLeft(why) {
+    var s = T.libFold;
+    if (!s) return;
+    T.libFold = null;
+    log('folder: ' + why + ', Home reload for the folders (' + s.n + ' change' + (s.n > 1 ? 's' : '') + ')');
+    try {
+      /* used: the new Home must not reload again */
+      console.log('THEME-DATA zt-libfold done');
+      if (s.sel) {
+        T.sentSelect = Date.now();
+        console.log('THEME-DATA zt-select ' + JSON.stringify({ id: s.sel, t: T.sentSelect }));
+      }
+      var text = s.toast;
+      if (text && THEME.animToast) {
+        T.sentToast = Date.now();
+        console.log('THEME-DATA zt-toast ' + JSON.stringify({ text: text, t: T.sentToast }));
+      }
+      console.log('THEME-SET folders ' + s.value);
+    } catch (e) { log('folder: library reload error: ' + e); }
   }
   /* after a folder change: the Home selects the folder (or game) the menu
      acted on, once its row and its app list both have it (the Home
@@ -8361,9 +8447,10 @@
      and, when the Home asks ("THEME-ASK", on the Home's own thread), hands it
      over with __themeName(name). */
   var trophyListeners = [];
-  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.animToast)) {
+  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.animToast || THEME.folderMenu !== false)) {
     globalThis.__themeData = function (key, text) {
       if (toastData(key, text)) return;
+      if (key === 'zt-libfold') { homeLibFoldData(text); return; }
       if (key === 'zt-select') {
         /* from the Home before the reload (not this one, not an old one) */
         try {
@@ -8428,7 +8515,7 @@
       }, 0);
     };
   }
-  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders))
+  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.folderMenu !== false))
     setInterval(function () { try { console.log('THEME-ASK'); } catch (e) {} },
                 THEME.fakeTrophies && THEME.fakeTrophiesFast !== false ? 120 : 250);
   var TROPHY_ICONS = ['trophy_grade1_platinum', 'trophy_grade2_gold', 'trophy_grade3_silver', 'trophy_grade4_bronze'];
@@ -8988,7 +9075,8 @@
      Home goes over as data 'zt-toast' (like zt-select) and the new Home shows
      it. */
   function folderToast(text) {
-    return THEME.animToast ? { text: text } : null;
+    /* the library always says it: the Home decides (its animToast) */
+    return THEME.animToast || APP === 'library' ? { text: text } : null;
   }
   function toastData(key, text) {
     if (key !== 'zt-toast') return false;
@@ -8996,6 +9084,7 @@
       var s = JSON.parse(String(text));
       if (s && s.t && s.t !== T.sentToast && Date.now() - s.t < 15000 && T.toastSeen !== s.t) {
         T.toastSeen = s.t;
+        log('toast after the reload: ' + s.text + (toastOn() ? '' : ' (toasts off in this theme)'));
         console.log('THEME-DATA zt-toast done');
         setTimeout(function () { showToast(s.text); }, 900);
       }
@@ -10946,7 +11035,10 @@
   }
   function libraryVideo(on) {
     if (T.libVidIn === on) return;
+    var was = T.libVidIn;
     T.libVidIn = on;
+    /* O out of the library: folders changed there reload the Home now */
+    if (!on && was === true && T.libFold) setTimeout(function () { homeLibraryLeft('library closed'); }, 300);
     var op = libVideoOp();
     if (!op) return;
     setTimeout(function () {
