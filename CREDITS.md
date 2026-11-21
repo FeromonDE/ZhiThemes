@@ -40,7 +40,7 @@ The ready-made themes in `ZhiThemes-themes.zip` on the Releases page (previews i
 - **Roger**, for the help with firmware 13.60.
 - **Firmware testers**, for many rounds of test builds, logs and photos on older PS5 firmwares:
   - **[Akegata](https://github.com/Akegata)**: firmware 4.03
-  - **TearsOfAnzar**: firmware 6.02
+  - **[TearsOfAnzar](https://github.com/TearsOfAnzar)**: firmware 6.02
   - **[garfa82](https://github.com/garfa82)**: firmware 7.00
 - **[kasobos67](https://github.com/kasobos67)**, for the faster SteamGridDB downloads (PR #11).
 - Everyone who tests ZhiThemes on other PS5 models and firmwares and sends logs.
