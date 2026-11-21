@@ -58,6 +58,7 @@ later version. See LICENSE and NOTICE.  */
  *   POST /logs/delete?name= delete one (not zhithemes.log)
  *   POST /debug?on=1&sys=0  debug mode on/off (its lines stay in zhithemes.log)
  *   GET|POST /injectdelay?s=  seconds the watcher waits after a ShellUI restart (5-120, 15)
+ *   GET  /idle        ms since the Home focus last moved (-1 = unknown)
  *   POST /quit        take the theme hooks out and stop (a newer ZhiThemes
  *                     is about to replace this one)
  *   GET  /version     which build answers (zhithemes / onionhen)
@@ -917,6 +918,10 @@ void handle(int fd) {
     }
     return reply(fd, 200, "OK", "application/json", json + "]");
   }
+  /* GET /idle: ms since the Home focus last moved (-1 = not known); a newer
+     ZhiThemes waits for a still Home before POST /quit */
+  if (method == "GET" && path == "/idle")
+    return reply(fd, 200, "OK", "text/plain", std::to_string(theme_idle_ms()));
   if (method == "POST" && path == "/quit") {
     const int n = theme_unload();
     g_web_quit = true;

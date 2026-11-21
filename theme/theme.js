@@ -7403,15 +7403,19 @@
      submenu (Themes > Installed one more level down). false = the old
      single list with greyed headers, if the PS5 shows no submenu in a submenu. */
   var THEME_MENU_NESTED = true;
-  /* the on/off fields the menu may change (the C++ keeps the same list) */
-  var QUICK_FIELDS = [
-    ['wallpaperOn', 'Wallpaper'],
-    ['tileAnimOn', 'Animated tiles'],
-    ['customTilesOn', 'Custom tiles'],
-    ['tabRecentOn', 'Recently played tab'],
-    ['tabFavOn', 'Favourites tab'],
-    ['tabNeverOn', 'Never played tab'],
-    ['debugOverlay', 'Debug panel']
+  /* the on/off fields the menu may change, each group a submenu of Quick
+     settings: [id, label, [[field, label]]] (the C++ keeps the same fields) */
+  var QUICK_GROUPS = [
+    ['tabs', 'Extra tabs', [
+      ['tabRecentOn', 'Recently played'],
+      ['tabFavOn', 'Favourites'],
+      ['tabNeverOn', 'Never played']
+    ]],
+    ['hide', 'Hide tiles', [
+      ['hideStore', 'PlayStation Store'],
+      ['hideAllApps', 'All apps'],
+      ['hideGallery', 'Media Gallery']
+    ]]
   ];
   function infoItem(id, label) {
     var it = menuItem(id, label, 'ztthemes:none');
@@ -7518,9 +7522,11 @@
     var out = [['zt-themes-t', '🎨 Themes', themes]];
     /* Quick settings: only with a theme on (they change it) */
     if (!off) {
-      var quick = QUICK_FIELDS.map(function (q) {
-        var on = !!THEME[q[0]];
-        return menuItem('zt-q-' + q[0], q[1] + ': ' + (on ? 'On' : 'Off'), 'ztthemes:qset?' + q[0] + ',' + (on ? 0 : 1));
+      var quick = QUICK_GROUPS.map(function (g) {
+        return subMenu('zt-q-' + g[0], g[1], g[2].map(function (q) {
+          var on = !!THEME[q[0]];
+          return menuItem('zt-q-' + q[0], q[1] + ': ' + (on ? 'On' : 'Off'), 'ztthemes:qset?' + q[0] + ',' + (on ? 0 : 1));
+        }));
       });
       out.push(['zt-quick', '⚡ Quick settings', quick]);
     }

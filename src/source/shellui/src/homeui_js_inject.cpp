@@ -1128,6 +1128,16 @@ void set_line_thickness(double thickness) {
  */
 void (*g_bind_orig)(MonoObject *, MonoObject *, MonoObject *) = nullptr;
 
+/* when the frame last attached to something (monotonic ms): moving on the
+   Home moves the frame. A newer ZhiThemes waits for a still Home before it
+   swaps the module (GET /idle): swapping while the Home moves crashed */
+long zt_now_ms() {
+  timespec t = {};
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+std::atomic<long> g_focus_moved_ms{0};
+
 void theme_widget(MonoObject *w) {
   static const char *const kElements[2] = {"lineFocusElement",
                                            "areaFocusElement"};
@@ -1573,6 +1583,7 @@ void hook_margin() {
 
 void Bind_Hook(MonoObject *self, MonoObject *target, MonoObject *render) {
   g_bind_orig(self, target, render);
+  g_focus_moved_ms = zt_now_ms();
   if (self && !g_quit)
     theme_widget(self);
 }
@@ -4073,6 +4084,13 @@ bool theme_hook(uint64_t address, void *destination, void **original) {
 
 bool theme_quitting() { return g_quit; }
 
+long theme_idle_ms() {
+  if (!g_bind_orig)
+    return -1;
+  const long moved = g_focus_moved_ms;
+  return moved ? zt_now_ms() - moved : 1000000;
+}
+
 /* for GET /version: hooks in place and hooks found already hooked */
 void theme_status(int *hooks, int *doubles) {
   int active = 0;
@@ -4107,6 +4125,7 @@ std::string theme_games() { return "[]"; }
 std::string theme_system_font(const char *) { return std::string(); }
 void theme_tick() {}
 bool theme_quitting() { return false; }
+long theme_idle_ms() { return -1; }
 void theme_status(int *hooks, int *doubles) { *hooks = *doubles = 0; }
 int theme_unload() { return 0; }
 

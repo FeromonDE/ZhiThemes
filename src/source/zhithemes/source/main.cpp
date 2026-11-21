@@ -157,6 +157,38 @@ std::string ask_module(const char *method, const char *path) {
   return body == std::string::npos ? out : out.substr(body + 4);
 }
 
+/* Swapping the module while someone moves on the Home crashed ShellUI:
+   wait until the focus has not moved for kStillMs (the running module
+   tells, GET /idle), 30 s at most. A module without /idle (older build) or
+   without the frame hook (PS5 default) answers no number / -1: no wait. */
+void wait_still_home() {
+  const long kStillMs = 2000;
+  bool told = false;
+  for (int i = 0; i < 120; ++i) { /* 120 x 250 ms = 30 s */
+    const std::string idle = ask_module("GET", "/idle");
+    char *end = nullptr;
+    const long ms = strtol(idle.c_str(), &end, 10);
+    if (idle.empty() || end == idle.c_str() || ms < 0) {
+      if (i == 0)
+        logf("still check: not available ('%.40s')", idle.c_str());
+      return;
+    }
+    if (ms >= kStillMs) {
+      if (told)
+        logf("still check: Home still after %d ms", i * 250);
+      return;
+    }
+    if (!told) {
+      told = true;
+      logf("still check: Home moving (%ld ms), waiting", ms);
+      notify("ZhiThemes: stop moving on the Home for a moment.\n"
+             "Loading starts when the controller is left alone.");
+    }
+    usleep(250 * 1000);
+  }
+  logf("still check: Home kept moving for 30 s, going on");
+}
+
 /* A module already in ShellUI leaves (hooks out, port closed). False when
    something answers that cannot leave (an old OnionHEN theme build). */
 bool replace_running_module() {
@@ -166,6 +198,7 @@ bool replace_running_module() {
     return true;
   }
   logf("running module: '%s'", version.c_str());
+  wait_still_home();
   const std::string bye = ask_module("POST", "/quit");
   logf("quit -> '%s'", bye.c_str());
   if (bye.rfind("bye", 0) != 0)

@@ -37,8 +37,8 @@ std::mutex g_tool_lock;
 std::string g_tool_busy; /* the tool running now, "" = none */
 
 /* the on/off fields the Quick settings may write (the rest is the editor's) */
-const char *const kQuickFields[] = {"wallpaperOn", "tileAnimOn", "customTilesOn", "tabRecentOn",
-                                    "tabFavOn", "tabNeverOn", "debugOverlay"};
+const char *const kQuickFields[] = {"tabRecentOn", "tabFavOn", "tabNeverOn",
+                                    "hideStore",   "hideAllApps", "hideGallery"};
 
 bool is_dir(const std::string &p) {
   struct stat st = {};
