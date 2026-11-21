@@ -1,0 +1,9 @@
+{
+  "version": "0.1.1-test",
+  "build": 411,
+  "url": "https://github.com/itsRealZhi/ZhiThemes/releases/download/v0.1.1-test/ZhiThemes.elf",
+  "size": 10029008,
+  "sha256": "470e0bbc91c14e2fe425d3378cc4a167d9e4fbcbec19bee12add01acc5c0795c",
+  "notes": "Updater test build (normal). Not for everyday use.",
+  "sig": "3CRl5xksDxJTXmPz7cJKoJN1TRttCSkdXIXtP3QvuAtaBGXaUq1cgKXT0Ynhmv7K+2GncV8jg6k4s08newakBA=="
+}
