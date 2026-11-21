@@ -36,5 +36,8 @@ void zt_native_tick();
 void zt_sys_video_install(MonoImage *pui);
 void zt_sys_video_apply(const std::string &script);
 void zt_sys_video_tick();
+/* the picture size of an MP4 (moov, first video sample entry); false when
+   it cannot be told */
+bool zt_mp4_size(const char *path, int *width, int *height);
 /* the Game / App Library is in front (theme.js THEME-LIBRARY) */
 void zt_sys_video_library_ping();

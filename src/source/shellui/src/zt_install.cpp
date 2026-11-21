@@ -10,8 +10,9 @@ later version. See LICENSE and NOTICE.  */
    installed when the module starts, the same way as the editor's Install:
    a .ztheme pack (ZIP: theme.ztheme, zhitheme.json, assets/<kind>/<file>)
    or the theme text alone. The theme becomes Themes/<name>.ztheme +
-   Themes/<name>/{wallpapers,icons,fonts} (a theme with that name is
-   replaced), the folders / custom tile choices of the theme in use are
+   Themes/<name>/{wallpapers,icons,fonts} (a theme with that name already
+   there is kept: the new one becomes <name>-2, -3..., as the editor's
+   Install), the folders / custom tile choices of the theme in use are
    kept, and it becomes the theme in use. The file is then deleted from
    Install/; one that is not a theme becomes <file>.failed (kept, not tried
    again). */
@@ -436,8 +437,33 @@ void tell(const std::string &text) {
   sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
 }
 
-/* "" when installed (*name = the theme), else the reason */
-std::string install_one(const std::string &path, const std::string &stem, std::string *name) {
+/* a name already taken: its .ztheme or its folder (a folder left without
+   its file still makes zt_theme_new refuse the name) */
+bool name_taken(const std::string &n) {
+  return access(zt_theme_file(n).c_str(), F_OK) == 0 || access((std::string(ZT_THEMES "/") + n).c_str(), F_OK) == 0;
+}
+
+/* the theme's name, or <name>-2, -3... when a theme already has it */
+std::string free_name(const std::string &n) {
+  if (!name_taken(n))
+    return n;
+  for (int i = 2; i < 1000; ++i) {
+    const std::string tail = "-" + std::to_string(i);
+    std::string base = n.substr(0, 40 - tail.size());
+    while (!base.empty() && (base.back() == '-' || base.back() == '.'))
+      base.pop_back();
+    const std::string m = base + tail;
+    if (zt_theme_name_ok(m) && !name_taken(m))
+      return m;
+  }
+  return n;
+}
+
+/* "" when installed (*name = the theme), else the reason. replace: the
+   theme this file installed before (a USB file updated): that one is
+   replaced; any other theme with the same name is kept. */
+std::string install_one(const std::string &path, const std::string &stem, std::string *name,
+                        const std::string &replace = std::string()) {
   const int fd = open(path.c_str(), O_RDONLY);
   if (fd < 0)
     return "cannot open";
@@ -502,6 +528,14 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
     n = theme_safe(stem);
   if (n.empty())
     n = "New-theme";
+  if (!replace.empty() && zt_theme_name_ok(replace) && access(zt_theme_file(replace).c_str(), F_OK) == 0)
+    n = replace;
+  else {
+    const std::string asked = n;
+    n = free_name(n);
+    if (n != asked)
+      zt_log("install: a theme %s is already there, this one becomes %s", asked.c_str(), n.c_str());
+  }
   *name = n;
   const std::string active = zt_theme_name();
   const bool there = access(zt_theme_file(n).c_str(), F_OK) == 0;
@@ -837,7 +871,8 @@ void *install_thread(void *arg) {
   menu_tell("installing " + f.name + (usb ? " from USB..." : " from the Install folder..."));
   std::string theme;
   const time_t t0 = time(nullptr);
-  const std::string err = install_one(f.path, stem, &theme);
+  /* a newer copy of a USB file installed before replaces its theme */
+  const std::string err = install_one(f.path, stem, &theme, usb && f.state == "update" ? f.theme : std::string());
   if (err.empty()) {
     /* the USB stick is left as it is; Install/ is emptied as at the start */
     if (!usb)

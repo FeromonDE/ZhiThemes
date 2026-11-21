@@ -2459,6 +2459,44 @@ std::string logo_sizes_js() {
   return out + "}";
 }
 
+/* the picture sizes of the videos the Home / hub may play (the theme's
+   wallpapers, animated tiles and backgrounds) for globalThis.__ztVideoSizes
+   {"file.mp4": [w, h]}: the player asks the 4K decoder (UHD) only for a
+   file bigger than 1920x1080. Asking UHD for a 1080p file made the PS5
+   offer to stop an app holding the decoder ("Stopping Features"). */
+std::string video_sizes_js() {
+  const std::string dirs[] = {zt_theme_dir("wallpapers"), ZT_CUSTOMTILE, ZT_CUSTOMBG, ZT_LEGACY};
+  std::string out = "{";
+  int n = 0, big = 0;
+  for (const std::string &dir : dirs) {
+    DIR *d = opendir(dir.c_str());
+    if (!d)
+      continue;
+    while (dirent *e = readdir(d)) {
+      const std::string name = e->d_name;
+      if (n >= 400 || name.size() < 5 || name[0] == '.' ||
+          (strcasecmp(name.c_str() + name.size() - 4, ".mp4") != 0 &&
+           strcasecmp(name.c_str() + name.size() - 4, ".m4v") != 0))
+        continue;
+      bool ok_name = true;
+      for (char c : name)
+        if (!(isalnum((unsigned char)c) || c == '.' || c == '-' || c == '_'))
+          ok_name = false;
+      int w = 0, h = 0;
+      if (!ok_name || out.find("\"" + name + "\"") != std::string::npos ||
+          !zt_mp4_size((dir + "/" + name).c_str(), &w, &h) || w > 20000 || h > 20000)
+        continue;
+      if (w > 1920 || h > 1080)
+        ++big;
+      out += std::string(n++ ? "," : "") + "\"" + name + "\":[" + std::to_string(w) + "," + std::to_string(h) + "]";
+    }
+    closedir(d);
+  }
+  if (n)
+    zt_log("videos: %d with size (%d bigger than 1920x1080)", n, big);
+  return out + "}";
+}
+
 /* a theme changed native parts (tokens, focus frame, font, avatar...) in
    this module: going to PS5 default has to put them back */
 bool g_native_themed = false;
@@ -2659,6 +2697,9 @@ void eval_theme(MonoObject *self, const char *app, unsigned hub_id = 0) {
                              /* game logo sizes (Home) */
                              "globalThis.__ztLogoSizes = " +
                              (strcmp(app, "home") == 0 ? logo_sizes_js() : std::string("{}")) + ";\n" +
+                             /* video sizes (decoder asked per file) */
+                             "globalThis.__ztVideoSizes = " +
+                             (strcmp(app, "home") == 0 || strcmp(app, "hub") == 0 ? video_sizes_js() : std::string("{}")) + ";\n" +
                              "globalThis.__ztCustomBgs = " +
                              (strcmp(app, "home") == 0 || strcmp(app, "hub") == 0 ? ascii_js(custom_tiles_js("custombg"))
                                                                                : std::string("[]")) + ";\n" +

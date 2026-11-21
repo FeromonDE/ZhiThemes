@@ -482,6 +482,10 @@ void handle(int fd) {
        POST /themes/clear?name=           empty its folder (a pack replaces it) */
   if (method == "GET" && path == "/themes")
     return reply(fd, 200, "OK", "application/json", zt_themes_json());
+  /* only the name of the theme in use: the editor asks every few seconds
+     to see a theme switched from the PS5 (Home menu, USB install) */
+  if (method == "GET" && path == "/themes/active")
+    return reply(fd, 200, "OK", "text/plain; charset=utf-8", zt_theme_name());
   /* GET /themes/text?name= : that theme's file (the editor counts the
      files it uses) */
   if (method == "GET" && path == "/themes/text") {

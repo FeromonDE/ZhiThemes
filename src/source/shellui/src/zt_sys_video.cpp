@@ -589,6 +589,8 @@ void set_stage(MonoObject *panel, float opacity, bool keep_visible = false) {
 
 } // namespace
 
+bool zt_mp4_size(const char *path, int *width, int *height) { return mp4_video_size(path, width, height); }
+
 /* the power state from the module thread (every 2 s), for the log: going to
    rest mode / waking up / switching off. Its own lookup (the video's one
    runs on the UI thread). */

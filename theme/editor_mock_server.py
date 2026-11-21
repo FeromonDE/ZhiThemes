@@ -347,6 +347,8 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._send(200, '{"seconds":%d}' % state.get('inject', 15), 'application/json')
         if u.path == '/themes':
             return self._send(200, themes_json(), 'application/json')
+        if u.path == '/themes/active':
+            return self._send(200, state['active'], 'text/plain')
         if u.path == '/themes/text':
             t = _theme(q.get('name', ''))
             return self._send(200, t['text'], 'text/plain') if t and t.get('text') else self._send(404, 'no such theme', 'text/plain')

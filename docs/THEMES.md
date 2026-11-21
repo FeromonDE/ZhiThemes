@@ -78,7 +78,7 @@ Extras → Animations (all on by default except *Button bounce*, all native-driv
 
 - **Tiles and backgrounds** (Pictures tab): tick *Animated only* next to Search for SteamGridDB's animated pictures, or upload an animated WebP / APNG or a video (MP4, WebM, up to 15 s). A picture of another shape opens the cropper. The PS5 gets `<titleId>_<format>_<n>.png` (still, first frame) and `<titleId>_<format>_<n>.mp4` next to it (customtile for tiles, custombg for backgrounds). Use Chrome or Edge (they make the MP4) and keep the tab in front while the video is made.
 - **On the Home** (`tileAnimOn`, on by default): the focused tile plays its video (the highlighted game in an open folder too); a game background with a video plays behind the Home while that game is focused, unless your wallpaper is on.
-- **Experimental tab:** `tileAnimAll` makes every tile with a video move; `tileAnimAllMax` (6) is how many play at once (the focused one always).
+- **Experimental tab:** `tileAnimAll` makes every tile with a video move; `tileAnimAllMax` (6) is how many play at once (the focused one always). `videoResourceTry` (*Video decoder test*) makes every video ask the PS5 for one decoder type; empty = by the video's size (the 4K decoder only for 4K videos).
 - **Logos** are still pictures: an animated logo gives its first frame (the PS5 has no video with transparency).
 - **Smooth motion:** for an animated WebP / APNG slower than about 22 fps, the cropper box asks *Make frames in between*: *Yes — follow the movement* (frames made in between along the movement, 30 fps MP4), *Yes — cross-fade only*, or *No*. It is done in the browser (WebGL); where something cannot be followed (a cut, the jump at the end of the loop) it cross-fades.
 
@@ -108,7 +108,7 @@ assets/fonts/…               the fonts you uploaded (system fonts are on every
 
 **Install** on another PS5 (or yours) asks for a name, makes it a theme of its own (`Themes/<Name>.ztheme`, its files in `Themes/<Name>/`) and uses it. If that name is already there you can replace it (its old files go) or keep both.
 
-**Without the editor:** copy the `.ztheme` (pack or plain text) to `/data/ZhiThemes/Install/` (FTP, or from a USB drive with a file manager) and send ZhiThemes. When it starts it installs every file there and uses the last one, then deletes the file from `Install/`. The name comes from the pack (else the file name); **a theme with the same name is replaced**. The start message says *Installing the new theme…* and a second message names the theme now in use. A file that is not a theme is renamed `<file>.failed` and left there.
+**Without the editor:** copy the `.ztheme` (pack or plain text) to `/data/ZhiThemes/Install/` (FTP, or from a USB drive with a file manager) and send ZhiThemes. When it starts it installs every file there and uses the last one, then deletes the file from `Install/`. The name comes from the pack (else the file name); **if a theme already has that name, yours is kept and the new one becomes `<Name>-2`** (`-3`…). The start message says *Installing the new theme…* and a second message names the theme now in use. A file that is not a theme is renamed `<file>.failed` and left there.
 
 **From the Home (Options > 🎨 ZhiThemes):** press Options on any tile; the first item, **🎨 ZhiThemes**, opens a list with:
 

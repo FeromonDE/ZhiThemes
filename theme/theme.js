@@ -581,6 +581,7 @@
     /* --- experimental --- */
     tileAnimAll: false,      /* every tile with an animated picture moves, not only the focused one (a video player each: heavy) (false) */
     tileAnimAllMax: 6,       /* at most this many tiles move at once (the focused one always) (6) */
+    videoResourceTry: '',    /* test: decoder type every video asks: '' = by the file's size (4K decoder only for 4K files), 'fullHD', 'UHD', 'Full', 'Basic', 'LimitedForSpectating2Streams', 'Custom', 'none' ('') */
     debugOverlay: false,     /* debug panel on the Home: fps, memory, mono, CPU, temperatures... (like Aniketos' OSD) (false) */
     debugX: 60,              /* debug panel: distance from the left of the screen (60) */
     debugY: 60,              /* debug panel: distance from the top of the screen (60) */
@@ -2040,7 +2041,7 @@
     var wait = React.useState(false), mounted = wait[0], setMounted = wait[1];
     var tries = React.useState(0), attempt = tries[0], setAttempt = tries[1];
     var restarts = React.useState(0), restart = restarts[0], setRestart = restarts[1];
-    var kinds = ['fullHD', '', 'UHD'];
+    var kinds = videoKinds(props.file, ['fullHD', '', 'UHD']);
     var me = React.useState(function () { return {}; })[0];
     React.useEffect(function () {
       /* one player per video: the focused game is also in the rows of
@@ -9375,6 +9376,38 @@
     try { text = ev == null ? '' : JSON.stringify(ev); } catch (x) { text = String(ev); }
     log('video: ' + name + ' ' + text.slice(0, 200));
   }
+  /* Decoder sizes asked for a video (coreResourceType), in order. The
+     PS5 has one 4K decoder: asking 'UHD' while another app holds it (a
+     homebrew like ProsperoStore open in the background) shows "Stopping
+     Features: <app>". So 'UHD' only for a file known to be bigger than
+     1920x1080 (globalThis.__ztVideoSizes, read by ZhiThemes from the MP4);
+     a 1080p file never asks it. Size unknown: the old order (fallback).
+     videoResourceTry (Experimental): only that one type, to test the
+     other types of the PS5 player (Full, Basic,
+     LimitedForSpectating2Streams, Custom) with an app open. */
+  var VIDEO_TYPES = /^(fullHD|UHD|Full|Basic|LimitedForSpectating2Streams|Custom)$/;
+  function videoKinds(file, fallback) {
+    var name = String(file || '').split('?')[0].split('/').pop();
+    try { name = decodeURIComponent(name); } catch (e) {}
+    var test = String(THEME.videoResourceTry || '');
+    var out;
+    if (VIDEO_TYPES.test(test)) out = [test];
+    else if (test === 'none') out = [''];
+    else {
+      var sizes = globalThis.__ztVideoSizes, wh = sizes && sizes[name];
+      if (wh && wh[0] > 0) out = wh[0] > 1920 || wh[1] > 1080 ? ['UHD', ''] : ['fullHD', ''];
+      else out = fallback;
+    }
+    var key = name + ':' + out.join(',');
+    if (!T.videoKindsLogged) T.videoKindsLogged = {};
+    if (!T.videoKindsLogged[key] && Object.keys(T.videoKindsLogged).length < 30) {
+      T.videoKindsLogged[key] = true;
+      var wh2 = (globalThis.__ztVideoSizes || {})[name];
+      log('video decoder for ' + name + (wh2 ? ' ' + wh2[0] + 'x' + wh2[1] : ' (size unknown)') + ': ' +
+          out.map(function (k) { return k || 'no type'; }).join(' then ') + (VIDEO_TYPES.test(test) || test === 'none' ? ' (videoResourceTry)' : ''));
+    }
+    return out;
+  }
   function VideoWallpaper(props) {
     var React = T.React, rn = T.rn, Video = videoComponent();
     /* also behind Settings and Trophies (props.uri, props.sound) */
@@ -9389,7 +9422,7 @@
     var tries = React.useState(0), attempt = tries[0], setAttempt = tries[1];
     /* fullHD first (a 4K file errors and goes on to UHD): asking UHD
        made the PS5 show "Stopping Features: <game>" after a game */
-    var kinds = ['fullHD', 'UHD', ''];
+    var kinds = videoKinds(own ? props.uri : videoUri(), ['fullHD', 'UHD', '']);
     /* every kind failed (the decoder still busy just after a game):
        tried again later instead of never again */
     var rounds = React.useState(0), round = rounds[0], setRound = rounds[1];

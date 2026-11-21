@@ -507,6 +507,7 @@
     tileVertical: ['Vertical tiles', 'Vertical 2:3 tiles (covers). The sizes above are then the width'],
     focusShape: ['Focused tile', 'Shape of the focused tile: as the row, vertical 2:3 (square row) or Steam horizontal 92:43. Every focused tile takes it (same height, other width): the game picture of that shape (Pictures below) or its own picture cut; folders get a mosaic of that shape'],
     tileAnimAll: ['All tiles move', 'Experimental: every tile with an animated picture moves, not only the focused one (one video player each: heavy, can slow the Home)'],
+    videoResourceTry: ['Video decoder test', 'Experimental: the decoder type every video asks the PS5 for. Auto = by the file size (the 4K decoder only for 4K files). Try the others with an app open in the background (e.g. a homebrew store) to see which plays without "Stopping Features"'],
     tileAnimAllMax: ['Most moving tiles', 'Experimental: at most this many tiles move at once (the focused one always)'],
     debugOverlay: ['Debug panel', 'Experimental: a box on the Home with live numbers (ShellUI fps, console RAM/VRAM, ShellUI free memory, mono, CPU use, temperatures, fan, uptime, loads). Move it in the Screen tab'],
     debugX: ['Debug panel X', 'Distance from the left of the screen'],
@@ -1728,7 +1729,7 @@
       bsend.title = f.key === 'wallpaper' || f.key === 'sysBg' ? '.png or .jpg, 1920×1080, or an .mp4 video' : '.png or .jpg, 1920×1080';
       bsend.onclick = function () { bgUploadKey = f.key; document.getElementById('ps5bgfile').click(); };
       ctl.appendChild(bsend);
-    } else if (/Align$|^elementFont$|^systemFont(Bold|Italic|BoldItalic|Missing)?$|^footerIcon\d$|^bgGradientCurve$|^bgShade$|^foldersBg$|^folders(Vertical|Horizontal)$|^focusShape$|^tileReflectionFlip$|^titleMode$|^ownClockLang$|^animNamesStyle$|^particlesStyle$|^padInfoBattery$/.test(f.key)) {
+    } else if (/Align$|^elementFont$|^systemFont(Bold|Italic|BoldItalic|Missing)?$|^footerIcon\d$|^bgGradientCurve$|^bgShade$|^videoResourceTry$|^foldersBg$|^folders(Vertical|Horizontal)$|^focusShape$|^tileReflectionFlip$|^titleMode$|^ownClockLang$|^animNamesStyle$|^particlesStyle$|^padInfoBattery$/.test(f.key)) {
       var sel = document.createElement('select');
       sel.className = 'btn';
       var now = f.value.slice(1, -1);
@@ -1750,6 +1751,9 @@
            ['SST-Medium.otf', 'SST Medium'], ['SST-Light.otf', 'SST Light']]
         : f.key === 'padInfoBattery'
         ? [['both', 'Icon + %'], ['icon', 'Only the icon'], ['text', 'Only the %'], ['inside', 'Inside the controller']]
+        : f.key === 'videoResourceTry'
+        ? [['', 'Auto (by file size)'], ['fullHD', 'FullHD'], ['UHD', 'UHD (4K)'], ['Full', 'Full'], ['Basic', 'Basic'],
+           ['LimitedForSpectating2Streams', 'Limited (2 streams)'], ['Custom', 'Custom'], ['none', 'No type']]
         : f.key === 'bgShade'
         ? [['', 'PS5 (ellipse)'], ['flat', 'Flat'], ['none', 'Off']]
         : f.key === 'bgGradientCurve'
@@ -5427,7 +5431,7 @@
     { id: 'scrAnimations', name: 'Animations', keys: ['#Speed', 'animationSpeed', 'rowSpeed', 'rowFastRepeat', 'rowRepeatWindow',
       '#Tabs', 'animTabs', 'animTabsMs', 'animTabsSlide', 'animFav', '#Names', 'animNames', 'animNamesStyle', 'animNamesMs',
       '#Others', 'animInfo', 'animButtons', 'animFolders', 'animFolderClose', 'animToast', 'animTitleGlow', 'animTitleGlowColor', 'animTitleGlowSec'] },
-    { id: 'scrExperimental', name: 'Experimental', keys: ['tileAnimAll', 'tileAnimAllMax', 'measureScreen', 'screenDump'] }
+    { id: 'scrExperimental', name: 'Experimental', keys: ['tileAnimAll', 'tileAnimAllMax', 'videoResourceTry', 'measureScreen', 'screenDump'] }
   ];
   /* data fields with their own editors (Folders / Tiles tabs, Options menu) */
   var PANEL_SKIP = /^(folders|foldersIcon|favorites|customTileChoice|customBgChoice|themeName|avatarCrop)$/;
@@ -6893,23 +6897,57 @@
   function load() {
     status('loading…');
     return request('GET', '/theme.js').then(function (t) {
-      source = t; loaded = t;
+      source = t; loaded = t; atLoad = t;
       renderTabs();
       status('loaded', 'ok');
       if (!foldGames) fetchGames().catch(function () {});
       /* old name fields: converted with the console's measures, if any */
       return refreshLayout().catch(function () {}).then(function () {
         if (!migrateTitles()) return;
+        atLoad = source;
         renderTabs();
         status('loaded; old name fields converted (game / fake title): Apply to keep them');
       });
     }).catch(fail);
   }
+  /* The theme in use can change on the PS5 too (Home menu > ZhiThemes,
+     a USB install): this page still holds the old theme (its name, its
+     files, fields of its version), and an Apply would write it over the new
+     one. GET /themes/active is only the name: a different one reloads the
+     page; with changes not applied yet, the page stays but Apply is
+     refused. Resolves to the new name, or '' (same theme / unknown). */
+  var staleTheme = '';
+  /* the text right after loading (with the page's own conversions of old
+     fields): not changes of the user */
+  var atLoad = '';
+  function activeOnPs5() {
+    if (typeof fetch !== 'function' || !themesInfo.active) return Promise.resolve('');
+    return fetch('/themes/active', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (t) { t = String(t || '').trim(); return t && t !== themesInfo.active ? t : ''; })
+      .catch(function () { return ''; });
+  }
+  function themeSwitchedOnPs5(to) {
+    if (staleTheme) return;
+    staleTheme = to;
+    if (source === loaded || source === atLoad) {
+      status('the PS5 now uses theme ' + to + ': loading it…', 'ok');
+      setTimeout(function () { location.reload(); }, 700);
+    } else themeSwitchedStatus();
+  }
+  function themeSwitchedStatus() {
+    status('the PS5 now uses theme ' + staleTheme + '. Your changes to ' + themesInfo.active +
+           ' were not applied and cannot be any more: reload the page to edit ' + staleTheme + '.', 'err');
+  }
   var syncing = false;
   function syncVisible() {
-    if (syncing || document.hidden) return;
+    if (syncing || document.hidden || themeSwitching || staleTheme) return;
     syncing = true;
-    syncFromPs5().then(function (took) {
+    activeOnPs5().then(function (to) {
+      if (to) { syncing = false; themeSwitchedOnPs5(to); return null; }
+      return syncFromPs5();
+    }).then(function (took) {
+      if (!took) return;
       syncing = false;
       if (!took.length) return;
       var typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
@@ -6923,8 +6961,13 @@
   /* the PS5 is used with the page still in front (no focus event) */
   setInterval(syncVisible, 4000);
   function apply() {
+    if (staleTheme) { themeSwitchedStatus(); return Promise.resolve(); }
     status('saving…');
-    return syncFromPs5().catch(function () { return []; })
+    return activeOnPs5().then(function (to) {
+      /* never the old theme's page over the theme the PS5 switched to */
+      if (to) { themeSwitchedOnPs5(to); throw 'switched'; }
+      return syncFromPs5().catch(function () { return []; });
+    })
       .then(function (took) {
         if (took.length && took[0] !== 'all') status('saving (kept from the PS5: ' + took.join(', ') + ')…');
         return request('POST', '/theme.js', source);
@@ -6934,7 +6977,7 @@
         status('applied', 'ok');
         refreshReloads();
         var n = 0, t = setInterval(function () { refreshLog(); refreshLayout(); if (++n >= 6) clearInterval(t); }, 1500);
-      }).catch(fail);
+      }).catch(function (e) { if (e !== 'switched') fail(e); });
   }
   /* Home reloads in this ShellUI next to Apply (GET /reloads; an older
      module answers 404 and nothing shows) */
