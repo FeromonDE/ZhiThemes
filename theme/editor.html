@@ -238,7 +238,20 @@
   .tip { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
   #fwinfo { font-size: 12px; color: var(--muted); padding: 4px 10px; border-radius: 20px; background: var(--panel);
              border: 1px solid var(--line); white-space: nowrap; }
+  #fwinfo { cursor: pointer; } #fwinfo:hover { border-color: var(--accent); }
   #fwinfo:empty { display: none; } #fwinfo.debug { color: var(--warn); border-color: rgba(251, 191, 36, .4); }
+  /* ZhiThemes' own update: a pill in the header when there is news */
+  #updWrap { position: relative; } #updWrap[hidden] { display: none; }
+  #updPill { font-size: 12px; padding: 4px 10px; border-radius: 20px; white-space: nowrap; color: var(--warn);
+             border: 1px solid rgba(251, 191, 36, .5); background: rgba(251, 191, 36, .1); }
+  #updPill.bad { color: var(--err); border-color: var(--err); background: transparent; }
+  #updPanel { display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; width: 340px;
+              max-width: calc(100vw - 32px); padding: 14px; border-radius: 12px; background: var(--panel);
+              border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); font-size: 13px; }
+  #updPanel.open { display: block; } #updPanel h3 { margin: 0 0 6px; font-size: 15px; }
+  #updPanel p { margin: 0 0 10px; } #updPanel .row { margin: 0; }
+  #updPanel .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 0 0 10px; }
+  #updPanel .bar i { display: block; height: 100%; background: var(--ok, #4ade80); width: 0; }
   .sysgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
   .sysgrid .key { font-size: 15px; margin-top: 2px; white-space: normal; word-break: break-word; }
   .qrbox { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
@@ -453,6 +466,7 @@
   <div class="brand"><img class="logo" id="brandLogo" alt=""><h1>ZhiThemes <span>· PS5 theme editor · by Zhi</span></h1></div>
   <div id="themeTitleBox"><div id="themeTitle" title="The theme in use. To change its name: Theme ▾ → Rename">…</div></div><span class="grow"></span>
   <span id="fwinfo" title="PS5 firmware and ZhiThemes version"></span>
+  <div id="updWrap" hidden><button id="updPill" title="ZhiThemes update"></button><div id="updPanel"></div></div>
   <span id="status"><span id="statusTxt">loading…</span><i id="stBar"></i></span>
   <span class="sep"></span>
   <label class="btn advsw" title="Advanced: every field in each tab and Screen module, marked with an Advanced label. Off: the main fields only (in the Screen tab the rest is under More options)"><input type="checkbox" id="advSwitch"><span class="advtxt">Advanced</span></label>
@@ -931,6 +945,7 @@
     bgVignetteSize: ['Vignette size', 'How far it reaches into the screen, px'],
     bgEdges: ['Dark edges', 'Darken the top and the bottom of the screen, 0-1'],
     bgEdgesHeight: ['Edge height', 'Height of each edge, px'],
+    bgShade: ['PS5 shade behind the tile', 'The dark shade the PS5 puts over the game art behind the selected tile: PS5 (ellipse), Flat (even) or Off'],
     particlesOn: ['Particles', 'Glowing particles rising over the background'],
     particlesCount: ['Particle count', '1-120 (more = more work for the PS5)'],
     particlesSize: ['Particle size', 'Size of the nearest ones, px (far ones are smaller)'],
@@ -1713,7 +1728,7 @@
       bsend.title = f.key === 'wallpaper' || f.key === 'sysBg' ? '.png or .jpg, 1920×1080, or an .mp4 video' : '.png or .jpg, 1920×1080';
       bsend.onclick = function () { bgUploadKey = f.key; document.getElementById('ps5bgfile').click(); };
       ctl.appendChild(bsend);
-    } else if (/Align$|^elementFont$|^systemFont(Bold|Italic|BoldItalic|Missing)?$|^footerIcon\d$|^bgGradientCurve$|^foldersBg$|^folders(Vertical|Horizontal)$|^focusShape$|^tileReflectionFlip$|^titleMode$|^ownClockLang$|^animNamesStyle$|^particlesStyle$|^padInfoBattery$/.test(f.key)) {
+    } else if (/Align$|^elementFont$|^systemFont(Bold|Italic|BoldItalic|Missing)?$|^footerIcon\d$|^bgGradientCurve$|^bgShade$|^foldersBg$|^folders(Vertical|Horizontal)$|^focusShape$|^tileReflectionFlip$|^titleMode$|^ownClockLang$|^animNamesStyle$|^particlesStyle$|^padInfoBattery$/.test(f.key)) {
       var sel = document.createElement('select');
       sel.className = 'btn';
       var now = f.value.slice(1, -1);
@@ -1735,6 +1750,8 @@
            ['SST-Medium.otf', 'SST Medium'], ['SST-Light.otf', 'SST Light']]
         : f.key === 'padInfoBattery'
         ? [['both', 'Icon + %'], ['icon', 'Only the icon'], ['text', 'Only the %'], ['inside', 'Inside the controller']]
+        : f.key === 'bgShade'
+        ? [['', 'PS5 (ellipse)'], ['flat', 'Flat'], ['none', 'Off']]
         : f.key === 'bgGradientCurve'
         ? [['linear', 'Linear'], ['smooth', 'Smooth']]
         : f.key === 'foldersBg'
@@ -2186,11 +2203,107 @@
       var el = document.getElementById('fwinfo');
       el.textContent = 'PS5 ' + (sysInfo.fw || '?') + ' · v' + sysInfo.version + (sysInfo.debug ? ' · debug on' : '');
       el.title = 'PS5 firmware ' + (sysInfo.fw || 'unknown') +
-        '. ZhiThemes ' + sysInfo.version + ' (build ' + sysInfo.build + ') by ' + sysInfo.author;
+        '. ZhiThemes ' + sysInfo.version + ' (build ' + sysInfo.build + ') by ' + sysInfo.author + '. Click: check for updates';
       el.classList.toggle('debug', !!sysInfo.debug);
       return sysInfo;
     }).catch(function () { return null; });
   }
+  /* ================= ZhiThemes' own update =================
+     GET /update (zt_update.cpp): the pill in the header shows up when a
+     new version is out, waits for a restart, or crashed and was taken
+     back; its panel installs it (POST /update?do=...). While it applies,
+     this page waits for the new version and reloads itself. */
+  var upd = null, updTimer = 0, updWaitNew = 0;
+  function updSchedule(ms) { clearTimeout(updTimer); updTimer = setTimeout(updPoll, ms); }
+  function updPoll() {
+    request('GET', '/update').then(function (t) {
+      var u = JSON.parse(t);
+      if (updWaitNew && u.build && u.build !== updWaitNew) { location.reload(); return; }
+      upd = u;
+      updShow();
+      var active = u.state === 'downloading' || u.state === 'checking' || u.state === 'applying';
+      if (updWaitNew && !active) updWaitNew = 0; /* restart needed, or it failed */
+      updSchedule(active || updWaitNew ? 2000 : 600000);
+    }).catch(function () {
+      /* the module is being replaced: ask again until the new one answers */
+      updSchedule(updWaitNew ? 3000 : 600000);
+    });
+  }
+  function updDo(what) {
+    if (what === 'install' || what === 'retry') updWaitNew = upd ? upd.build : 0;
+    request('POST', '/update?do=' + what).then(function (t) { upd = JSON.parse(t); updShow(); updSchedule(1500); })
+      .catch(function (e) { updWaitNew = 0; status('update: ' + e.message, 'err'); updShow(); });
+  }
+  function updEsc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
+  function updShow() {
+    var u = upd || {}, wrap = document.getElementById('updWrap'), pill = document.getElementById('updPill'),
+        panel = document.getElementById('updPanel'), esc = updEsc;
+    var busy = u.state === 'downloading' || u.state === 'applying' || u.state === 'checking';
+    var news = u.rolledBack || u.restart || busy || (u.available && !u.crashedBefore);
+    wrap.hidden = !news && !panel.classList.contains('open');
+    pill.className = u.rolledBack ? 'bad' : '';
+    pill.textContent = u.rolledBack ? '⚠ Update crashed' : u.state === 'downloading' ? '⬇ ' + Math.max(0, u.progress) + '%' :
+      u.state === 'applying' ? '⬇ Starting…' : u.state === 'checking' ? '⬇ Checking…' :
+      u.restart ? '⟳ Restart to update' : '❗ Update ' + (u.latest || '');
+    var h = '';
+    if (u.rolledBack) {
+      h += '<h3>' + esc(u.rolledBack) + ' crashed twice</h3><p>' +
+        (u.rolledBackTo ? 'ZhiThemes went back to ' + esc(u.rolledBackTo) + ' by itself.'
+                        : 'ZhiThemes went to safe mode (no previous version to go back to).') +
+        ' Try it again, or send a problem report (Logs tab → Report a problem) so it gets fixed.</p>' +
+        '<div class="row"><button data-u="retry">Try again</button><button data-u="report">Report a problem</button>' +
+        '<button data-u="dismiss">Hide</button></div>';
+    } else if (u.state === 'downloading') {
+      h += '<h3>Downloading ' + esc(u.latest) + '</h3><div class="bar"><i style="width:' + Math.max(0, u.progress) + '%"></i></div>';
+    } else if (u.state === 'applying') {
+      h += '<h3>Starting ' + esc(u.latest) + '…</h3><p>ZhiThemes restarts on the PS5; this page reloads by itself when the new version answers.</p>';
+    } else if (u.restart) {
+      h += '<h3>' + esc(u.restartVersion) + ' is installed</h3><p>Restart the PS5 to use it.' +
+        (u.restartPldmgr ? '' : ' Your loader does not use the payload manager: copy <b>/data/ZhiThemes/Update/ZhiThemes.elf</b> ' +
+         'to your autoload, or send it.') + '</p>';
+    } else if (u.available) {
+      var later = u.loadLimit === 0 || u.loads >= u.loadLimit;
+      h += '<h3>ZhiThemes ' + esc(u.latest) + ' is out</h3><p>You have ' + esc(u.current) + '.' +
+        (u.notes ? '<br>' + esc(u.notes) : '') + (u.crashedBefore ? '<br><b>This version crashed on this PS5 before.</b>' : '') + '</p>' +
+        '<p class="tip">' + (later ? 'It is used after the next PS5 restart' +
+          (u.loadLimit === 0 ? ' (on this firmware ZhiThemes cannot be replaced while it runs).'
+                             : ' (ZhiThemes was already loaded ' + u.loads + ' times since the PS5 started).')
+          : 'ZhiThemes restarts on the PS5 by itself after the download.') +
+        ' If it crashes twice, the version you have now comes back.</p>' +
+        '<div class="row"><button class="primary" data-u="install">Download and install' + (u.size > 0 ? ' (' + fmtSize(u.size) + ')' : '') + '</button></div>';
+    } else {
+      h += '<h3>ZhiThemes ' + esc(u.current) + '</h3><p>' + (u.state === 'error' ? esc(u.error) : 'You have the latest version.') + '</p>' +
+        '<div class="row"><button data-u="check">Check now</button></div>';
+    }
+    if (u.state === 'error' && u.error && u.available) h += '<p class="tip" style="margin-top:8px;color:var(--err)">' + esc(u.error) + '</p>';
+    panel.innerHTML = h;
+    Array.prototype.forEach.call(panel.querySelectorAll('button[data-u]'), function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation();
+        var w = b.getAttribute('data-u');
+        if (w === 'report') { panel.classList.remove('open'); current = 'log'; renderTabs(); updShow(); return; }
+        b.disabled = true;
+        updDo(w);
+      };
+    });
+  }
+  /* the version in the header: check for a new ZhiThemes now */
+  document.getElementById('fwinfo').onclick = function (e) {
+    e.stopPropagation();
+    document.getElementById('updPanel').classList.add('open');
+    updDo('check');
+  };
+  document.getElementById('updPill').onclick = function (e) {
+    e.stopPropagation();
+    document.getElementById('updPanel').classList.toggle('open');
+  };
+  document.addEventListener('click', function (e) {
+    var panel = document.getElementById('updPanel');
+    if (panel.classList.contains('open') && !document.getElementById('updWrap').contains(e.target)) {
+      panel.classList.remove('open');
+      updShow();
+    }
+  });
   function fmtSize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   function logKind(name) {
     if (name === 'zhithemes.log') return 'all sessions (newest at the end)';
@@ -5306,7 +5419,7 @@
   };
   var VIRT = [
     { id: 'scrBackground', name: 'Background', keys: ['#Clean', 'bgClean', 'bgCleanTry', '#Wallpaper', 'wallpaperOn', 'wallpaper', 'wallpaperVideoSound', 'wallpaperVideoVolume', 'customBgOn',
-      '#Darken', 'bgDim', 'bgDimColor', 'bgColor', 'bgGradient', 'bgGradientHeight', 'bgGradientCurve', 'bgGradientSteps',
+      '#Darken', 'bgShade', 'bgDim', 'bgDimColor', 'bgColor', 'bgGradient', 'bgGradientHeight', 'bgGradientCurve', 'bgGradientSteps',
       'bgVignette', 'bgVignetteSize', 'bgEdges', 'bgEdgesHeight', '#Overlay picture', 'bgOverlayOn', 'bgOverlay', 'bgOverlayOpacity'] },
     { id: 'scrParticles', name: 'Particles', keys: ['particlesOn', 'particlesStyle', 'particlesCount', 'particlesSpeed', 'particlesScale', 'particlesHue', 'particlesOpacity',
       '#Dots / your picture', 'particlesSize', 'particlesColor', 'particlesImage'] },
@@ -8145,6 +8258,7 @@
   };
   load();
   loadSysinfo();
+  updPoll();
 })();
 </script>
 </body>

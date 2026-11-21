@@ -25,7 +25,14 @@ Rest mode keeps the theme: ShellUI does not restart, so the Home comes back as y
 
 ## Update
 
-Send the new `ZhiThemes.elf`. It asks the running copy to remove its hooks, stops the old background process and loads the new one. You don't need to reboot.
+**Automatic:** ZhiThemes checks GitHub when it starts and once a day. When a new version is out you get a notification, a ❗ in Options > 🎨 ZhiThemes > ⬇ Updates and a button in the editor's header (click the version there to check now). *Download and install* gets it, checks it (signed by the author, size and SHA-256) and starts it right away; after many loads since the PS5 started (2 on 13.xx, 3 below 9.00, else 5) it waits for a restart instead.
+
+- **Payload manager:** the new ELF replaces the old one in its folder, so it also loads at the next boot.
+- **Other loaders / autoload:** the new ELF is kept as `/data/ZhiThemes/Update/ZhiThemes.elf`; copy it to your autoload.
+- **Going back:** for 30 minutes the new version is on trial. If the Home goes down twice in that time, the previous version comes back by itself and the Updates menu offers *Try again* and *Report a problem*.
+- *Check automatically* in the same menu turns the daily check off.
+
+**By hand:** send the new `ZhiThemes.elf`. It asks the running copy to remove its hooks, stops the old background process and loads the new one. You don't need to reboot.
 
 ## Remove
 
@@ -60,6 +67,7 @@ Send the new `ZhiThemes.elf`. It asks the running copy to remove its hooks, stop
 | `Logs/` | logs (see [LOGS.md](LOGS.md)) |
 | `Dumps/<firmware>/` | the screen dump and, with debug mode, the colour and shape tokens of this firmware |
 | `steamgrid.key` | your SteamGridDB API key, if you entered one (never put in a theme) |
+| `Update/` | automatic updates: `state.txt`, the previous ELF while a new version is on trial, and `ZhiThemes.elf` when you don't use the payload manager |
 | `watcher.pid`, `inject_count`, `inject_delay`, `debug.on`, `session.open` | small state files of ZhiThemes; leave them alone |
 
 Everything in `Assets/` is yours and the same in every theme. Deleting a theme in the editor deletes its `.ztheme` and its folder. A file two themes share (same bytes) is stored once on the PS5. Files from older versions are moved here automatically on the first start.

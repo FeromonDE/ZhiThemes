@@ -100,9 +100,11 @@ struct Sink {
   bool stopped = false;
   bool follow = false; /* redirects followed: each answer must still come from an allowed host */
   const std::function<bool()> *cancel = nullptr;
+  bool github = false; /* the ZhiThemes update: GitHub's hosts instead */
 };
 
 bool allowed(const std::string &url);
+bool allowed_github(const std::string &url);
 
 int on_progress(void *user, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
   auto *s = static_cast<Sink *>(user);
@@ -119,7 +121,7 @@ size_t on_data(char *ptr, size_t size, size_t n, void *user) {
   if (s->follow) {
     char *eff = nullptr;
     curl_easy_getinfo(s->curl, CURLINFO_EFFECTIVE_URL, &eff);
-    if (!eff || !allowed(eff)) {
+    if (!eff || !(s->github ? allowed_github(eff) : allowed(eff))) {
       s->stopped = true;
       return 0;
     }
@@ -176,13 +178,23 @@ bool allowed(const std::string &url) {
   return true;
 }
 
+/* the ZhiThemes update only (zt_update.cpp): the manifest on
+   raw.githubusercontent.com and the release's ELF on github.com, which
+   redirects to its download hosts */
+bool allowed_github(const std::string &url) {
+  const std::string host = host_of(url);
+  return host == "raw.githubusercontent.com" || host == "github.com" ||
+         host == "objects.githubusercontent.com" || host == "release-assets.githubusercontent.com";
+}
+
 } // namespace
 
 namespace {
 bool sgdb_fetch(const std::string &url, const std::string &key, std::string &body, FILE *file, long &http,
                 std::string &err, size_t max_bytes, long timeout_ms,
                 const std::function<bool(const char *, size_t, long, long long)> *chunk = nullptr,
-                std::string *final_url = nullptr, const std::function<bool()> *cancel = nullptr);
+                std::string *final_url = nullptr, const std::function<bool()> *cancel = nullptr,
+                bool github = false);
 }
 
 bool zt_web_page(const std::string &url, std::string &body, std::string &final_url, long &http, std::string &err,
@@ -225,10 +237,10 @@ namespace {
 bool sgdb_fetch(const std::string &url, const std::string &key, std::string &body, FILE *file, long &http,
                 std::string &err, size_t max_bytes, long timeout_ms,
                 const std::function<bool(const char *, size_t, long, long long)> *chunk,
-                std::string *final_url, const std::function<bool()> *cancel) {
+                std::string *final_url, const std::function<bool()> *cancel, bool github) {
   body.clear();
   http = 0;
-  if (!allowed(url)) {
+  if (!(github ? allowed_github(url) : allowed(url))) {
     err = "address not allowed";
     return false;
   }
@@ -239,7 +251,8 @@ bool sgdb_fetch(const std::string &url, const std::string &key, std::string &bod
   }
   CURL *c = handle.get();
   Sink sink{&body, max_bytes, false, file, 0, c, chunk};
-  sink.follow = site_follows(url);
+  sink.follow = github || site_follows(url);
+  sink.github = github;
   sink.cancel = cancel;
   struct curl_blob ca {
     const_cast<unsigned char *>(zt_sgdb_ca_start), (size_t)(zt_sgdb_ca_end - zt_sgdb_ca_start), CURL_BLOB_NOCOPY
@@ -294,7 +307,61 @@ bool sgdb_fetch(const std::string &url, const std::string &key, std::string &bod
 }
 } // namespace
 
+bool zt_github_get(const std::string &url, std::string &body, long &http, std::string &err, size_t max_bytes) {
+  return sgdb_fetch(url, "", body, nullptr, http, err, max_bytes, kRequestTimeoutMs, nullptr, nullptr, nullptr, true);
+}
+
+bool zt_github_get_file(const std::string &url, const std::string &path, size_t max_bytes,
+                        const std::function<void(size_t, long long)> &progress, long &http, std::string &err) {
+  FILE *f = fopen(path.c_str(), "wb");
+  if (!f) {
+    err = "cannot write " + path;
+    http = 0;
+    return false;
+  }
+  bool write_failed = false;
+  const std::function<bool(const char *, size_t, long, long long)> chunk =
+      [&](const char *data, size_t n, long code, long long total) {
+        if (code >= 300 && code < 400)
+          return true; /* the body of a redirect */
+        if (fwrite(data, 1, n, f) != n) {
+          write_failed = true;
+          return false;
+        }
+        if (progress)
+          progress((size_t)ftell(f), total);
+        return true;
+      };
+  std::string unused;
+  bool ok = sgdb_fetch(url, "", unused, nullptr, http, err, max_bytes, 0L, &chunk, nullptr, nullptr, true);
+  if (fclose(f) != 0 || write_failed) {
+    ok = false;
+    err = "cannot write " + path + " (disk full?)";
+  }
+  if (ok && http != 200) {
+    ok = false;
+    err = "HTTP " + std::to_string(http);
+  }
+  if (!ok)
+    unlink(path.c_str());
+  return ok;
+}
+
 #else
+
+bool zt_github_get(const std::string &, std::string &body, long &http, std::string &err, size_t) {
+  body.clear();
+  http = 0;
+  err = "not in this build";
+  return false;
+}
+
+bool zt_github_get_file(const std::string &, const std::string &, size_t, const std::function<void(size_t, long long)> &,
+                        long &http, std::string &err) {
+  http = 0;
+  err = "not in this build";
+  return false;
+}
 
 bool zt_web_page(const std::string &, std::string &body, std::string &final_url, long &http, std::string &err, size_t) {
   body.clear();

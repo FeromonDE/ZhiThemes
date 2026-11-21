@@ -119,6 +119,7 @@ if(ZT_SLIM_MODULE)
 		${D_SRC}/zt_storage.cpp
 		${D_SRC}/zt_install.cpp
 		${D_SRC}/zt_tools.cpp
+		${D_SRC}/zt_update.cpp
 		${D_SRC}/external_symbols.cpp
 		${D_SRC}/mono_runtime.cpp
 		${D_SRC}/mono_utils.cpp
@@ -156,6 +157,10 @@ set(ZT_SGDB_CA_BUNDLE "${ZT_CURL_ROOT}/etc/ca-bundle.crt")
 set_source_files_properties(src/zt_sgdb.cpp PROPERTIES
   COMPILE_OPTIONS "-isystem${ZT_CURL_ROOT}/include"
   OBJECT_DEPENDS "${ZT_SGDB_CA_BUNDLE}")
+# ZhiThemes' own updates (zt_update.cpp): OpenSSL for SHA-256 and the
+# Ed25519 signature of update/latest.json
+set_source_files_properties(src/zt_update.cpp PROPERTIES
+  COMPILE_OPTIONS "-isystem${ZT_CURL_ROOT}/include")
 target_compile_definitions(zt_shellui PRIVATE CURL_STATICLIB ZT_SGDB_CA_BUNDLE="${ZT_SGDB_CA_BUNDLE}")
 target_link_libraries(zt_shellui PUBLIC
   "${ZT_CURL_ROOT}/lib/libcurl.a" "${ZT_CURL_ROOT}/lib/libpsl.a" "${ZT_CURL_ROOT}/lib/libssl.a"

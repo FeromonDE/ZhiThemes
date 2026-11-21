@@ -24,6 +24,7 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_mosaic.hpp"
 #include "zt_native_theme.hpp"
 #include "zt_storage.hpp"
+#include "zt_update.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -3729,6 +3730,16 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
     /* About's QR code open / closed: "THEME-QRFOCUS <1|0>" */
     if (text.rfind("THEME-QRFOCUS ", 0) == 0) {
       focus_hide_for_qr(text.size() > 14 && text[14] == '1');
+      return;
+    }
+    /* Options menu > ZhiThemes > Updates: "THEME-UPDATE <check|install|retry|dismiss|auto1|auto0>" */
+    if (text.rfind("THEME-UPDATE ", 0) == 0) {
+      const std::string cmd = text.substr(13, 16);
+      const std::string err = zt_update_cmd(cmd);
+      if (!err.empty()) {
+        zt_logl('W', "js: menu: update %s: %s", cmd.c_str(), err.c_str());
+        zt_menu_notify(err);
+      }
       return;
     }
     /* Options menu > ZhiThemes > Tools: "THEME-TOOL <name>" */

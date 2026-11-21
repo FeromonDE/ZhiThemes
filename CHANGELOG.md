@@ -4,6 +4,9 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
 ## Unreleased
 
+- **Automatic updates:** ZhiThemes checks GitHub for a new version when it starts and once a day (can be turned off). A new version shows a ❗ in Options > 🎨 ZhiThemes > ⬇ Updates and a button in the editor's header (click the version there to check now); *Download and install* gets it, checks it (signed by the author, size and SHA-256) and starts it right away, or after a restart when ZhiThemes was already loaded many times since the PS5 started. With the payload manager the new ELF replaces the old one there. If the new version brings the Home down twice, the previous one comes back by itself, with *Try again* and *Report a problem*.
+- **PS5 shade behind the tile** (Background tab): the dark shade the PS5 puts over the game art behind the selected tile can be the PS5's ellipse, flat, or off.
+- The power menu stays on screen when the Power button sits near the right edge.
 - **Older firmwares (e.g. 6.50):** the theme script is now injected there too. Their React Native JS executor has another name and an extra argument, so nothing ran before (no theme, no 🎨 ZhiThemes menu). Testers on older firmwares see the theme now; parts of the older Home may still not follow it.
 - **New logs:** one file, `Logs/zhithemes.log`, with every session one after the other (about the last 16 MB). Each line has a level (error, warning, action, info, debug, health); what you do (tabs, fields saved, themes, menu, rest mode) and a health line per minute (memory, reloads, slowest moment) are logged. A session with no clean end is marked *CRASHED* at the next start, or *switched off or restarted* when the PS5 itself was. Errors, warnings and actions go to the disk at once and, with a USB drive plugged in, also to the drive.
 - **Flight recorder:** the last keys and focused tiles are kept in a small hidden file and pasted into the log after a crash.

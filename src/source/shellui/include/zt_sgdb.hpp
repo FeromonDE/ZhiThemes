@@ -37,3 +37,10 @@ bool zt_sgdb_stream(const std::string &url, size_t max_bytes,
    address of the page that answered */
 bool zt_web_page(const std::string &url, std::string &body, std::string &final_url, long &http, std::string &err,
                  size_t max_bytes);
+/* the ZhiThemes update (zt_update.cpp): only https://raw.githubusercontent.com
+   and https://github.com (its release downloads redirect to
+   objects/release-assets.githubusercontent.com). The file is removed on
+   failure; progress(bytes so far, Content-Length or -1). */
+bool zt_github_get(const std::string &url, std::string &body, long &http, std::string &err, size_t max_bytes);
+bool zt_github_get_file(const std::string &url, const std::string &path, size_t max_bytes,
+                        const std::function<void(size_t, long long)> &progress, long &http, std::string &err);

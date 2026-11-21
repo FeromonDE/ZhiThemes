@@ -194,6 +194,21 @@ def measures():
     return out
 
 
+def update_json():
+    """GET /update like zt_update.cpp (ZT_MOCK_UPDATE=none|available|restart|rolledback)"""
+    kind = state.get('upd', os.environ.get('ZT_MOCK_UPDATE', 'available'))
+    u = {"current": "0.1.0-alpha", "build": 292, "state": "idle", "error": "", "progress": -1, "auto": True,
+         "checkedAgo": 120, "available": kind == 'available', "latest": "0.1.1-alpha", "latestBuild": 410,
+         "notes": "Automatic updates, faster Home start, fixes for old firmware.", "size": 10012345,
+         "crashedBefore": False, "restart": kind == 'restart', "restartVersion": "0.1.1-alpha" if kind == 'restart' else "",
+         "restartPldmgr": True, "restartWhere": "", "rolledBack": "0.1.1-alpha" if kind == 'rolledback' else "",
+         "rolledBackTo": "0.1.0-alpha" if kind == 'rolledback' else "", "loads": 1, "loadLimit": 5}
+    if state.get('updp') is not None:
+        state['updp'] += 25
+        u['state'], u['progress'] = ('downloading', state['updp']) if state['updp'] <= 100 else ('applying', 100)
+    return json.dumps(u)
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def _send(self, code, body, ctype='text/plain; charset=utf-8'):
         data = body.encode('utf-8')
@@ -335,6 +350,8 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == '/themes/text':
             t = _theme(q.get('name', ''))
             return self._send(200, t['text'], 'text/plain') if t and t.get('text') else self._send(404, 'no such theme', 'text/plain')
+        if u.path == '/update':
+            return self._send(200, update_json(), 'application/json')
         if u.path == '/sysinfo':
             return self._send(200, '{"name":"ZhiThemes","version":"0.1.0-alpha","build":292,"author":"Zhi","home":"https://github.com/itsRealZhi/ZhiThemes","kofi":"https://ko-fi.com/zhi",'
                                    '"fw":"9.60","fwHex":"0x09600004","debug":%s,"sys":%s,"started":0}'
@@ -417,6 +434,13 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._sgdb('POST')
         u = urllib.parse.urlparse(self.path)
         q = dict(urllib.parse.parse_qsl(u.query))
+        if u.path == '/update':
+            d = q.get('do', '')
+            if d in ('install', 'retry'):
+                state['updp'] = 0
+            elif d == 'dismiss':
+                state['upd'] = 'none'
+            return self._send(200, update_json(), 'application/json')
         if u.path in ('/background', '/font') and 'kind' in q or u.path == '/font':
             kind = 'fonts' if u.path == '/font' else q['kind']
             name = q.get('name', '')

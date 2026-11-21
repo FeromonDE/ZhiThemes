@@ -353,6 +353,7 @@
     bgVignetteSize: 360,        /* how far the vignette reaches into the screen, px (360) */
     bgEdges: 0,                 /* darken the top and the bottom of the screen, 0-1 (0) */
     bgEdgesHeight: 260,         /* height of each edge, px (260) */
+    bgShade: '',                /* the PS5's own dark shade behind the focused tile ('basemat' of the screen background): '' = as the PS5 (an ellipse), 'flat' = even, 'none' = off ('') */
     particlesOn: false,         /* glowing particles rising over the background (false) */
     particlesCount: 40,         /* how many, 1-120 (40) */
     particlesSize: 6,           /* size of the nearest ones, px; far ones are smaller (6) */
@@ -3959,6 +3960,8 @@
     var setTick = React.useState(0)[1];
     var powerRef = React.useRef(null), menuRef = React.useRef(null), anchorRef = React.useRef(null);
     var tgt = React.useState(null), target = tgt[0], setTarget = tgt[1];
+    var pxs = React.useState(null), powerX = pxs[0], setPowerX = pxs[1];
+    var powerHost = React.useRef(null);
     /* the bar button (module 270) is known once Search or Settings has
        drawn: drawn again then */
     React.useEffect(function () {
@@ -3985,6 +3988,26 @@
         p.onLayout = function () { barBoxMeasure(pre); };
       }
       if (THEME.measureScreen) withMeasure(pre, p);
+      /* the Power button's place on the screen: its menu is kept inside the
+         right edge (powerAnchor) */
+      if (pre === 'powerBtn') {
+        var innerRef = p.ref, innerLayout = p.onLayout;
+        p.ref = function (inst) {
+          powerHost.current = inst || null;
+          if (typeof innerRef === 'function') innerRef(inst);
+          else if (innerRef) innerRef.current = inst;
+        };
+        p.onLayout = function (ev) {
+          if (typeof innerLayout === 'function') innerLayout.apply(this, arguments);
+          var h = powerHost.current;
+          if (!h || typeof h.measureInWindow !== 'function') return;
+          try {
+            h.measureInWindow(function (mx) {
+              if (typeof mx === 'number' && (powerX == null || Math.abs(mx - powerX) > 1)) setPowerX(mx);
+            });
+          } catch (e) { if (!T.done['power box']) done('power box: ' + e); }
+        };
+      }
       /* far below the bar (a side bar): the bar goes up out of the screen when
          the Home moves up to a hub / the Game Library, these stayed on it */
       var fade = barLowFade(y);
@@ -4005,7 +4028,7 @@
           var m = menuRef.current;
           if (!T.done['power menu ref']) done('power menu ref (' + (m ? Object.keys(m).concat(Object.keys(Object.getPrototypeOf(m) || {})).join(',').slice(0, 200) : 'none') + ')');
           try { if (m && typeof m.open === 'function') m.open(); else log('power menu: no open()'); } catch (e) { log('power menu open: ' + e); }
-        }), powerAnchor(anchorRef)]));
+        }), powerAnchor(anchorRef, powerX)]));
       var ps = T.rnps;
       if (ps && ps.OptionsMenuPS && ps.MenuListItemPS && ps.MenuListItemPS.Button) {
         var items = POWER_ITEMS.map(function (it) {
@@ -4036,16 +4059,25 @@
   /* The power menu opens at its target: a button low on the screen had the
      menu going out of the bottom. The target is an empty box over the button,
      moved up so the whole menu fits above the last line of the screen. */
-  var POWER_MENU_H = 330, SCREEN_BOTTOM = 1040;
-  function powerAnchor(ref) {
+  /* A button near the right edge had the menu going out of the right side
+     (it opens beside its target): the box also moves left, by the button's
+     measured place, so the menu's width fits before the right edge. */
+  var POWER_MENU_H = 330, SCREEN_BOTTOM = 1040, POWER_MENU_W = 480, SCREEN_RIGHT = 1880;
+  function powerAnchor(ref, screenX) {
     var React = T.React, rn = T.rn;
     var sc = THEME.powerBtnScale > 0 ? THEME.powerBtnScale : 1;
     var top = BAR_TOP + (THEME.iconsY || 0) + (THEME.powerBtnY || 0);
     var bottom = top + 28 + 28 * sc; /* scaled from the centre of its 56 px */
     var dy = Math.min(0, SCREEN_BOTTOM - POWER_MENU_H - bottom);
     if (dy && !T.done['power menu anchor']) done('power menu anchor ' + Math.round(dy) + ' px');
+    var dx = 0;
+    if (typeof screenX === 'number') {
+      var right = screenX + 104 * (sc - 1) + 104 * sc; /* a scaled button is drawn (s-1) of its width further right */
+      dx = Math.min(0, SCREEN_RIGHT - POWER_MENU_W - right);
+      if (dx && !T.done['power menu anchor x']) done('power menu anchor x ' + Math.round(dx) + ' px (button at ' + Math.round(screenX) + ')');
+    }
     return React.createElement(rn.View, { key: 'zt-power-anchor', ref: ref, collapsable: false, pointerEvents: 'none',
-      style: { position: 'absolute', left: 0, top: dy / sc, width: 104, height: 56 } });
+      style: { position: 'absolute', left: dx / sc, top: dy / sc, width: 104, height: 56 } });
   }
   /* the bar buttons' top on the screen (measured: y = 21 + iconsY + …Y) */
   var BAR_TOP = 21;
@@ -7304,6 +7336,60 @@
     it.subItems = subs;
     return it;
   }
+  /* something to look at in Updates: a new version, one waiting for a
+     restart, or one that crashed */
+  function updateNews(u) {
+    return !!(u && (u.rolledBack || u.restart || (u.available && !u.crashedBefore)));
+  }
+  function updateAgo(s) {
+    if (!(s >= 0)) return 'not yet';
+    if (s < 90) return 'just now';
+    if (s < 5400) return Math.round(s / 60) + ' min ago';
+    return Math.round(s / 3600) + ' h ago';
+  }
+  /* Options menu > ZhiThemes > Updates (pure) */
+  function updateItems(u, tools) {
+    var items = [], busy = u.state === 'checking' || u.state === 'downloading' || u.state === 'applying';
+    items.push(infoItem('zt-upd-ver', 'Installed: ' + (u.current || tools.version || '?')));
+    if (u.rolledBack) {
+      items.push(infoItem('zt-upd-rb', '⚠ ' + u.rolledBack + ' crashed twice' +
+                          (u.rolledBackTo ? ': back on ' + u.rolledBackTo : ': ZhiThemes went to safe mode')));
+      items.push(menuItem('zt-upd-retry', 'Try ' + u.rolledBack + ' again', 'ztthemes:upd?retry'));
+      var rep = menuItem('zt-upd-report', tools.busy === 'report' ? 'Making the report...' :
+                         'Report the problem (logs ' + (tools.usb ? 'to USB)' : 'in the editor, Logs tab)'),
+                         'ztthemes:tool?report');
+      if (tools.busy) rep.disabled = true;
+      items.push(rep);
+      items.push(menuItem('zt-upd-hide', 'Hide this message', 'ztthemes:upd?dismiss'));
+    }
+    if (u.state === 'downloading')
+      items.push(infoItem('zt-upd-dl', 'Downloading ' + u.latest + (u.progress >= 0 ? '... ' + u.progress + '%' : '...')));
+    else if (u.state === 'applying')
+      items.push(infoItem('zt-upd-ap', 'Starting ' + u.latest + '...'));
+    else if (u.restart)
+      items.push(infoItem('zt-upd-rs', u.restartVersion + ' is installed: restart the PS5 to use it' +
+                          (u.restartPldmgr ? '' : ' (copy Update/ZhiThemes.elf to your autoload)')));
+    else if (u.available && !u.rolledBack) {
+      items.push(infoItem('zt-upd-new', '❗ New version: ' + u.latest + (u.crashedBefore ? ' (crashed here before)' : '')));
+      if (u.notes) items.push(infoItem('zt-upd-notes', u.notes.length > 90 ? u.notes.slice(0, 87) + '...' : u.notes));
+      var mb = u.size > 0 ? ' (' + (u.size / 1048576).toFixed(1) + ' MB)' : '';
+      items.push(menuItem('zt-upd-go', 'Download and install' + mb, 'ztthemes:upd?install'));
+      if (u.loadLimit === 0 || u.loads >= u.loadLimit)
+        items.push(infoItem('zt-upd-rsn', 'It starts after a PS5 restart' +
+                            (u.loadLimit === 0 ? ' on this firmware' : ' (loaded ' + u.loads + ' times already)')));
+    } else if (u.state !== 'error' && u.checkedAgo >= 0 && !u.rolledBack)
+      items.push(infoItem('zt-upd-ok', 'You have the latest version'));
+    if (u.state === 'error' && u.error) items.push(infoItem('zt-upd-err', 'Update: ' + u.error));
+    var chk = menuItem('zt-upd-chk', u.state === 'checking' ? 'Checking...' :
+                       'Check for updates (last: ' + updateAgo(u.checkedAgo) + ')', 'ztthemes:upd?check');
+    if (busy) chk.disabled = true;
+    items.push(chk);
+    items.push(menuItem('zt-upd-auto', 'Check automatically: ' + (u.auto === false ? 'Off' : 'On'),
+                        'ztthemes:upd?' + (u.auto === false ? 'auto1' : 'auto0')));
+    return items;
+  }
+  T.updateItems = updateItems;
+  T.updateNews = updateNews;
   /* the menu's sections, [[id, label, items]] (pure: the harness checks it) */
   function themeMenuSections(d) {
     var off = !!(d.off || d.usbOff), list = (d.list && d.list.themes) || [], active = d.list && d.list.active;
@@ -7351,9 +7437,9 @@
       });
       out.push(['zt-quick', '⚡ Quick settings', quick]);
     }
-    /* Updates: later (the ELF from GitHub) */
-    out.push(['zt-upd', '⬇ Updates', [infoItem('zt-upd-ver', 'Installed: ' + (tools.version || '?')),
-                                     infoItem('zt-upd-soon', 'Automatic updates: coming soon')]]);
+    /* Updates: ZhiThemes itself from GitHub (zt_update.cpp) */
+    var u = d.update || {};
+    out.push(['zt-upd', '⬇ Updates' + (updateNews(u) ? '  ❗' : ''), updateItems(u, tools)]);
     /* Tools */
     var t = [];
     t.push(infoItem('zt-t-ed', tools.ip ? 'Editor: http://' + tools.ip + ':' + (tools.port || 4444) : 'Editor: no network'));
@@ -7394,7 +7480,7 @@
     try { console.log('THEME-THEMES'); } catch (e) {}
     if (!T.themeMenu) T.themeMenu = last;
     var d = T.themeMenu, subs = [];
-    var top = subMenu('zt-themes', '🎨 ZhiThemes', subs);
+    var top = subMenu('zt-themes', '🎨 ZhiThemes' + (d && updateNews(d.update) ? '  ❗' : ''), subs);
     if (!d) {
       subs.push(menuItem('zt-th-none', 'ZhiThemes is not answering', 'ztthemes:none'));
       return top;
@@ -7422,7 +7508,8 @@
     var cmd = m[1] === 'use' ? 'THEME-THEMEUSE ' + m[2] : m[1] === 'off' ? 'THEME-THEMEOFF' :
               m[1] === 'file' ? 'THEME-THEMEFILE ' + m[2] :
               q ? 'THEME-QSET ' + q[1] + ' ' + q[2] :
-              m[1] === 'tool' && /^\w+$/.test(m[2]) ? 'THEME-TOOL ' + m[2] : '';
+              m[1] === 'tool' && /^\w+$/.test(m[2]) ? 'THEME-TOOL ' + m[2] :
+              m[1] === 'upd' && /^\w+$/.test(m[2]) ? 'THEME-UPDATE ' + m[2] : '';
     if (cmd) try { console.log(cmd); } catch (e) {}
   }
   /* ---- About: a card in the Home front layer. The version line shows the
@@ -11894,12 +11981,31 @@
       style: { position: 'absolute', left: 0, top: 0, width: 8, height: 8 }
     }));
   }
+  /* The PS5 draws a dark shade behind the focused tile, over the game art:
+     the 'basemat' of setBackground ('EllipseNarrow' on the Home, 'Flat' in
+     a hub when it scrolls). A video wallpaper covers it (drawn by the Home
+     over the native background). bgShade 'flat' / 'none' replaces it;
+     a request with no picture (clean background, try 3) keeps its own. */
+  var SHADE_MATS = { flat: 'Flat', none: 'None' };
+  function withShade(img) {
+    var mat = SHADE_MATS[String(THEME.bgShade || '').toLowerCase()];
+    if (!mat || !img || typeof img !== 'object' || !('uri' in img)) return img;
+    var copy = {};
+    for (var k in img) copy[k] = img[k];
+    copy.basemat = mat;
+    if (!T.done['background shade']) done('background shade ' + mat + ' (was ' + (img.basemat || 'none given') + ')');
+    return copy;
+  }
   function hookBackground(exp) {
     var sc;
     try { sc = exp.SceneControl; } catch (e) { return; }
     hookMusic(sc);
     if (!sc || typeof sc.setBackground !== 'function' || sc.setBackground.__theme) return;
-    var original = sc.setBackground;
+    var nativeSet = sc.setBackground;
+    /* every request goes out with the theme's shade (bgShade) */
+    var original = function (img) {
+      return nativeSet.apply(this, arguments.length ? [withShade(img)] : arguments);
+    };
     var replaced = function (img) {
       var asked = img && typeof img === 'object' ? String(img.uri || '') : String(img);
       if (THEME.bgClean) {

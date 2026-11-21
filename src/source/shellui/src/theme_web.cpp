@@ -19,6 +19,7 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_sgdb.hpp"
 #include "zt_mosaic.hpp"
 #include "zt_storage.hpp"
+#include "zt_update.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -1095,6 +1096,16 @@ void handle(int fd) {
     asset_send(fd, *job);
     delete job;
     return;
+  }
+  /* ZhiThemes' own update (zt_update.cpp): GET = the state, POST
+     ?do=check|install|retry|dismiss|auto1|auto0 */
+  if (path == "/update") {
+    if (method == "POST") {
+      const std::string err = zt_update_cmd(query_value(query, "do"));
+      if (!err.empty())
+        return reply(fd, 409, "Conflict", "text/plain", err);
+    }
+    return reply(fd, 200, "OK", "application/json", zt_update_json());
   }
   if (method == "GET" && path == "/sysinfo")
     return reply(fd, 200, "OK", "application/json", zt_sysinfo_json());

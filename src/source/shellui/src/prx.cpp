@@ -35,6 +35,7 @@ along with this program; see the file COPYING. If not, see
 #include "toolbox_i18n.hpp"
 #include "ucred.h"
 #include "webserver.hpp"
+#include "zt_update.hpp"
 
 #include <onion/notify.h>
 #include <onion/proc_query.h>
@@ -1290,6 +1291,19 @@ int zhithemes_main(pid_t pid, uint64_t old_authid, const OrbisKernelSwVersion &s
   zt_boot_fine("font probe");
   zt_boot("font hooks");
   theme_web_start();
+  zt_update_start();
+#if ZT_CRASH_TEST
+  {
+    pthread_t crash;
+    if (pthread_create(&crash, nullptr, [](void *) -> void * {
+          sleep(25);
+          zt_logl('E', "crash test build: taking ShellUI down on purpose");
+          __builtin_trap();
+          return nullptr;
+        }, nullptr) == 0)
+      pthread_detach(crash);
+  }
+#endif
   shellui_request_hub_reload();
   shellui_request_home_reload();
   hooked = true;
