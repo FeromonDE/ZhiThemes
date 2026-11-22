@@ -19,8 +19,11 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_sgdb.hpp"
 #include "zt_mosaic.hpp"
 #include "zt_storage.hpp"
+#include "zt_update.hpp"
+#include "zt_sysicons.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -47,21 +50,25 @@ later version. See LICENSE and NOTICE.  */
  *   POST /theme.js    replace it (body = new script)
  *   POST /reload      reload HomeUI and the game hub, which evaluate theme.js
  *                     again
- *   GET  /log         tail of logs/zhithemes.log (this session)
+ *   GET  /log         tail of Logs/zhithemes.log
  *   GET  /log/find?q= every line of the log with one of the words a|b
+ *                     (+ the session start lines)
  *   GET  /sysinfo     ZhiThemes version, PS5 model and firmware, debug mode
- *   GET  /logs        the files of logs/ (JSON)
+ *   GET  /logs        the files of Logs/ (JSON)
  *   GET  /logs/file?name=   one of them, as a download
- *   POST /logs/delete?name= delete one (not the current log)
- *   POST /debug?on=1&sys=0  debug mode on/off (off saves debug-<date>.log)
+ *   POST /logs/delete?name= delete one (not zhithemes.log)
+ *   POST /debug?on=1&sys=0  debug mode on/off (its lines stay in zhithemes.log)
  *   GET|POST /injectdelay?s=  seconds the watcher waits after a ShellUI restart (5-120, 15)
+ *   GET  /idle        ms since the Home focus last moved (-1 = unknown)
  *   POST /quit        take the theme hooks out and stop (a newer ZhiThemes
  *                     is about to replace this one)
  *   GET  /version     which build answers (zhithemes / onionhen)
  *   GET  /games       the Games row sent by the Home (folders tab)
  *   GET  /icon?p=...  a tile icon (.png under /user/app, /user/appmeta, /system_ex/rnps/apps)
  *   GET  /layout      the "THEME [app] layout ..." lines (visual editor)
- *   POST /log/clear   empty the current log
+ *   POST /log/clear   empty zhithemes.log (all sessions)
+ *   POST /report      Report a problem: body = what happened; answer = the
+ *                     report (.txt download)
  *
  * The reload is only queued here; ShellUI runs it on its UI thread
  * (shellui_poll_home_reload), as for the reload after injection.
@@ -70,9 +77,9 @@ later version. See LICENSE and NOTICE.  */
 namespace {
 
 constexpr int kPort = 4444;
-/* the theme file is Themes/<active>.ztheme (zt_theme_file()) */
+/* the theme file is Themes/<active>/theme.json (zt_theme_file()) */
 constexpr const char *kLogPath = ZT_LOGS "/zhithemes.log";
-bool g_web_quit = false; /* set by POST /quit */
+std::atomic<bool> g_web_quit{false}; /* set by POST /quit */
 time_t g_started = time(nullptr); /* when this copy of the module started */
 constexpr size_t kMaxHeader = 16u << 10;
 constexpr size_t kMaxBody = 24u << 20; /* font files can be a few MB */
@@ -136,34 +143,6 @@ std::string read_file(const char *path, size_t max_tail = 0) {
   return out;
 }
 
-/* Written to a temp file first, so a cut connection never leaves half a script. */
-bool write_script(const std::string &body, std::string file = std::string()) {
-  if (file.empty())
-    file = zt_theme_file();
-  const std::string temp = file + ".tmp";
-  zt_mkdirs(ZT_THEMES);
-  const int fd = open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-  if (fd < 0)
-    return false;
-  bool ok = true;
-  for (size_t off = 0; ok && off < body.size();) {
-    const ssize_t n = write(fd, body.data() + off, body.size() - off);
-    ok = n > 0;
-    off += ok ? (size_t)n : 0;
-  }
-  /* on disk before the rename: without it a reboot soon after a save
-     left no theme.js at all (the default one came back) */
-  ok = ok && fsync(fd) == 0;
-  close(fd);
-  if (!ok || rename(temp.c_str(), file.c_str()) != 0)
-    return false;
-  const int dir = open(ZT_THEMES, O_RDONLY);
-  if (dir >= 0) {
-    fsync(dir);
-    close(dir);
-  }
-  return true;
-}
 
 /* %XX and '+' of a query value */
 std::string url_decode(const std::string &s) {
@@ -244,6 +223,41 @@ void *asset_client(void *arg) {
   return nullptr;
 }
 
+/* GET /themes/pack: the .ztheme made while it is sent (see there) */
+struct PackJob {
+  int fd;
+  ZtPack pack;
+};
+void pack_send(int fd, const ZtPack &pack) {
+  char head[512];
+  const int n = snprintf(head, sizeof(head),
+                         "HTTP/1.0 200 OK\r\n"
+                         "Content-Type: application/zip\r\n"
+                         "Content-Disposition: attachment; filename=\"%s.ztheme\"\r\n"
+                         "Content-Length: %llu\r\n"
+                         "X-ZT-Missing: %d\r\n"
+                         "Cache-Control: no-store\r\n"
+                         "Connection: close\r\n\r\n",
+                         pack.theme.c_str(), (unsigned long long)pack.size, pack.missing);
+  if (n <= 0 || !send_all(fd, head, (size_t)n))
+    return;
+  const bool ok = zt_theme_pack_write(pack, [fd](const char *p, size_t size) {
+    return !g_web_quit && send_all(fd, p, size);
+  });
+  zt_logl(ok ? 'A' : 'W', "web: Download %s.ztheme (%zu files, %llu bytes) %s", pack.theme.c_str(),
+          pack.files.size(), (unsigned long long)pack.size, ok ? "sent" : "cut off");
+}
+void *pack_client(void *arg) {
+  PackJob *j = (PackJob *)arg;
+  pack_send(j->fd, j->pack);
+  close(j->fd);
+  delete j;
+  pthread_mutex_lock(&g_asset_lock);
+  --g_asset_clients;
+  pthread_mutex_unlock(&g_asset_lock);
+  return nullptr;
+}
+
 /* GET /sgdb/img: the CDN picture handed on piece by piece (see there) */
 struct SgdbImgJob {
   int fd;
@@ -251,9 +265,14 @@ struct SgdbImgJob {
   const char *mime;
   const char *who; /* the site, in the error text */
   size_t max;
+  bool preview = false;
+  bool priority = false;
 };
+
+bool g_sgdb_download_active = false; /* protected by g_asset_lock */
+
 void sgdb_img_send(int fd, const std::string &url, const char *mime, const char *who = "SteamGridDB",
-                   size_t max = 400u << 20) {
+                   size_t max = 400u << 20, bool preview = false, bool priority = false) {
   bool head_sent = false, client_ok = true;
   long http = 0, bad = 0;
   std::string err;
@@ -290,7 +309,7 @@ void sgdb_img_send(int fd, const std::string &url, const char *mime, const char 
         }
         return true;
       },
-      http, err);
+      http, err, preview, priority, [] { return g_web_quit.load(); });
   if (!head_sent) {
     const std::string why = bad ? "HTTP " + std::to_string(bad) : err.empty() ? std::to_string(http) : err;
     reply(fd, 502, "Bad Gateway", "text/plain", std::string(who) + ": " + why);
@@ -300,12 +319,14 @@ void sgdb_img_send(int fd, const std::string &url, const char *mime, const char 
 }
 void *sgdb_img_client(void *arg) {
   SgdbImgJob *j = (SgdbImgJob *)arg;
-  sgdb_img_send(j->fd, j->url, j->mime, j->who, j->max);
+  sgdb_img_send(j->fd, j->url, j->mime, j->who, j->max, j->preview, j->priority);
   close(j->fd);
-  delete j;
   pthread_mutex_lock(&g_asset_lock);
+  if (j->priority)
+    g_sgdb_download_active = false;
   --g_asset_clients;
   pthread_mutex_unlock(&g_asset_lock);
+  delete j;
   return nullptr;
 }
 
@@ -338,6 +359,64 @@ void handle(int fd) {
   path = path.substr(0, qmark);
 
   const size_t want = content_length(head);
+  /* POST /install?name=<file name>[&replace=<theme>]: the editor's Install. The .ztheme (or
+     an older theme file) is written to Install/.editor-upload.part while it
+     arrives, installed like the Home menu does (same checks, older files
+     translated) and deleted; the theme is used. {"theme":"<name>"} */
+  if (method == "POST" && path == "/install") {
+    const std::string fname = query_value(query, "name");
+    if (want == 0 || want > ((uint64_t)4u << 30)) {
+      if (want <= kMaxUpload)
+        drain(fd, want > body.size() ? want - body.size() : 0);
+      return reply(fd, 400, "Bad Request", "text/plain", want == 0 ? "empty file" : "file too big (4 GB at most)");
+    }
+    zt_mkdirs(ZT_DIR "/Install");
+    const std::string temp = ZT_DIR "/Install/.editor-upload.part";
+    const int lf = open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    bool ok = lf >= 0;
+    size_t got = 0;
+    auto put = [&](const char *data, size_t size) {
+      for (size_t off = 0; ok && off < size;) {
+        const ssize_t n = write(lf, data + off, size - off);
+        ok = n > 0;
+        off += ok ? (size_t)n : 0;
+      }
+      got += size;
+    };
+    put(body.data(), body.size() < want ? body.size() : want);
+    std::vector<char> chunk(256u << 10);
+    while (ok && got < want) {
+      const size_t room = want - got < chunk.size() ? want - got : chunk.size();
+      const ssize_t n = recv(fd, chunk.data(), room, 0);
+      if (n <= 0)
+        break;
+      put(chunk.data(), (size_t)n);
+    }
+    if (!ok && got < want)
+      drain(fd, want - got);
+    ok = ok && got == want;
+    if (lf >= 0) {
+      fsync(lf);
+      close(lf);
+    }
+    if (!ok) {
+      unlink(temp.c_str());
+      zt_logl('W', "web: Install %s: upload cut (%zu of %zu bytes)", fname.c_str(), got, want);
+      return reply(fd, 500, "Error", "text/plain", "the file did not arrive whole");
+    }
+    std::string theme;
+    /* &replace=<theme>: that theme is replaced (else a name already there gets -2) */
+    const std::string err = zt_install_file(temp, fname.empty() ? std::string("theme.ztheme") : fname, &theme,
+                                            query_value(query, "replace"));
+    unlink(temp.c_str());
+    if (!err.empty()) {
+      zt_logl('W', "web: Install %s: %s", fname.c_str(), err.c_str());
+      return reply(fd, 400, "Bad Request", "text/plain", err);
+    }
+    shellui_request_hub_reload();
+    shellui_request_home_reload();
+    return reply(fd, 200, "OK", "application/json", "{\"theme\":" + zt_json_quote(theme) + "}");
+  }
   /* POST /font?name=my.otf -> <dir>/fonts/, POST /background?name=x.png ->
      <dir>/backgrounds/ (the theme's own wallpaper; also .mp4 videos of a
      few hundred MB): written to the file while it arrives, never whole in
@@ -408,7 +487,7 @@ void handle(int fd) {
       ok = false;
     if (!ok)
       unlink(temp.c_str());
-    zt_log("web: %s %s (%zu of %zu bytes) %s", sub.c_str(), dest.c_str(), got, want,
+    zt_logl('A', "web: upload %s %s (%zu of %zu bytes) %s", sub.c_str(), dest.c_str(), got, want,
                    ok ? "saved" : "FAILED");
     if (ok && theme_kind)
       zt_dedupe(dest);
@@ -441,12 +520,23 @@ void handle(int fd) {
     const std::string file = zt_theme_file(name);
     /* &personal=1 (an installed pack): the folders and custom tile choices
        of the theme in use stay */
-    const std::string before = query_value(query, "personal") == "1" ? read_file(zt_theme_file().c_str()) : std::string();
-    if (!write_script(body, file))
+    const std::string before = query_value(query, "personal") == "1" ? zt_theme_read() : std::string();
+    /* the values as they were, for the "A field ..." lines */
+    const std::string old_text = zt_theme_read_path(file);
+    /* only the values of the text are kept (theme.json) */
+    if (body.find("var THEME") == std::string::npos)
+      return reply(fd, 400, "Bad Request", "text/plain", "no THEME block in this text");
+    if (!zt_theme_write_path(file, body))
       return reply(fd, 500, "Error", "text/plain", "cannot write " + file);
     if (!before.empty())
       zt_carry_personal(before, file);
-    zt_log("web: %s saved (%zu bytes)", file.c_str(), body.size());
+    static int saves = 0;
+    const std::string who = "editor save " + std::to_string(++saves);
+    const int changed = old_text.empty() ? -1
+                                         : zt_theme_log_changes(old_text, zt_theme_read_path(file), who.c_str());
+    zt_logl('A', "web: %s saved (%zu bytes, %s, %s)", file.c_str(), body.size(),
+            changed < 0 ? "new file" : (std::to_string(changed) + " fields changed").c_str(),
+            who.c_str());
     /* Apply in the editor turns ZhiThemes back on (PS5 default off) */
     if (name.empty() || name == zt_theme_name())
       zt_stock_set(false);
@@ -462,13 +552,56 @@ void handle(int fd) {
        POST /themes/clear?name=           empty its folder (a pack replaces it) */
   if (method == "GET" && path == "/themes")
     return reply(fd, 200, "OK", "application/json", zt_themes_json());
-  /* GET /themes/text?name= : that theme's file (the editor counts the
-     files it uses) */
+  /* only the name of the theme in use: the editor asks every few seconds
+     to see a theme switched from the PS5 (Home menu, USB install) */
+  if (method == "GET" && path == "/themes/active")
+    return reply(fd, 200, "OK", "text/plain; charset=utf-8", zt_theme_name());
+  /* GET /themes/pack?name= : the theme as a .ztheme (the editor's
+     Download), made while it is sent, from a thread of its own (a pack
+     with a video takes a while; the editor must not wait behind it) */
+  if (method == "GET" && path == "/themes/pack") {
+    auto *job = new PackJob{fd, ZtPack()};
+    const std::string err = zt_theme_pack_plan(query_value(query, "name"), &job->pack);
+    if (!err.empty()) {
+      delete job;
+      zt_logl('W', "web: Download %s: %s", query_value(query, "name").c_str(), err.c_str());
+      return reply(fd, 400, "Bad Request", "text/plain", err);
+    }
+    /* &check=1: only what would go in */
+    if (query_value(query, "check") == "1") {
+      const std::string out = "{\"files\":" + std::to_string(job->pack.files.size()) +
+                              ",\"size\":" + std::to_string((unsigned long long)job->pack.size) +
+                              ",\"missing\":" + std::to_string(job->pack.missing) + "}";
+      delete job;
+      return reply(fd, 200, "OK", "application/json", out);
+    }
+    pthread_t t;
+    pthread_mutex_lock(&g_asset_lock);
+    const bool room = g_asset_clients < 4;
+    if (room)
+      ++g_asset_clients;
+    pthread_mutex_unlock(&g_asset_lock);
+    if (room && pthread_create(&t, nullptr, pack_client, job) == 0) {
+      pthread_detach(t);
+      g_fd_taken = true;
+      return;
+    }
+    if (room) {
+      pthread_mutex_lock(&g_asset_lock);
+      --g_asset_clients;
+      pthread_mutex_unlock(&g_asset_lock);
+    }
+    pack_send(fd, job->pack);
+    delete job;
+    return;
+  }
+  /* GET /themes/text?name= : that theme's values as THEME text (the editor
+     counts the files it uses) */
   if (method == "GET" && path == "/themes/text") {
     const std::string name = query_value(query, "name");
     if (!zt_theme_name_ok(name))
       return reply(fd, 400, "Bad Request", "text/plain", "invalid theme name");
-    const std::string text = read_file(zt_theme_file(name).c_str());
+    const std::string text = zt_theme_read(name);
     if (text.empty())
       return reply(fd, 404, "Not Found", "text/plain", "no such theme");
     return reply(fd, 200, "OK", "text/plain; charset=utf-8", text);
@@ -486,6 +619,25 @@ void handle(int fd) {
     if (!err.empty()) return reply(fd, 400, "Bad Request", "text/plain", err);
     if (commit) zt_stock_set(false);
     return reply(fd, 200, "OK", "application/json", zt_themes_json());
+  }
+  /* POST /themes/info?name= : body = author on the first line, then the
+     description (theme.json's "author" / "description") */
+  if (method == "POST" && path == "/themes/info") {
+    const std::string name = query_value(query, "name");
+    if (!zt_theme_name_ok(name) || zt_theme_read(name).empty())
+      return reply(fd, 400, "Bad Request", "text/plain", "no such theme");
+    ZtThemeInfo info = zt_theme_info(name);
+    const size_t nl = body.find('\n');
+    info.author = body.substr(0, nl == std::string::npos ? body.size() : nl);
+    info.description = nl == std::string::npos ? std::string() : body.substr(nl + 1);
+    while (!info.author.empty() && (info.author.back() == '\r' || info.author.back() == ' '))
+      info.author.pop_back();
+    if (info.author.size() > 80 || info.description.size() > 1000)
+      return reply(fd, 400, "Bad Request", "text/plain", "author (80) or description (1000) too long");
+    if (!zt_theme_info_set(name, info))
+      return reply(fd, 500, "Error", "text/plain", "cannot write the theme");
+    zt_logl('A', "web: theme %s: author / description saved", name.c_str());
+    return reply(fd, 200, "OK", "text/plain", "saved");
   }
   if (method == "POST" && path.rfind("/themes/", 0) == 0) {
     const std::string name = query_value(query, "name");
@@ -513,9 +665,14 @@ void handle(int fd) {
     else
       return reply(fd, 404, "Not Found", "text/plain", "not found");
     if (!err.empty()) {
-      zt_log("web: %s %s: %s", path.c_str(), name.c_str(), err.c_str());
+      zt_logl('W', "web: %s %s: %s", path.c_str(), name.c_str(), err.c_str());
       return reply(fd, 400, "Bad Request", "text/plain", err);
     }
+    zt_logl('A', "theme %s %s%s%s (editor)", path.c_str() + 8, name.c_str(),
+            path == "/themes/rename" ? " -> " : path == "/themes/new" ? " from " : "",
+            path == "/themes/rename" ? query_value(query, "to").c_str()
+            : path == "/themes/new"  ? query_value(query, "from").c_str()
+                                     : "");
     if (reload) {
       shellui_request_hub_reload();
       shellui_request_home_reload();
@@ -523,7 +680,7 @@ void handle(int fd) {
     return reply(fd, 200, "OK", "application/json", zt_themes_json());
   }
   if (method == "POST" && path == "/reload") {
-    zt_log("web: HomeUI + game hub reload requested");
+    zt_logl('A', "web: HomeUI + game hub reload requested (editor)");
     shellui_request_hub_reload();
     shellui_request_home_reload();
     return reply(fd, 200, "OK", "text/plain", "reload queued");
@@ -532,7 +689,7 @@ void handle(int fd) {
     return reply(fd, 200, "OK", "text/plain; charset=utf-8",
                  read_file(kLogPath, kLogTail));
   if (method == "GET" && path == "/log/find") {
-    /* every line of the whole log (and previous.log) that has one of the words of q
+    /* every line of the whole log that has one of the words of q
        (q=rename|folder, '+' or %20 = space): the tail of /log is only 24 KB */
     std::string q = query.rfind("q=", 0) == 0 ? query.substr(2) : "";
     std::string dec;
@@ -550,27 +707,39 @@ void handle(int fd) {
       if (bar > at) words.push_back(dec.substr(at, bar - at));
       at = bar + 1;
     }
-    /* the session before first */
-    const std::string log = read_file(ZT_LOGS "/previous.log", kMaxBody) +
-                            "--- zhithemes.log ---\n" + read_file(kLogPath, kMaxBody);
-    std::string out;
-    for (size_t at = 0; at < log.size() && !words.empty();) {
-      size_t end = log.find('\n', at);
-      if (end == std::string::npos)
-        end = log.size();
-      const std::string line = log.substr(at, end - at);
-      for (const std::string &w : words)
-        if (line.find(w) != std::string::npos || line.rfind("--- zhithemes.log", 0) == 0) {
-          out += line + "\n";
-          break;
-        }
-      at = end + 1;
+    /* read in pieces (the log can be 16 MB): the session start lines are
+       always kept, so each hit shows which session it is in; the newest
+       hits win when there are too many */
+    constexpr size_t kMaxFind = 2u << 20;
+    std::string out, rest;
+    const int lf = open(kLogPath, O_RDONLY);
+    std::vector<char> buf(65536);
+    for (ssize_t n; lf >= 0 && !words.empty() && (n = read(lf, buf.data(), buf.size())) > 0;) {
+      rest.append(buf.data(), (size_t)n);
+      size_t at = 0;
+      for (size_t end; (end = rest.find('\n', at)) != std::string::npos; at = end + 1) {
+        /* (no memmem in the PS5's libc) */
+        const char *line = rest.data() + at, *line_end = rest.data() + end;
+        auto has = [&](const char *w, size_t n) {
+          return std::search(line, line_end, w, w + n) != line_end;
+        };
+        bool keep = end > at && has("==== session start", 18);
+        for (size_t w = 0; !keep && w < words.size(); ++w)
+          keep = has(words[w].data(), words[w].size());
+        if (keep)
+          out.append(line, end - at + 1);
+      }
+      rest.erase(0, at);
+      if (out.size() > kMaxFind)
+        out.erase(0, out.find('\n', out.size() - kMaxFind / 2) + 1);
     }
+    if (lf >= 0)
+      close(lf);
     return reply(fd, 200, "OK", "text/plain; charset=utf-8", out);
   }
   if (method == "GET" && path == "/layout") {
     /* where theme.js measured each element; only the newest lines matter */
-    const std::string log = read_file(kLogPath, kMaxBody);
+    const std::string log = read_file(kLogPath, 2u << 20);
     std::string out;
     for (size_t at = 0; at < log.size();) {
       size_t end = log.find('\n', at);
@@ -589,9 +758,9 @@ void handle(int fd) {
    * SteamGridDB (Tiles tab), the PS5 asks and answers the editor:
    *   GET  /sgdb/search?q=<name>            games with that name (API JSON)
    *   GET  /sgdb/grids?id=<game>&fmt=2x3|1x1|92x43|16x9|logo&page=<n>  pictures (API JSON)
-   *   GET  /sgdb/img?u=<cdn url>            a thumbnail or a full picture
-   *   POST /sgdb/save?u=<cdn url>&id=<titleId>&fmt=2x3|1x1|92x43
-   *        -> customtile/<titleId>_<fmt>_<n>.<png|jpg>, n = the highest + 1
+   *   GET  /sgdb/img?kind=preview|download&u=<cdn url>  a thumbnail or a full picture
+   *        (download = the picture chosen: a slot of its own, no total timeout)
+   * The editor saves the chosen picture itself (/customtile, /custombg).
    * The API key comes in the X-Key header (the editor's steamGridKey field).
    */
   /*
@@ -760,7 +929,7 @@ void handle(int fd) {
         return reply(fd, 502, "Bad Gateway", "text/plain", "SteamGridDB: " + err);
       return reply(fd, http == 200 ? 200 : 502, http == 200 ? "OK" : "Bad Gateway", "application/json", out);
     }
-    if ((method == "GET" && path == "/sgdb/img") || (method == "POST" && path == "/sgdb/save")) {
+    if (method == "GET" && path == "/sgdb/img") {
       url = query_value(query, "u");
       const size_t dot = url.rfind('.');
       std::string ext = dot == std::string::npos ? "" : url.substr(dot + 1);
@@ -771,21 +940,27 @@ void handle(int fd) {
       /* the animated pictures (webp, and their thumbnails) are only
          shown in the editor; the editor sends the PS5 a PNG */
       const bool anim_ext = ext == "webp" || ext == "gif" || ext == "webm" || ext == "mp4";
-      if (ext != "png" && ext != "jpg" && !(anim_ext && path == "/sgdb/img"))
+      if (ext != "png" && ext != "jpg" && !anim_ext)
         return reply(fd, 400, "Bad Request", "text/plain", "png or jpg pictures only");
-      if (path == "/sgdb/img") {
+      {
         /* also the full picture (the editor cuts the 16:9 background from it) */
         const char *mime = ext == "png" ? "image/png" : ext == "jpg" ? "image/jpeg" : ext == "webp" ? "image/webp"
                          : ext == "gif" ? "image/gif" : ext == "webm" ? "video/webm" : "video/mp4";
         /* handed on as it comes from the CDN (no second download, the
            editor sees the progress), from a thread of its own so the
            editor's other requests do not wait behind a big picture */
-        auto *job = new SgdbImgJob{fd, url, mime, "SteamGridDB", 400u << 20};
+        const std::string kind = query_value(query, "kind");
+        const bool priority = kind == "download";
+        auto *job = new SgdbImgJob{fd, url, mime, "SteamGridDB", 400u << 20, kind == "preview", priority};
         pthread_t t;
         pthread_mutex_lock(&g_asset_lock);
-        const bool room = g_asset_clients < 4;
-        if (room)
+        const bool room = priority ? !g_sgdb_download_active
+                                   : g_asset_clients - (int)g_sgdb_download_active < 4;
+        if (room) {
           ++g_asset_clients;
+          if (priority)
+            g_sgdb_download_active = true;
+        }
         pthread_mutex_unlock(&g_asset_lock);
         if (room && pthread_create(&t, nullptr, sgdb_img_client, job) == 0) {
           pthread_detach(t);
@@ -794,61 +969,16 @@ void handle(int fd) {
         }
         if (room) {
           pthread_mutex_lock(&g_asset_lock);
+          if (priority)
+            g_sgdb_download_active = false;
           --g_asset_clients;
           pthread_mutex_unlock(&g_asset_lock);
         }
-        sgdb_img_send(fd, job->url, job->mime);
         delete job;
-        return;
+        return reply(fd, 503, "Service Unavailable", "text/plain",
+                     priority ? "An artwork download is still running. Try again when it finishes."
+                              : "The artwork preview slots are busy. Try again.");
       }
-      std::string id = query_value(query, "id");
-      bool ok_id = id.size() == 9;
-      for (size_t i = 0; ok_id && i < 9; ++i)
-        ok_id = i < 4 ? isalpha((unsigned char)id[i]) : isdigit((unsigned char)id[i]);
-      if (!ok_id || (fmt != "2x3" && fmt != "1x1" && fmt != "92x43" && fmt != "16x9"))
-        return reply(fd, 400, "Bad Request", "text/plain", "bad title id or format");
-      if (fmt == "16x9" && ext != "png")
-        return reply(fd, 400, "Bad Request", "text/plain", "png heroes only");
-      for (char &c : id)
-        c = (char)toupper((unsigned char)c);
-      if (!zt_sgdb_get(url, "", out, http, err, 24u << 20) || http != 200 || out.empty())
-        return reply(fd, 502, "Bad Gateway", "text/plain", "SteamGridDB: " + (err.empty() ? std::to_string(http) : err));
-      /* the next n of this game and format (any extension, any case);
-         backgrounds (16x9) go to custombg */
-      const std::string dir = fmt == "16x9" ? ZT_CUSTOMBG : ZT_CUSTOMTILE;
-      zt_mkdirs(dir);
-      int max = 0;
-      const std::string pre = id + "_" + fmt + "_";
-      if (DIR *d = opendir(dir.c_str())) {
-        while (dirent *e = readdir(d))
-          if (strncasecmp(e->d_name, pre.c_str(), pre.size()) == 0)
-            max = std::max(max, atoi(e->d_name + pre.size()));
-        closedir(d);
-      }
-      const std::string name = pre + std::to_string(max + 1) + "." + ext;
-      const std::string dest = dir + "/" + name, temp = dest + (fmt == "16x9" ? ".hero" : ".part");
-      const int lf = open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-      bool ok = lf >= 0;
-      for (size_t off = 0; ok && off < out.size();) {
-        const ssize_t n = write(lf, out.data() + off, out.size() - off);
-        ok = n > 0;
-        off += ok ? (size_t)n : 0;
-      }
-      if (lf >= 0)
-        close(lf);
-      /* a hero becomes the 1920x1080 background (written straight to dest) */
-      /* pos = where the 16:9 window of the zoomed hero sits (editor) */
-      const std::string pos = query_value(query, "pos");
-      ok = ok && (fmt == "16x9" ? zt_hero_background(temp, dest, pos.empty() ? 0.5 : atof(pos.c_str()))
-                                : rename(temp.c_str(), dest.c_str()) == 0);
-      if (fmt == "16x9")
-        unlink(temp.c_str());
-      zt_log("sgdb: %s %s (%zu bytes)", name.c_str(), ok ? "saved" : "NOT saved", out.size());
-      if (!ok) {
-        unlink(temp.c_str());
-        return reply(fd, 500, "Error", "text/plain", "cannot write " + name);
-      }
-      return reply(fd, 200, "OK", "text/plain", name);
     }
     return reply(fd, 404, "Not Found", "text/plain", "not found");
   }
@@ -868,7 +998,7 @@ void handle(int fd) {
                             (dot == std::string::npos || dot == 0 ? name : name.substr(0, dot)) + "_fit.gif";
     unlink(fit.c_str());
     unlink((fit + ".meta").c_str());
-    zt_log("web: avatar %s %s", name.c_str(), gone ? "deleted" : "NOT deleted");
+    zt_logl('A', "web: avatar %s %s", name.c_str(), gone ? "deleted" : "NOT deleted");
     return gone ? reply(fd, 200, "OK", "text/plain", "deleted") : reply(fd, 404, "Not Found", "text/plain", "missing");
   }
   /* GET /customtile?name=<file>: one picture of <dir>/customtile (the
@@ -893,7 +1023,7 @@ void handle(int fd) {
     const std::string file = std::string(bg ? ZT_CUSTOMBG "/" : ZT_CUSTOMTILE "/") + name;
     if (method == "POST") {
       const bool gone = unlink(file.c_str()) == 0;
-      zt_log("web: %s %s %s", bg ? "custombg" : "customtile", name.c_str(), gone ? "deleted" : "NOT deleted");
+      zt_logl('A', "web: %s %s %s", bg ? "custombg" : "customtile", name.c_str(), gone ? "deleted" : "NOT deleted");
       return gone ? reply(fd, 200, "OK", "text/plain", "deleted") : reply(fd, 404, "Not Found", "text/plain", "missing");
     }
     const std::string data = read_file(file.c_str());
@@ -929,6 +1059,10 @@ void handle(int fd) {
     }
     return reply(fd, 200, "OK", "application/json", json + "]");
   }
+  /* GET /idle: ms since the Home focus last moved (-1 = not known); a newer
+     ZhiThemes waits for a still Home before POST /quit */
+  if (method == "GET" && path == "/idle")
+    return reply(fd, 200, "OK", "text/plain", std::to_string(theme_idle_ms()));
   if (method == "POST" && path == "/quit") {
     const int n = theme_unload();
     g_web_quit = true;
@@ -1022,12 +1156,33 @@ void handle(int fd) {
       return reply(fd, 404, "Not Found", "text/plain", "no access");
     return reply(fd, 200, "OK", "image/png", data);
   }
+  /* GET /sysicon?name=game: a system icon (IconPS id) from the console's
+     own RCO, for the editor's icon picker */
+  if (method == "GET" && path == "/sysicon") {
+    const std::string name = query_value(query, "name");
+    bool safe = !name.empty() && name.size() < 80;
+    for (char c : name)
+      if (!isalnum((unsigned char)c) && c != '_' && c != '-')
+        safe = false;
+    if (!safe)
+      return reply(fd, 400, "Bad Request", "text/plain", "icon names only");
+    std::string data, type;
+    if (!zt_sysicon(name, data, type))
+      return reply(fd, 404, "Not Found", "text/plain", "no such icon");
+    return reply(fd, 200, "OK", type.c_str(), data);
+  }
   /* the system's icon font (controller buttons), to read its glyph codes */
   if (method == "GET" && path == "/system/PS4Icon.ttf") {
     const std::string font = read_file("/system_ex/common_ex/font2/PS4Icon.ttf");
     if (font.empty())
       return reply(fd, 404, "Not Found", "text/plain", "no access");
     return reply(fd, 200, "OK", "font/ttf", font);
+  }
+  /* Home reloads in this ShellUI (the editor shows it next to Apply) */
+  if (method == "GET" && path == "/reloads") {
+    char text[24];
+    snprintf(text, sizeof(text), "%d", zt_log_reloads());
+    return reply(fd, 200, "OK", "text/plain", text);
   }
   if (method == "GET" && path == "/version") {
     /* which build, when this copy started and its hooks: after sending a
@@ -1107,6 +1262,16 @@ void handle(int fd) {
     delete job;
     return;
   }
+  /* ZhiThemes' own update (zt_update.cpp): GET = the state, POST
+     ?do=check|install|retry|dismiss|auto1|auto0 */
+  if (path == "/update") {
+    if (method == "POST") {
+      const std::string err = zt_update_cmd(query_value(query, "do"));
+      if (!err.empty())
+        return reply(fd, 409, "Conflict", "text/plain", err);
+    }
+    return reply(fd, 200, "OK", "application/json", zt_update_json());
+  }
   if (method == "GET" && path == "/sysinfo")
     return reply(fd, 200, "OK", "application/json", zt_sysinfo_json());
   if (method == "GET" && path == "/logs")
@@ -1116,18 +1281,34 @@ void handle(int fd) {
     const std::string file = zt_log_path(name);
     if (file.empty())
       return reply(fd, 404, "Not Found", "text/plain", "no such log");
-    const std::string data = read_file(file.c_str());
+    /* sent in pieces (zhithemes.log can be 16 MB), up to the size it had
+       when asked (lines still being added go in the next download) */
+    const int in = open(file.c_str(), O_RDONLY);
+    struct stat st;
+    if (in < 0 || fstat(in, &st) != 0) {
+      if (in >= 0)
+        close(in);
+      return reply(fd, 404, "Not Found", "text/plain", "no such log");
+    }
     char head[384];
     const int n = snprintf(head, sizeof(head),
                            "HTTP/1.0 200 OK\r\n"
                            "Content-Type: text/plain; charset=utf-8\r\n"
                            "Content-Disposition: attachment; filename=\"%s\"\r\n"
-                           "Content-Length: %zu\r\n"
+                           "Content-Length: %lld\r\n"
                            "Cache-Control: no-store\r\n"
                            "Connection: close\r\n\r\n",
-                           name.c_str(), data.size());
-    if (n > 0 && send_all(fd, head, (size_t)n))
-      send_all(fd, data.data(), data.size());
+                           name.c_str(), (long long)st.st_size);
+    if (n > 0 && send_all(fd, head, (size_t)n)) {
+      std::vector<char> buf(65536);
+      for (off_t left = st.st_size; left > 0;) {
+        const ssize_t got = read(in, buf.data(), (size_t)std::min<off_t>(left, (off_t)buf.size()));
+        if (got <= 0 || !send_all(fd, buf.data(), (size_t)got))
+          break;
+        left -= got;
+      }
+    }
+    close(in);
     return;
   }
   if (method == "POST" && path == "/logs/delete") {
@@ -1162,17 +1343,37 @@ void handle(int fd) {
         (void)write(out, text.data(), text.size());
         close(out);
       }
-      zt_log("web: inject delay %d s", s);
+      zt_logl('A', "web: inject delay %d s", s);
     }
     int s = atoi(read_file(file.c_str()).c_str());
     if (s < 5 || s > 120)
       s = 15;
     return reply(fd, 200, "OK", "application/json", "{\"seconds\":" + std::to_string(s) + "}");
   }
+  /* Report a problem (editor): body = "what happened" (plain text); the
+     answer is the report as a download */
+  if (method == "POST" && path == "/report") {
+    std::string what = body.substr(0, 4000);
+    for (char &ch : what)
+      if (ch == '\r')
+        ch = ' ';
+    const std::string text = zt_report_text(what, "editor");
+    const std::string name = zt_report_name();
+    char head[384];
+    const int n = snprintf(head, sizeof(head),
+                           "HTTP/1.0 200 OK\r\n"
+                           "Content-Type: text/plain; charset=utf-8\r\n"
+                           "Content-Disposition: attachment; filename=\"%s\"\r\n"
+                           "Content-Length: %zu\r\n"
+                           "Cache-Control: no-store\r\n"
+                           "Connection: close\r\n\r\n",
+                           name.c_str(), text.size());
+    if (n > 0 && send_all(fd, head, (size_t)n))
+      send_all(fd, text.data(), text.size());
+    return;
+  }
   if (method == "POST" && path == "/log/clear") {
-    const int lf = open(kLogPath, O_WRONLY | O_TRUNC);
-    if (lf >= 0)
-      close(lf);
+    zt_log_clear();
     return reply(fd, 200, "OK", "text/plain", "cleared");
   }
   reply(fd, 404, "Not Found", "text/plain", "not found");
@@ -1261,6 +1462,10 @@ void *server_thread(void *) {
 constexpr int kVideoPort = 4445;
 constexpr int kVideoMaxClients = 8;
 int g_video_clients = 0;
+/* for the health line: requests answered and refused (all 8 taken) since
+   the module started; players of an old Home context that keep looping
+   after a reload show up as more requests a minute and full slots */
+unsigned g_video_accepted = 0, g_video_refused = 0;
 pthread_mutex_t g_video_lock = PTHREAD_MUTEX_INITIALIZER;
 /* accept() on the PS5 does not time out (SO_RCVTIMEO is ignored), so
    after POST /quit the old module's video server kept port 4445 until the
@@ -1443,6 +1648,10 @@ void *video_server(void *) {
       pthread_mutex_lock(&g_video_lock);
       const bool room = g_video_clients < kVideoMaxClients;
       g_video_clients += room;
+      if (room)
+        ++g_video_accepted;
+      else
+        ++g_video_refused;
       pthread_mutex_unlock(&g_video_lock);
       if (!room) {
         close(fd);
@@ -1496,6 +1705,14 @@ void video_stop() {
 
 } // namespace
 
+void zt_video_counts(int *open, unsigned *accepted, unsigned *refused) {
+  pthread_mutex_lock(&g_video_lock);
+  *open = g_video_clients;
+  *accepted = g_video_accepted;
+  *refused = g_video_refused;
+  pthread_mutex_unlock(&g_video_lock);
+}
+
 void theme_web_start() {
   pthread_t thread;
   if (pthread_create(&thread, nullptr, server_thread, nullptr) != 0) {
@@ -1510,7 +1727,7 @@ void theme_web_start() {
     zt_log("video: pthread_create failed (errno %d)", errno);
 }
 
-/* `key: '...'` of the THEME block in theme.ztheme gets value (added at the
+/* `key: '...'` of the theme's values gets value (added at the
    top of the block when missing). The Home's Options menu writes the folders
    this way. */
 bool theme_set_field(const std::string &key, const std::string &value) {
@@ -1518,7 +1735,7 @@ bool theme_set_field(const std::string &key, const std::string &value) {
 }
 
 bool theme_set_field_in(const std::string &file, const std::string &key, const std::string &value) {
-  std::string src = read_file(file.c_str());
+  std::string src = zt_theme_read_path(file);
   const size_t th = src.find("var THEME");
   if (src.empty() || th == std::string::npos)
     return false;
@@ -1547,20 +1764,20 @@ bool theme_set_field_in(const std::string &file, const std::string &key, const s
     if (end >= src.size() || src[end] != '\'')
       return false;
     src.replace(p + 1, end - p - 1, value);
-    return write_script(src, file);
+    return zt_theme_write_path(file, src);
   }
   const size_t brace = src.find('{', th);
   if (brace == std::string::npos)
     return false;
   src.insert(brace + 1, "\n    " + key + ": '" + value + "',");
-  return write_script(src, file);
+  return zt_theme_write_path(file, src);
 }
 
 /* `key: true|false` of the THEME block (Options menu > Quick settings);
    added at the top of the block when missing */
 bool theme_set_bool(const std::string &key, bool on) {
   const std::string file = zt_theme_file();
-  std::string src = read_file(file.c_str());
+  std::string src = zt_theme_read_path(file);
   const size_t th = src.find("var THEME");
   if (src.empty() || th == std::string::npos)
     return false;
@@ -1589,13 +1806,13 @@ bool theme_set_bool(const std::string &key, bool on) {
     if (end == p)
       return false;
     src.replace(p, end - p, word);
-    return write_script(src, file);
+    return zt_theme_write_path(file, src);
   }
   const size_t brace = src.find('{', th);
   if (brace == std::string::npos)
     return false;
   src.insert(brace + 1, "\n    " + key + ": " + word + ",");
-  return write_script(src, file);
+  return zt_theme_write_path(file, src);
 }
 
 #else

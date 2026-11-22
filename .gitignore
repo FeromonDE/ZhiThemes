@@ -25,3 +25,7 @@ __pycache__/
 steamgrid.key
 .DS_Store
 Thumbs.db
+
+# signing keys never in the repo
+*.pem
+*.key

@@ -584,3 +584,17 @@ export PS5_PAYLOAD_SDK=/path/to/ps5-payload-sdk
 ./scripts/ps5_cmake.sh -S source -B build -G Ninja
 cmake --build build
 ```
+
+
+### ZhiThemes fork integration
+
+Themes now use `Themes/<Name>/theme.json` with per-theme resources. The existing
+storage owner stages each complete folder and swaps that directory with rollback;
+the installer uses the same path for old/new ZIPs, USB and browser uploads.
+The existing USB tool copies Themes, Assets, favorites.txt and active_theme.txt.
+The Home/hub relay still carries per-ID trophy metadata and replies, and the
+reflection worker keeps its asynchronous pre-faded PNG cache. No new service is
+introduced. Official ELF updates are disabled in both module and payload for
+this fork, including already staged updates. See the fork notes in
+[INSTALL.md](../../docs/INSTALL.md) and the host commands in
+[BUILDING.md](../../docs/BUILDING.md).

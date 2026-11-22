@@ -29,9 +29,18 @@ bool zt_sgdb_get_file(const std::string &url, const std::string &path, size_t &s
    Content-Length or -1; returning false stops the download. */
 bool zt_sgdb_stream(const std::string &url, size_t max_bytes,
                     const std::function<bool(const char *, size_t, long, long long)> &chunk, long &http,
-                    std::string &err);
+                    std::string &err, bool preview = false,
+                    bool selected = false,
+                    const std::function<bool()> &cancel = {});
 /* a page of https://motionbgs.com (the editor's animated backgrounds
    search): redirects inside the site are followed, final_url = the
    address of the page that answered */
 bool zt_web_page(const std::string &url, std::string &body, std::string &final_url, long &http, std::string &err,
                  size_t max_bytes);
+/* the ZhiThemes update (zt_update.cpp): only https://raw.githubusercontent.com
+   and https://github.com (its release downloads redirect to
+   objects/release-assets.githubusercontent.com). The file is removed on
+   failure; progress(bytes so far, Content-Length or -1). */
+bool zt_github_get(const std::string &url, std::string &body, long &http, std::string &err, size_t max_bytes);
+bool zt_github_get_file(const std::string &url, const std::string &path, size_t max_bytes,
+                        const std::function<void(size_t, long long)> &progress, long &http, std::string &err);

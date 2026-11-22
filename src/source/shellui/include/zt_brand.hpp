@@ -1,4 +1,4 @@
-/* ZhiThemes — PS5 Home theme engine.
+/* ZhiThemes ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â PS5 Home theme engine.
    Copyright (C) 2026 Zhi (ZhiThemes author)
 
 This program is free software; you can redistribute it and/or modify it
@@ -14,17 +14,28 @@ keep the author attribution).  */
 #define ZT_NAME "ZhiThemes"
 #define ZT_AUTHOR "Zhi"
 #define ZT_VERSION "0.1.0-alpha"
-#define ZT_BUILD 385
+#define ZT_BUILD 441
+/* This fork keeps local fixes; an official ELF must not replace it. */
+#define ZT_OFFICIAL_UPDATES 0
 #define ZT_STR2(x) #x
 #define ZT_STR(x) ZT_STR2(x)
 #define ZT_BUILD_TEXT ZT_STR(ZT_BUILD)
-/* the diagnostic build (ZhiThemes-diag.elf, CMake ZT_DIAG=ON): debug mode
-   and the screen dump always on, start-up heartbeat, ShellUI thread states,
-   system lists in the logs. The normal build has none of it. */
+/* the diagnostic build (ZhiThemes-diag.elf, CMake ZT_DIAG=ON), only for
+   studying a new firmware: the normal build + debug mode always on (so the
+   D lines also go to the log, not only to the flight recorder), the screen
+   dump and the decrypted app bundles always (Dumps/<fw>/), fine start-up
+   steps + heartbeat ([boot]), ShellUI thread states and the process list
+   ([payload]), ShellUI's modules. All lines in the same zhithemes.log. */
 #ifndef ZT_DIAG
 #define ZT_DIAG 0
 #endif
 #define ZT_EDITION (ZT_DIAG ? " diag" : "")
+/* test builds of the updater only: the module takes ShellUI down 25 s
+   after it starts (to test going back to the previous version). Always 0
+   in a real build. */
+#ifndef ZT_CRASH_TEST
+#define ZT_CRASH_TEST 0
+#endif
 /* links shown in the editor's About tab; empty = "coming soon" */
 #define ZT_HOME "https://github.com/itsRealZhi/ZhiThemes"
 #define ZT_KOFI "https://ko-fi.com/zhi"

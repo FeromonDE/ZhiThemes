@@ -2,6 +2,7 @@
 from pathlib import Path
 import json
 import os
+import re
 import struct
 import subprocess
 import tempfile
@@ -19,8 +20,8 @@ with tempfile.TemporaryDirectory(prefix="zt-io-safety-") as tmp:
     temp = Path(tmp)
     fixtures = []
     for name, method, data in [
-        ("stored.zip", zipfile.ZIP_STORED, b"VALID"),
-        ("deflated.zip", zipfile.ZIP_DEFLATED, b"X" * (1 << 20)),
+        ("stored.zip", zipfile.ZIP_STORED, b"\x89PNG\r\n\x1a\n" + b"VALID"),
+        ("deflated.zip", zipfile.ZIP_DEFLATED, b"\x89PNG\r\n\x1a\n" + b"X" * (1 << 20)),
     ]:
         path = temp / name
         with zipfile.ZipFile(path, "w", compression=method) as archive:
@@ -63,11 +64,17 @@ with tempfile.TemporaryDirectory(prefix="zt-io-safety-") as tmp:
 #include <unistd.h>
 #include <zlib.h>
 #define ZT_THEMES "Themes"
+#define ZT_ASSETS "Assets"
+#define ZT_FAVORITES_FILE "favorites.txt"
+#define ZT_DIR "."
 const size_t kMaxText = 8u << 20;
+const uint64_t kMaxAsset = 2ull << 30;
+const uint64_t kMaxPack = 4ull << 30;
 std::string usb_target() { return "usb"; }
 bool usb_present() { return true; }
 std::string stamp() { return "same-second"; }
 """
+    code += function(install, "std::string sniff(") + function(install, "bool type_ok(")
     code += install[install.index("uint16_t le16("):install.index("bool read_at(")]
     code += function(install, "bool read_at(") + function(install, "bool write_out(")
     code += install[install.index("struct Entry {"):install.index("void tell(")]
@@ -88,14 +95,14 @@ int main(int argc,char **argv) {
     std::vector<Entry> entries;
     bool ok = zip_list(fd,st.st_size,entries);
     put("extracted", "old");
-    if (ok) { assert(entries.size() == 1); ok = zip_file(fd,entries[0],"extracted"); }
+    if (ok) { assert(entries.size() == 1); uint64_t total=0; std::string why; ok = zip_file(fd,entries[0],"extracted","png",&total,&why); }
     if (i <= 2) assert(ok);
     else { assert(!ok); assert(contents("extracted") == "old"); }
     close(fd);
   }
   fs::create_directories("Themes/A/icons");
   fs::create_directories("Themes/.zt-stage-pending/icons");
-  put("Themes/A.ztheme","settings"); put("Themes/A/icons/a.png","icon");
+  put("Themes/A/theme.json","settings"); put("Themes/A/icons/a.png","icon");
   put("Themes/.zt-stage-pending/icons/incomplete","not committed");
   for (const auto &kind : {"customtile","custombg","avatars","folders","cache"}) {
     fs::create_directories(std::string("Assets/") + kind);
@@ -106,17 +113,21 @@ int main(int argc,char **argv) {
   put("active_theme.txt","A");
   fs::create_directories("usb/ZhiThemes");
   Count c; std::string where;
-  const std::vector<std::pair<std::string,std::string>> items = {
-    {"Themes","Themes"},{"Assets","Assets"},{"favorites.txt","favorites.txt"},{"active_theme.txt","active_theme.txt"}
-  };
+  const std::vector<std::pair<std::string,std::string>> items = __PRODUCTION_BACKUP_ITEMS__;
   assert(to_usb("Backup",items,&where,c).empty());
   assert(c.files >= 8 && c.failed == 0);
   for (const auto &kind : {"customtile","custombg","avatars","folders","cache"})
     assert(contents(where + "/Assets/" + kind + "/keep.bin") == kind);
-  assert(contents(where + "/Themes/A.ztheme") == "settings");
+  assert(contents(where + "/Themes/A/theme.json") == "settings");
   assert(!fs::exists(where + "/Assets/customtile/upload.part"));
   assert(!fs::exists(where + "/Themes/.zt-stage-pending"));
   const std::string first = where;
+  fs::create_directory("restored");
+  for (const auto &item : {"Themes", "Assets"})
+    fs::copy(first + "/" + item, std::string("restored/") + item, fs::copy_options::recursive);
+  assert(contents("restored/Themes/A/theme.json") == "settings");
+  assert(contents("restored/Assets/customtile/keep.bin") == "customtile");
+  assert(contents("restored/Assets/avatars/keep.bin") == "avatars");
   Count second;
   assert(to_usb("Backup",items,&where,second).empty());
   assert(where != first && fs::exists(first + "/Assets/customtile/keep.bin"));
@@ -134,32 +145,11 @@ int main(int argc,char **argv) {
   std::cout << "IO safety tests passed: stored/deflate ZIP, CRC/size limits, old-file preservation, symlink cleanup, Assets backup and unique USB snapshots.\n";
 }
 """
+    items = re.search(r'to_usb\("Backup",\s*(\{\{.*?\}\}),\s*&where, c\)', tools, re.S)
+    assert items, "production backup list not found"
+    code = code.replace("__PRODUCTION_BACKUP_ITEMS__", items[1])
     cpp = temp / "test.cpp"
     cpp.write_text(code)
     binary = temp / "test"
     subprocess.run(["g++", "-std=c++20", "-O1", str(cpp), "-lz", "-o", str(binary)], check=True)
     subprocess.run([str(binary), *map(str, fixtures)], cwd=temp, check=True)
-    # The web editor must enforce the same integrity rules before uploading.
-    js = r"""
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const {Duplex}=require('node:stream'),zlib=require('node:zlib');
-const html=fs.readFileSync(process.argv[2],'utf8');
-const a=html.indexOf('  var CRC_TABLE = null;'),b=html.indexOf('  function textValue(',a);
-const c=vm.createContext({Blob,TextEncoder,TextDecoder,DecompressionStream:class {
-  constructor() { return Duplex.toWeb(zlib.createInflateRaw()); }
-}});
-vm.runInContext(html.slice(a,b),c);
-(async()=>{
- for(let i=3;i<process.argv.length;i++) {
-  const data=fs.readFileSync(process.argv[i]);
-  let valid=true;
-  try { await c.unzip(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength)); }
-  catch(e) { valid=false; }
-  assert.equal(valid,i<5,process.argv[i]);
- }
- console.log('Editor ZIP tests passed: valid stored/deflate, bad CRC, wrong size and oversize rejected.');
-})().catch(e=>{console.error(e);process.exitCode=1;});
-"""
-    jsfile = temp / "test.js"
-    jsfile.write_text(js)
-    subprocess.run(["node", str(jsfile), str(ROOT / "theme/editor.html"), *map(str, fixtures)], check=True)

@@ -549,6 +549,10 @@ extern MonoMethod* (*mono_jit_info_get_method)(void* ji);
 extern void* (*mono_jit_info_get_code_start)(void* ji);
 extern MonoClass* (*mono_method_get_class)(MonoMethod* method);
 extern const char* (*mono_class_get_name)(MonoClass* klass);
+/* diagnostic build: every type of an image (find renamed classes on older firmwares) */
+extern const char* (*mono_class_get_namespace)(MonoClass* klass);
+extern int (*mono_image_get_table_rows)(MonoImage* image, int table_id);
+extern MonoClass* (*mono_class_get)(MonoImage* image, uint32_t type_token);
 extern void (*mono_set_dirs)(const char*, const char*);
 extern void (*mono_assembly_setrootdir)(const char*);
 extern void (*mono_thread_detach)(MonoThread* thread);

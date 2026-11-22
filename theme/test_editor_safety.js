@@ -2,58 +2,52 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const src = fs.readFileSync(require('node:path').join(__dirname, 'editor.html'), 'utf8');
-async function applyDuringEdit() {
-  const code = src.slice(src.indexOf('  function apply() {'), src.indexOf('  function resetFactory()'));
-  let release, sent;
-  const c = vm.createContext({ source: 'A', loaded: 'old', status() {},
-    syncFromPs5: () => Promise.resolve([]),
+async function flush() { for (let i = 0; i < 30; i++) await Promise.resolve(); }
+async function applyDuringEdit(stale = false, switched = null) {
+  const code = src.slice(src.indexOf('  function apply() {'), src.indexOf('  /* Home reloads in this ShellUI'));
+  let release, sent, noticed = false;
+  const c = vm.createContext({ source: 'A', loaded: 'old', staleTheme: stale, status() {},
+    themeSwitchedStatus() { noticed = true; }, themeSwitchedOnPs5() { noticed = true; },
+    activeOnPs5: () => Promise.resolve(switched), syncFromPs5: () => Promise.resolve([]),
     request: (m, p, b) => p === '/theme.js' ? (sent = b, new Promise(r => release = r)) : Promise.resolve(),
-    setInterval: () => 0, refreshLog() {}, refreshLayout() {}, fail(e) { throw e; } });
+    setInterval: () => 0, refreshLog() {}, refreshLayout() {}, refreshReloads() {}, fail(e) { throw e; } });
   vm.runInContext(code, c);
-  const job = c.apply();
-  while (!release) await Promise.resolve();
-  c.source = 'B'; release(); await job;
-  assert.equal(sent, 'A');
-  assert.equal(c.loaded, 'A', 'later unsaved edits must not be marked saved');
-  assert.notEqual(c.source, c.loaded);
+  const job = c.apply(); await flush();
+  if (stale || switched) {
+    await job; assert(noticed); assert.equal(sent, undefined); assert.equal(c.loaded, 'old'); return;
+  }
+  assert(release); c.source = 'B'; release(); await job;
+  assert.equal(sent, 'A'); assert.equal(c.loaded, 'A'); assert.notEqual(c.source, c.loaded);
 }
-async function install(failure) {
-  const a = src.indexOf('  function installTheme('), b = src.indexOf('  fetchThemes().catch', a);
-  const events = [];
-  let oldAssets = true, aborted = false, committed = false;
-  const c = vm.createContext({ source: 'old', loaded: 'old', themesInfo: { active: 'A' },
-    unsavedOk: () => true, fetchThemes: () => Promise.resolve({}), askThemeName: () => 'A',
-    themeSafe: s => s, themeFound: () => 'A', confirm: () => true, uniqueTheme: () => 'B',
-    enc: encodeURIComponent, status() {}, setTimeout() {}, location: { reload() {} },
-    request: (m, p) => {
-      events.push(p);
-      assert.ok(!p.includes('/themes/clear'), 'old assets must not be cleared before an install');
-      if (p.includes('/start')) return Promise.resolve('{"stage":".zt-stage-test"}');
-      if (p.includes('/commit')) {
-        if (failure === 'commit') return Promise.reject(new Error('commit failed'));
-        committed = true; oldAssets = false;
-      }
-      if (p.includes('/abort')) aborted = true;
-      if (p.startsWith('/theme.js') && failure === 'text') return Promise.reject(new Error('write failed'));
-      return Promise.resolve('{}');
-    },
-    uploadAssets: (files, stage) => {
-      assert.equal(stage, '.zt-stage-test'); assert.ok(oldAssets);
-      events.push('upload');
-      return failure === 'upload' ? Promise.reject(new Error('connection lost')) : Promise.resolve();
-    } });
+async function install(failure, allow = true) {
+  const a = src.indexOf("  document.getElementById('file').onchange ="), b = src.indexOf('  /* your font:', a);
+  const input = {}, calls = [], failures = [], scheduled = [];
+  let release;
+  const file = {name: 'A.ztheme'}, response = {ok: failure !== 'http', text: () => Promise.resolve(
+    failure === 'http' ? 'CRC mismatch' : JSON.stringify({theme: 'A'}))};
+  const c = vm.createContext({ document: {getElementById: () => input}, source: 'unsaved', loaded: 'old',
+    unsavedOk: () => allow, themeSafe: s => s, themeFound: () => 'A', uploadName: s => s,
+    confirm: () => true, enc: encodeURIComponent, status() {}, fail: e => failures.push(e.message),
+    setTimeout: fn => scheduled.push(fn), location: {reload: () => calls.push('reload')},
+    upPost: (url, body) => { calls.push({url, body}); return new Promise((resolve, reject) => {
+      release = () => failure === 'upload' ? reject(Error('connection lost')) : resolve(response);
+    }); } });
   vm.runInContext(src.slice(a, b), c);
-  let failed = false;
-  await c.installTheme('new', {}, 'A').catch(() => { failed = true; });
-  if (failure) { assert.ok(failed && oldAssets && aborted && !committed); }
-  else {
-    assert.ok(committed && !aborted);
-    assert.ok(events.indexOf('upload') < events.findIndex(p => p.includes('/commit')));
-    assert.ok(events.some(p => p.startsWith('/theme.js?name=.zt-stage-test')));
+  input.onchange({target: {files: [file], value: 'A.ztheme'}});
+  if (!allow) { assert.equal(calls.length, 0); return; }
+  assert.equal(c.loaded, 'old', 'upload must not mark unsaved changes saved');
+  assert.equal(calls[0].body, file); assert.equal(calls[0].url, '/install?name=A.ztheme&replace=A');
+  release(); await flush();
+  if (failure) {
+    assert.equal(failures.length, 1); assert.equal(c.loaded, 'old'); assert.equal(scheduled.length, 0);
+  } else {
+    assert.equal(failures.length, 0); assert.equal(c.loaded, 'unsaved'); assert.equal(scheduled.length, 1);
+    scheduled[0](); assert.equal(calls.at(-1), 'reload');
   }
 }
 (async () => {
-  await applyDuringEdit();
-  for (const failure of ['upload', 'text', 'commit', null]) await install(failure);
-  console.log('Editor safety tests passed: unsaved edits, staged upload/write/commit failures, successful install.');
+  await applyDuringEdit(); await applyDuringEdit(true); await applyDuringEdit(false, 'Other');
+  for (const failure of ['upload', 'http', null]) await install(failure);
+  await install(null, false);
+  console.log('Editor safety tests passed: Apply snapshots, stale-theme guards, server install, upload/HTTP failures and cancellation.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

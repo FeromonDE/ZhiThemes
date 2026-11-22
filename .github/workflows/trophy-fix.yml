@@ -1,7 +1,6 @@
 name: ZhiThemes trophy fix
 on:
-  push:
-    branches: [fix/trophy-widget]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -34,6 +33,8 @@ jobs:
           node theme/test_trophy_screen.js
           node theme/test_reflection.js
           node theme/test_editor_safety.js
+          python3 theme/test_io_safety.py
+          python3 theme/test_theme_migration.py
           for app in home hub settings trophy; do
             THEME_APP="$app" HARNESS_HOOKS=1 HARNESS_ANIM=1 node theme/theme_harness.js theme/theme.js > "$RUNNER_TEMP/harness.json"
             python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["errors"] == 0' "$RUNNER_TEMP/harness.json"
@@ -71,7 +72,7 @@ jobs:
           sha256sum release/ZhiThemes.elf > release/ZhiThemes.elf.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: ZhiThemes-build385
+          name: ZhiThemes-build441
           path: |
             release/ZhiThemes.elf
             release/ZhiThemes.elf.sha256

@@ -27,6 +27,7 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_dump_bundle.hpp"
 #include "zt_title_names.hpp"
 #include <errno.h>
+#include "zt_update.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -65,7 +66,10 @@ later version. See LICENSE and NOTICE.  */
 namespace {
 
 constexpr const char *kNamespace = "ReactNative.JavaScriptCore.Executor";
-constexpr const char *kClass = "JSJavaScriptExecutor";
+/* the executor's name on newer firmwares, then on older ones (the first one
+   found wins; the same names as AniketosHEN) */
+constexpr const char *kClasses[] = {"JSJavaScriptExecutor",
+                                    "JSCJavaScriptExecutor"};
 /* Apps the theme script runs in, by the title id in their bundle path */
 struct ThemedApp {
   const char *title_id;
@@ -79,7 +83,7 @@ constexpr ThemedApp kThemedApps[] = {
     {"NPXS40008", "settings"}, /* rnps-settings: Settings (screen map only) */
     {"NPXS40025", "trophy"},   /* rnps-trophy: Trophies (screen map only) */
 };
-/* the theme is Themes/<active>.ztheme (zt_theme_file()) */
+/* the theme is Themes/<active>/theme.json (zt_theme_file()) */
 constexpr const char *kScriptUrl = "theme.js";
 constexpr size_t kScriptMaxLength = 1u << 20;
 /* Diagnostics: the first bundles started and console lines seen are logged */
@@ -169,8 +173,14 @@ SavedToken g_focus_tokens[2] = {{kTokenStroke, {}, false},
 bool g_tokens_dumped = false;
 
 MonoClass *g_executor_class = nullptr;
+/* EvalScript(source, url); older firmwares have EvalScript(source, url,
+   isJsModule): every call passes a third argument, false (a plain script),
+   which the two-argument form never reads */
 MonoMethod *g_eval_script = nullptr;
+bool g_eval_plain = false;
 MonoClassField *g_name_field = nullptr;
+/* the executor's name, when there is no _name field */
+MonoMethod *g_name_getter = nullptr;
 
 void (*g_run_script_orig)(MonoObject *, MonoObject *) = nullptr;
 void (*g_console_log_orig)(MonoString *, int, void *, void *) = nullptr;
@@ -259,10 +269,10 @@ void write_default_script() {
            zt_theme_file().c_str());
     return;
   }
-  /* a factory file does not replace the copy */
-  if (data != kThemeDefaultJs) {
+  /* only a good theme.json replaces the copy */
+  if (!zt_theme_read().empty()) {
     zt_mkdirs(ZT_THEME_BACKUPS);
-    const std::string backup = std::string(ZT_THEME_BACKUPS "/") + zt_theme_name() + ".ztheme";
+    const std::string backup = std::string(ZT_THEME_BACKUPS "/") + zt_theme_name() + ".json";
     write_synced(backup.c_str(), data.data(), data.size());
   }
 }
@@ -283,6 +293,12 @@ std::string bundle_identity(MonoObject *self, MonoObject *bundle) {
     MonoString *name = nullptr;
     mono_field_get_value(self, g_name_field, &name);
     id = Mono_to_String(name);
+  }
+  if (id.empty() && self && g_name_getter) {
+    MonoObject *exc = nullptr;
+    MonoObject *name = mono_runtime_invoke(g_name_getter, self, nullptr, &exc);
+    if (!exc && name)
+      id = Mono_to_String(reinterpret_cast<MonoString *>(name));
   }
   return id;
 }
@@ -1115,6 +1131,16 @@ void set_line_thickness(double thickness) {
  */
 void (*g_bind_orig)(MonoObject *, MonoObject *, MonoObject *) = nullptr;
 
+/* when the frame last attached to something (monotonic ms): moving on the
+   Home moves the frame. A newer ZhiThemes waits for a still Home before it
+   swaps the module (GET /idle): swapping while the Home moves crashed */
+long zt_now_ms() {
+  timespec t = {};
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+std::atomic<long> g_focus_moved_ms{0};
+
 void theme_widget(MonoObject *w) {
   static const char *const kElements[2] = {"lineFocusElement",
                                            "areaFocusElement"};
@@ -1560,6 +1586,7 @@ void hook_margin() {
 
 void Bind_Hook(MonoObject *self, MonoObject *target, MonoObject *render) {
   g_bind_orig(self, target, render);
+  g_focus_moved_ms = zt_now_ms();
   if (self && !g_quit)
     theme_widget(self);
 }
@@ -1634,6 +1661,78 @@ void focus_hide_for_qr(bool on) {
   zt_log("focus: frame %s for the QR code (%d widgets)", on ? "hidden" : "back", n);
 }
 
+/* diagnostic build only, once per session, on firmwares without
+   UISystem.get_StyleManager: every Sce.PlayStation.PUI type whose name
+   speaks of styles, tokens or colours goes to the log with its getters and
+   fields, plus every method of UISystem, to find what holds the colour
+   tokens there */
+void diag_style_probe() {
+#if ZT_DIAG
+  static bool probed = false;
+  if (probed || !g_pui)
+    return;
+  probed = true;
+  const auto interesting = [](const char *s) {
+    if (!s)
+      return false;
+    for (const char *w : {"style", "token", "color", "colour", "theme", "palette"})
+      if (strcasestr(s, w))
+        return true;
+    return false;
+  };
+  /* all = every method; otherwise getters, Instance and the interesting ones */
+  const auto members = [&](MonoClass *k, bool all) {
+    std::string out;
+    void *it = nullptr;
+    while (mono_class_get_methods && mono_method_get_name && out.size() < 3000) {
+      MonoMethod *m = mono_class_get_methods(k, &it);
+      if (!m)
+        break;
+      const char *n = mono_method_get_name(m);
+      if (!n || (!all && strncmp(n, "get_", 4) != 0 && !interesting(n) && !strcasestr(n, "instance")))
+        continue;
+      out += out.empty() ? "" : ",";
+      out += n;
+    }
+    it = nullptr;
+    std::string fields;
+    while (mono_class_get_fields && mono_field_get_name && fields.size() < 1000) {
+      MonoClassField *f = mono_class_get_fields(k, &it);
+      if (!f)
+        break;
+      const char *n = mono_field_get_name(f);
+      if (!n || (!all && !interesting(n) && !strcasestr(n, "instance")))
+        continue;
+      fields += fields.empty() ? "" : ",";
+      fields += n;
+    }
+    return out + " | fields " + (fields.empty() ? "-" : fields);
+  };
+  if (MonoClass *ui = mono_class_from_name(g_pui, "Sce.PlayStation.PUI", "UISystem"))
+    zt_log("diag: UISystem members: %s", members(ui, true).c_str());
+  else
+    zt_log("diag: UISystem class missing");
+  if (!mono_image_get_table_rows || !mono_class_get || !mono_class_get_name) {
+    zt_log("diag: style scan unavailable (rows=%d get=%d name=%d)", mono_image_get_table_rows != nullptr,
+           mono_class_get != nullptr, mono_class_get_name != nullptr);
+    return;
+  }
+  const int rows = mono_image_get_table_rows(g_pui, 2 /* TypeDef */);
+  zt_log("diag: style scan of %d types in Sce.PlayStation.PUI", rows);
+  int hits = 0;
+  for (int i = 2; i <= rows && hits < 120; ++i) { /* row 1 = <Module> */
+    MonoClass *k = mono_class_get(g_pui, 0x02000000u | (uint32_t)i);
+    const char *n = k ? mono_class_get_name(k) : nullptr;
+    if (!interesting(n))
+      continue;
+    const char *ns = mono_class_get_namespace ? mono_class_get_namespace(k) : nullptr;
+    ++hits;
+    zt_log("diag: style type %s.%s: %s", ns ? ns : "?", n, members(k, false).c_str());
+  }
+  zt_log("diag: style scan done, %d types", hits);
+#endif
+}
+
 void apply_focus_color(const std::string &script) {
   if (!g_pui) {
     zt_log("focus: Sce.PlayStation.PUI image missing");
@@ -1646,16 +1745,25 @@ void apply_focus_color(const std::string &script) {
   MonoObject *exc = nullptr;
   MonoObject *sm =
       get_sm ? mono_runtime_invoke(get_sm, nullptr, nullptr, &exc) : nullptr;
-  if (!sm || exc) {
-    zt_log("focus: UISystem.StyleManager unavailable");
-    return;
+  /* older firmwares (6.02, 7.00) have no UISystem.StyleManager: only the
+     colour tokens need it. The frame itself (colour table = line and glow,
+     thickness, gap, corners, shimmer) goes through FocusRenderManager and
+     the focus widgets, so it is still applied. */
+  if (exc)
+    sm = nullptr;
+  MonoObject *colours = sm ? token_dictionary(sm, "ActiveColorToken") : nullptr;
+  if (!colours) {
+    static bool told = false;
+    if (!told) {
+      told = true;
+      zt_log("focus: UISystem.StyleManager unavailable: colour tokens skipped, "
+             "frame colour, glow and size still applied");
+    }
+    diag_style_probe();
   }
-  MonoObject *colours = token_dictionary(sm, "ActiveColorToken");
-  if (!colours)
-    return;
   /* debug mode (Logs tab): every colour and shape token of this firmware
      goes to Dumps/<firmware>/, to compare consoles */
-  if (!g_tokens_dumped && zt_debug_on()) {
+  if (colours && !g_tokens_dumped && zt_debug_on()) {
     g_tokens_dumped = true;
     dump_tokens(colours, token_dump_path("tokens_color.txt").c_str(), true);
     if (MonoObject *shapes = token_dictionary(sm, "ActiveShapeToken"))
@@ -1682,12 +1790,15 @@ void apply_focus_color(const std::string &script) {
                          channel("focusGlowB", 255),
                          unit("focusGlowAlpha", 1)};
 
-  for (SavedToken &t : g_focus_tokens)
-    log_resolved(sm, t.key, "before");
+  if (colours)
+    for (SavedToken &t : g_focus_tokens)
+      log_resolved(sm, t.key, "before");
 
   int in_set = 0;
 
   for (SavedToken &t : g_focus_tokens) {
+    if (!colours)
+      break;
     MonoString *key = mono_string_new(mono_domain_get(), t.key);
     void *get_args[1] = {key};
     if (!t.saved) {
@@ -1715,11 +1826,13 @@ void apply_focus_color(const std::string &script) {
     call(colours, "set_Item", 2, set_args, t.key, &written);
     in_set += written;
   }
-  zt_log("focus: tokens set (line %s, glow %s%s)",
-                 line_on ? "theme" : "stock", glow_on ? "theme" : "stock",
-                 hide ? ", hidden" : "");
-  for (SavedToken &t : g_focus_tokens)
-    log_resolved(sm, t.key, "after dictionary");
+  if (colours) {
+    zt_log("focus: tokens set (line %s, glow %s%s)",
+                   line_on ? "theme" : "stock", glow_on ? "theme" : "stock",
+                   hide ? ", hidden" : "");
+    for (SavedToken &t : g_focus_tokens)
+      log_resolved(sm, t.key, "after dictionary");
+  }
 
   /* the frames that already exist (see colour_elements) */
   colour_elements(line_on ? line : nullptr, 0, hide);
@@ -1767,6 +1880,8 @@ void apply_focus_color(const std::string &script) {
      with the few entries given, which blanked every other colour (button
      backgrounds, top bar icons) in v7. */
   (void)in_set;
+  if (!colours)
+    return;
   apply_token_overrides(colours, script);
   apply_shape_overrides(sm, script);
 }
@@ -1835,6 +1950,28 @@ bool line_value(const std::string &line, std::string *key, size_t *vstart,
   return *vlen > 0;
 }
 
+/* A text value that names a file stays where theme files live: a plain
+   name (looked up in the theme's own folders), or a full path only under
+   the read-only system / game art folders and ZhiThemes' own folder; never
+   "..". Other texts (colours, modes, labels) have no '/' and pass. */
+bool safe_text(const std::string &s) {
+  for (unsigned char c : s)
+    if (c < 0x20 && c != 9)
+      return false;
+  if (s.find('/') == std::string::npos)
+    return true;
+  if (s.find("..") != std::string::npos)
+    return false;
+  if (s[0] != '/')
+    return true;
+  static const char *const kRoots[] = {"/system/", "/system_ex/", "/preinst/", "/user/appmeta/",
+                                       "/user/app/", "/user/data/ZhiThemes/", "/data/ZhiThemes/"};
+  for (const char *r : kRoots)
+    if (s.compare(0, strlen(r), r) == 0)
+      return true;
+  return false;
+}
+
 /* A theme value is data only: a number, true/false or a 'string' without a
    backslash (a backslash before the closing quote would let the string run
    into the code after it). Anything else is left at the stock value, so a
@@ -1843,7 +1980,8 @@ bool safe_value(const std::string &v) {
   if (v == "true" || v == "false")
     return true;
   if (v.size() >= 2 && v.front() == 39 && v.back() == 39)
-    return v.find((char)92) == std::string::npos && v.find((char)39, 1) == v.size() - 1;
+    return v.find((char)92) == std::string::npos && v.find((char)39, 1) == v.size() - 1 &&
+           safe_text(v.substr(1, v.size() - 2));
   size_t i = v[0] == '-' ? 1 : 0, digits = 0, dots = 0;
   for (; i < v.size(); ++i) {
     if (v[i] >= '0' && v[i] <= '9')
@@ -1905,7 +2043,7 @@ std::string safe_tokens(const std::string &block, int *dropped) {
 
 std::string merged_script() {
   const std::string base(kThemeDefaultJs);
-  const std::string user = read_file(zt_theme_file().c_str());
+  const std::string user = zt_theme_read();
   if (user.empty())
     return base;
   const Block bt = find_block(base, "var THEME");
@@ -2252,7 +2390,8 @@ std::string user_name_js() {
   static bool logged = false;
   if (!logged) {
     logged = true;
-    zt_log("user: id %d name \"%s\"", id, name);
+    /* no name or account id in the log (logs are sent to other people) */
+    zt_log("user: %s", name[0] ? "set" : "none");
   }
   return out + "\"";
 }
@@ -2331,6 +2470,44 @@ std::string logo_sizes_js() {
   }
   if (n)
     zt_log("logos: %d with size", n);
+  return out + "}";
+}
+
+/* the picture sizes of the videos the Home / hub may play (the theme's
+   wallpapers, animated tiles and backgrounds) for globalThis.__ztVideoSizes
+   {"file.mp4": [w, h]}: the player asks the 4K decoder (UHD) only for a
+   file bigger than 1920x1080. Asking UHD for a 1080p file made the PS5
+   offer to stop an app holding the decoder ("Stopping Features"). */
+std::string video_sizes_js() {
+  const std::string dirs[] = {zt_theme_dir("wallpapers"), ZT_CUSTOMTILE, ZT_CUSTOMBG, ZT_LEGACY};
+  std::string out = "{";
+  int n = 0, big = 0;
+  for (const std::string &dir : dirs) {
+    DIR *d = opendir(dir.c_str());
+    if (!d)
+      continue;
+    while (dirent *e = readdir(d)) {
+      const std::string name = e->d_name;
+      if (n >= 400 || name.size() < 5 || name[0] == '.' ||
+          (strcasecmp(name.c_str() + name.size() - 4, ".mp4") != 0 &&
+           strcasecmp(name.c_str() + name.size() - 4, ".m4v") != 0))
+        continue;
+      bool ok_name = true;
+      for (char c : name)
+        if (!(isalnum((unsigned char)c) || c == '.' || c == '-' || c == '_'))
+          ok_name = false;
+      int w = 0, h = 0;
+      if (!ok_name || out.find("\"" + name + "\"") != std::string::npos ||
+          !zt_mp4_size((dir + "/" + name).c_str(), &w, &h) || w > 20000 || h > 20000)
+        continue;
+      if (w > 1920 || h > 1080)
+        ++big;
+      out += std::string(n++ ? "," : "") + "\"" + name + "\":[" + std::to_string(w) + "," + std::to_string(h) + "]";
+    }
+    closedir(d);
+  }
+  if (n)
+    zt_log("videos: %d with size (%d bigger than 1920x1080)", n, big);
   return out + "}";
 }
 
@@ -2559,18 +2736,21 @@ void eval_theme(MonoObject *self, const char *app, unsigned hub_id = 0) {
                              /* game logo sizes (Home) */
                              "globalThis.__ztLogoSizes = " +
                              (strcmp(app, "home") == 0 ? logo_sizes_js() : std::string("{}")) + ";\n" +
+                             /* video sizes (decoder asked per file) */
+                             "globalThis.__ztVideoSizes = " +
+                             (strcmp(app, "home") == 0 || strcmp(app, "hub") == 0 ? video_sizes_js() : std::string("{}")) + ";\n" +
                              "globalThis.__ztCustomBgs = " +
                              (strcmp(app, "home") == 0 || strcmp(app, "hub") == 0 ? ascii_js(custom_tiles_js("custombg"))
                                                                                : std::string("[]")) + ";\n" +
                              ascii_js(script);
   MonoDomain *domain = mono_domain_get();
-  void *args[2] = {mono_string_new(domain, source.c_str()),
-                   mono_string_new(domain, kScriptUrl)};
+  void *args[3] = {mono_string_new(domain, source.c_str()),
+                   mono_string_new(domain, kScriptUrl), &g_eval_plain};
   MonoObject *exc = nullptr;
   mono_runtime_invoke(g_eval_script, self, args, &exc);
   if (exc) {
     MonoString *text = mono_object_to_string(exc, nullptr);
-    zt_log("js: theme.js threw in %s: %.400s", app,
+    zt_logl('E', "js: theme.js threw in %s: %.2000s", app,
                    Mono_to_String(text).c_str());
     return;
   }
@@ -2588,6 +2768,22 @@ std::mutex g_name_lock;
 std::string g_hub_name, g_sent_name;
 MonoObject *g_home_executor = nullptr;
 uint32_t g_home_executor_handle = 0;
+/* the JS thread of that executor (its RunScript comes there). A Home reload
+   makes a new context; the old one can still print THEME-ASK for a moment
+   from its own thread, and using the new executor from there asserts
+   ("Thread access assertion failed") and ShellUI fell ~7 s later (9.60,
+   two editor saves 5 s apart). Only answered on the Home's own thread. */
+pthread_t g_home_thread;
+std::atomic<bool> g_home_thread_set{false};
+MonoObject *home_executor_here() {
+  if (!g_home_executor || !g_home_thread_set.load() || !pthread_equal(g_home_thread, pthread_self())) {
+    static std::atomic<int> logged{0};
+    if (g_home_executor && logged.fetch_add(1) < 5)
+      zt_log("js: Home request from another JS thread (old context after a reload?), not answered there");
+    return nullptr;
+  }
+  return g_home_executor;
+}
 /* the game hub's executor, for requests from the Home (trophies of a game of
    an open folder: "THEME-TROPHY-ASK <id>" from the Home, handed to the hub
    when it prints "THEME-HUBASK", on the hub's own thread) */
@@ -2696,6 +2892,9 @@ std::string js_quote(const std::string &in) {
 }
 
 void deliver_hub_name() {
+  MonoObject *executor = home_executor_here();
+  if (!executor)
+    return; /* stays not sent: the Home's own thread gets it on its next ask */
   std::string name;
   {
     std::lock_guard<std::mutex> lock(g_name_lock);
@@ -2713,10 +2912,10 @@ void deliver_hub_name() {
   const std::string src = ascii_js("globalThis.__themeName && globalThis.__themeName('" +
                                    js_quote(name) + "');");
   MonoDomain *domain = mono_domain_get();
-  void *args[2] = {mono_string_new(domain, src.c_str()),
-                   mono_string_new(domain, "theme-name.js")};
+  void *args[3] = {mono_string_new(domain, src.c_str()),
+                   mono_string_new(domain, "theme-name.js"), &g_eval_plain};
   MonoObject *exc = nullptr;
-  mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
+  mono_runtime_invoke(g_eval_script, executor, args, &exc);
   if (exc) {
     MonoString *text = mono_object_to_string(exc, nullptr);
     zt_log("js: name delivery threw: %.300s", Mono_to_String(text).c_str());
@@ -2932,6 +3131,9 @@ std::string installed_games() {
 }
 
 void deliver_hub_data() {
+  MonoObject *executor = home_executor_here();
+  if (!executor || !g_eval_script)
+    return; /* nothing marked as sent */
   std::vector<std::pair<std::string, std::string>> out;
   {
     std::lock_guard<std::mutex> lock(g_name_lock);
@@ -2943,17 +3145,17 @@ void deliver_hub_data() {
       out.push_back(kv);
     }
   }
-  if (out.empty() || !g_home_executor || !g_eval_script)
+  if (out.empty())
     return;
   static int logged = 0;
   for (const auto &kv : out) {
     const std::string src = ascii_js("globalThis.__themeData && globalThis.__themeData('" +
                                      js_quote(kv.first) + "', '" + js_quote(kv.second) + "');");
     MonoDomain *domain = mono_domain_get();
-    void *args[2] = {mono_string_new(domain, src.c_str()),
-                     mono_string_new(domain, "theme-data.js")};
+    void *args[3] = {mono_string_new(domain, src.c_str()),
+                     mono_string_new(domain, "theme-data.js"), &g_eval_plain};
     MonoObject *exc = nullptr;
-    mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
+    mono_runtime_invoke(g_eval_script, executor, args, &exc);
     if (exc) {
       MonoString *text = mono_object_to_string(exc, nullptr);
       zt_log("js: data delivery threw: %.300s", Mono_to_String(text).c_str());
@@ -2978,7 +3180,7 @@ void deliver_hub_request(unsigned ctx) {
     MonoDomain *domain = mono_domain_get();
     const std::string rf = std::string("globalThis.__themeHubFocus && globalThis.__themeHubFocus(") +
                            (g_hub_focus.load() ? "1" : "0") + ");";
-    void *args[2] = {mono_string_new(domain, rf.c_str()), mono_string_new(domain, "theme-hubfocus.js")};
+    void *args[3] = {mono_string_new(domain, rf.c_str()), mono_string_new(domain, "theme-hubfocus.js"), &g_eval_plain};
     MonoObject *exc = nullptr;
     mono_runtime_invoke(g_eval_script, executor, args, &exc);
     static int rf_logged = 0;
@@ -3006,7 +3208,7 @@ void deliver_hub_request(unsigned ctx) {
   const std::string src = ascii_js("globalThis.__themeTrophyAsk && globalThis.__themeTrophyAsk('" +
                                    js_quote(id) + "','" + js_quote(games) + "','" + js_quote(files) + "');");
   MonoDomain *domain = mono_domain_get();
-  void *args[2] = {mono_string_new(domain, src.c_str()), mono_string_new(domain, "theme-ask.js")};
+  void *args[3] = {mono_string_new(domain, src.c_str()), mono_string_new(domain, "theme-ask.js"), &g_eval_plain};
   MonoObject *exc = nullptr;
   mono_runtime_invoke(g_eval_script, executor, args, &exc);
   static int logged = 0;
@@ -3030,10 +3232,13 @@ void RunScript_Hook(MonoObject *self, MonoObject *bundle) {
     zt_log("js: RunScript '%.200s'%s%s", id.c_str(),
                    app ? " -> " : "", app ? app : "");
   if (app && strcmp(app, "home") == 0) {
+    zt_log_home_started(); /* the Home's bundle runs again (reload watch) */
     if (g_home_executor_handle)
       mono_gchandle_free(g_home_executor_handle);
     g_home_executor_handle = mono_gchandle_new(self, true);
     g_home_executor = self;
+    g_home_thread = pthread_self();
+    g_home_thread_set.store(true);
     std::lock_guard<std::mutex> lock(g_name_lock);
     g_sent_name.clear(); /* the new Home context has no name yet */
     g_sent_data.clear();
@@ -3470,7 +3675,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       return;
     }
     /* "THEME-SET <key> <value>": the Home's Options menu changed the folders;
-       written into theme.ztheme, then the Home and the hub reload with it */
+       written into the theme, then the Home and the hub reload with it */
     /* "THEME-CACHE-KEEP <mosaics|folderbg|icons>|names": what the
        Home uses of cache/; the other old files there go */
     if (text.rfind("THEME-CACHE-KEEP ", 0) == 0) {
@@ -3548,7 +3753,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
     if (text.rfind("THEME-RENAME ", 0) == 0) {
       std::lock_guard<std::mutex> lock(g_rename_lock);
       g_rename_req = text.substr(13, 200);
-      zt_log("js: rename asked (%s)", g_rename_req.c_str());
+      zt_logl('A', "js: rename asked (%s)", g_rename_req.c_str());
       return;
     }
     /* THEME-SETQ: the same without the reload (games uninstalled from a folder) */
@@ -3559,30 +3764,31 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const std::string key = sp == std::string::npos ? "" : text.substr(from, sp - from);
       const std::string value = sp == std::string::npos ? "" : text.substr(sp + 1);
       const bool clean = value.find_first_of("'\\\r\n") == std::string::npos && value.size() < 60000;
-      /* customTileChoice (name): the tiles' custom tile Options menu items;
-         favorites: Add to / Remove from favourites */
-      if ((key != "folders" && key != "customTileChoice" && key != "favorites") || !clean) {
+      /* customTileChoice / customBgChoice: the tiles' custom tile and
+         background Options menu items; favorites: Add to / Remove from favourites */
+      if ((key != "folders" && key != "customTileChoice" && key != "customBgChoice" && key != "favorites") ||
+          !clean) {
         zt_log("js: THEME-SET refused (%s, %zu bytes)", key.c_str(), value.size());
       } else if (key == "favorites") {
         /* console wide: favorites.txt, not the theme */
         if (zt_favorites_set(value)) {
-          zt_log("js: favourites = %.300s", value.empty() ? "(none)" : value.c_str());
+          zt_logl(quiet ? 'I' : 'A', "js: favourites = %.300s", value.empty() ? "(none)" : value.c_str());
           if (!quiet) {
             shellui_request_hub_reload();
             shellui_request_home_reload();
           }
         } else {
-          zt_log("js: favourites: cannot write " ZT_FAVORITES_FILE);
+          zt_logl('W', "js: favourites: cannot write " ZT_FAVORITES_FILE);
         }
       } else if (theme_set_field(key, value)) {
-        zt_log("js: THEME-SET%s %s = %.300s%s", quiet ? "Q" : "", key.c_str(), value.c_str(),
+        zt_logl(quiet ? 'I' : 'A', "js: THEME-SET%s %s = %.300s%s", quiet ? "Q" : "", key.c_str(), value.c_str(),
                        quiet ? "" : "; reload");
         if (!quiet) {
           shellui_request_hub_reload();
           shellui_request_home_reload();
         }
       } else {
-        zt_log("js: THEME-SET %s: cannot write theme.ztheme", key.c_str());
+        zt_log("js: THEME-SET %s: cannot write the theme", key.c_str());
       }
       return;
     }
@@ -3612,15 +3818,16 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
     /* the debug panel (debugOverlay) asks about once a second, from
        the Home's own thread: the numbers go back with __ztStats(json) */
     if (text == "THEME-STATS") {
-      if (!g_home_executor || !g_eval_script)
+      MonoObject *executor = home_executor_here();
+      if (!executor || !g_eval_script)
         return;
       const std::string src = "globalThis.__ztStats && globalThis.__ztStats('" +
                               js_quote(zt_stats_json()) + "');";
       MonoDomain *domain = mono_domain_get();
-      void *args[2] = {mono_string_new(domain, src.c_str()),
-                       mono_string_new(domain, "theme-stats.js")};
+      void *args[3] = {mono_string_new(domain, src.c_str()),
+                       mono_string_new(domain, "theme-stats.js"), &g_eval_plain};
       MonoObject *exc = nullptr;
-      mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
+      mono_runtime_invoke(g_eval_script, executor, args, &exc);
       static int logged = 0;
       if (exc) {
         if (logged++ < 3) {
@@ -3636,16 +3843,17 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
        own thread, when a menu opens) for the themes, USB / Install files and
        the PS5 default state; answered with __ztThemeMenu(json) */
     if (text == "THEME-THEMES") {
-      if (!g_home_executor || !g_eval_script)
+      MonoObject *executor = home_executor_here();
+      if (!executor || !g_eval_script)
         return;
       const std::string json = zt_theme_menu_json();
       const std::string src = ascii_js("globalThis.__ztThemeMenu && globalThis.__ztThemeMenu('" +
                               js_quote(json) + "');");
       MonoDomain *domain = mono_domain_get();
-      void *args[2] = {mono_string_new(domain, src.c_str()),
-                       mono_string_new(domain, "theme-menu.js")};
+      void *args[3] = {mono_string_new(domain, src.c_str()),
+                       mono_string_new(domain, "theme-menu.js"), &g_eval_plain};
       MonoObject *exc = nullptr;
-      mono_runtime_invoke(g_eval_script, g_home_executor, args, &exc);
+      mono_runtime_invoke(g_eval_script, executor, args, &exc);
       static int logged = 0;
       if (exc) {
         if (logged++ < 3) {
@@ -3661,15 +3869,15 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const std::string name = text.substr(15);
       const std::string err = zt_theme_menu_use(name);
       if (err.empty()) {
-        zt_log("js: menu: theme %s in use; reload", name.c_str());
+        zt_logl('A', "js: menu: theme %s in use; reload", name.c_str());
         theme_menu_reload();
       } else
-        zt_log("js: menu: theme %s: %s", name.c_str(), err.c_str());
+        zt_logl('W', "js: menu: theme %s: %s", name.c_str(), err.c_str());
       return;
     }
     if (text == "THEME-THEMEOFF") {
       zt_stock_set(true);
-      zt_log("js: menu: ZhiThemes off (PS5 default); reload");
+      zt_logl('A', "js: menu: ZhiThemes off (PS5 default); reload");
       zt_menu_notify("off (PS5 default). Options on a tile > ZhiThemes to pick a theme again.");
       theme_menu_reload();
       return;
@@ -3678,7 +3886,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const std::string path = text.substr(16);
       const std::string err = zt_theme_menu_install(path, theme_menu_reload);
       if (!err.empty()) {
-        zt_log("js: menu: install %s: %s", path.c_str(), err.c_str());
+        zt_logl('W', "js: menu: install %s: %s", path.c_str(), err.c_str());
         zt_menu_notify(err);
       }
       return;
@@ -3690,10 +3898,10 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const bool on = sp != std::string::npos && text.compare(sp + 1, 1, "1") == 0;
       const std::string err = zt_quick_set(key, on);
       if (err.empty()) {
-        zt_log("js: menu: %s = %s; reload", key.c_str(), on ? "true" : "false");
+        zt_logl('A', "js: menu: %s = %s; reload", key.c_str(), on ? "true" : "false");
         theme_menu_reload();
       } else {
-        zt_log("js: menu: %s: %s", key.c_str(), err.c_str());
+        zt_logl('W', "js: menu: %s: %s", key.c_str(), err.c_str());
         zt_menu_notify(err);
       }
       return;
@@ -3703,21 +3911,40 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       focus_hide_for_qr(text.size() > 14 && text[14] == '1');
       return;
     }
-    /* Options menu > ZhiThemes > Tools: "THEME-TOOL <name>" */
-    if (text.rfind("THEME-TOOL ", 0) == 0) {
-      const std::string tool = text.substr(11, 16);
-      zt_log("js: menu: tool %s", tool.c_str());
-      const std::string err = zt_tool_run(tool, theme_menu_reload);
+    /* Options menu > ZhiThemes > Updates: "THEME-UPDATE <check|install|retry|dismiss|auto1|auto0>" */
+    if (text.rfind("THEME-UPDATE ", 0) == 0) {
+      const std::string cmd = text.substr(13, 16);
+      const std::string err = zt_update_cmd(cmd);
       if (!err.empty()) {
-        zt_log("js: menu: tool %s: %s", tool.c_str(), err.c_str());
+        zt_logl('W', "js: menu: update %s: %s", cmd.c_str(), err.c_str());
         zt_menu_notify(err);
       }
       return;
     }
-    if (text.rfind("THEME", 0) == 0)
-      zt_log("js: %.480s", text.c_str());
-    else if (g_console_lines.fetch_add(1) < kLoggedConsoleLines)
-      zt_log("js: console[%d] %.200s", level, text.c_str());
+    /* Options menu > ZhiThemes > Tools: "THEME-TOOL <name>" */
+    if (text.rfind("THEME-TOOL ", 0) == 0) {
+      const std::string tool = text.substr(11, 16);
+      zt_logl('A', "js: menu: tool %s", tool.c_str());
+      const std::string err = zt_tool_run(tool, theme_menu_reload);
+      if (!err.empty()) {
+        zt_logl('W', "js: menu: tool %s: %s", tool.c_str(), err.c_str());
+        zt_menu_notify(err);
+      }
+      return;
+    }
+    if (text.rfind("THEME", 0) == 0) {
+      /* "THEME [app] E text": theme.js gives the level letter (E W A I D H)
+         after the app; without one it is guessed from the text */
+      char lvl = 0;
+      const size_t b = text.rfind("THEME [", 0) == 0 ? text.find("] ") : std::string::npos;
+      if (b != std::string::npos && b + 3 < text.size() && text[b + 3] == ' ' &&
+          strchr("EWAIDH", text[b + 2])) {
+        lvl = text[b + 2];
+        zt_logl(lvl, "js: %.*s%.3800s", (int)(b + 2), text.c_str(), text.c_str() + b + 4);
+      } else /* "THEME-..." messages no one took: only their start */
+        zt_logl(lvl, "js: %.*s", b != std::string::npos ? 3800 : 480, text.c_str());
+    } else if (g_console_lines.fetch_add(1) < kLoggedConsoleLines)
+      zt_log("js: console[%d] %.1000s", level, text.c_str());
   }
   g_console_log_orig(msg, level, error, userarg);
 }
@@ -3733,6 +3960,67 @@ std::string zt_theme_text(const std::string &src, const char *key) {
 }
 
 std::string theme_script() { return merged_script(); }
+
+namespace {
+/* the THEME values of a theme file, in their order */
+std::vector<std::pair<std::string, std::string>> theme_values(const std::string &src) {
+  std::vector<std::pair<std::string, std::string>> out;
+  const Block b = find_block(src, "var THEME");
+  if (b.from == std::string::npos)
+    return out;
+  const std::string block = src.substr(b.from, b.to - b.from);
+  for (size_t at = 0; at <= block.size();) {
+    size_t end = block.find((char)10, at);
+    if (end == std::string::npos)
+      end = block.size();
+    const std::string line = block.substr(at, end - at);
+    std::string key;
+    size_t vs = 0, vl = 0;
+    if (line_value(line, &key, &vs, &vl))
+      out.emplace_back(key, line.substr(vs, vl));
+    at = end + 1;
+  }
+  return out;
+}
+} // namespace
+
+/* for zt_theme_json.cpp: the "key: value" lines of a THEME block, and
+   whether a value is a plain one */
+std::vector<std::pair<std::string, std::string>> zt_theme_values_of(const std::string &text) {
+  return theme_values(text);
+}
+bool zt_theme_value_ok(const std::string &value) { return !value.empty() && safe_value(value); }
+
+std::string zt_theme_values_text(const std::string &src) {
+  std::string out;
+  for (const auto &kv : theme_values(src))
+    out += kv.first + ": " + (kv.second.size() > 300 ? kv.second.substr(0, 300) + "..." : kv.second) + "\n";
+  return out;
+}
+
+int zt_theme_log_changes(const std::string &before, const std::string &after, const char *who) {
+  const auto old_values = theme_values(before), new_values = theme_values(after);
+  if (new_values.empty())
+    return 0;
+  constexpr int kMaxLines = 40;
+  int changed = 0;
+  for (const auto &kv : new_values) {
+    const std::string *was = nullptr;
+    for (const auto &o : old_values)
+      if (o.first == kv.first) {
+        was = &o.second;
+        break;
+      }
+    if (was && *was == kv.second)
+      continue;
+    if (++changed <= kMaxLines)
+      zt_logl('A', "field %s %.300s -> %.300s (%s)", kv.first.c_str(),
+              was ? was->c_str() : "(new)", kv.second.c_str(), who);
+  }
+  if (changed > kMaxLines)
+    zt_logl('A', "... %d more fields changed (%s)", changed - kMaxLines, who);
+  return changed;
+}
 
 std::string theme_games() {
   std::string home, all;
@@ -3821,7 +4109,7 @@ std::string theme_system_font(const char *sst_name) {
 __attribute__((weak)) int theme_psm_names(int) { return 0; }
 
 
-/* prx.cpp: one boot.log line per start-up step (diagnostic build) */
+/* prx.cpp: one "[boot]" log line per start-up step (diagnostic build) */
 void zt_boot_fine(const char *step);
 
 void install_homeui_js_hooks(MonoImage *react_pui, MonoImage *pui) {
@@ -3855,15 +4143,49 @@ void install_homeui_js_hooks(MonoImage *react_pui, MonoImage *pui) {
   }
   zt_boot_fine("js: old frame files");
 
-  g_executor_class = mono_class_from_name(react_pui, kNamespace, kClass);
+  const char *kClass = nullptr;
+  for (const char *name : kClasses) {
+    g_executor_class = mono_class_from_name(react_pui, kNamespace, name);
+    if (g_executor_class) {
+      kClass = name;
+      break;
+    }
+  }
   zt_boot_fine("js: executor class");
   if (!g_executor_class) {
-    zt_log("js: %s.%s not found", kNamespace, kClass);
+    zt_log("js: no JS executor in %s (tried %s, %s)", kNamespace, kClasses[0],
+           kClasses[1]);
     return;
   }
   g_eval_script =
       mono_class_get_method_from_name(g_executor_class, "EvalScript", 2);
+  int eval_params = g_eval_script ? 2 : 0;
+  if (!g_eval_script) {
+    /* only (string, string, bool): anything else is not the call we make */
+    MonoMethod *three =
+        mono_class_get_method_from_name(g_executor_class, "EvalScript", 3);
+    MonoMethodSignature *sig =
+        three && mono_method_signature ? mono_method_signature(three) : nullptr;
+    bool shape = sig != nullptr;
+    void *iter = nullptr;
+    for (const char *want : {"System.String", "System.String", "System.Boolean"}) {
+      MonoType *type = shape ? mono_signature_get_params(sig, &iter) : nullptr;
+      char *tname = type ? mono_type_get_name(type) : nullptr;
+      shape = tname && strcmp(tname, want) == 0;
+      if (tname && mono_free)
+        mono_free(tname);
+    }
+    if (three && !shape)
+      zt_log("js: %s.EvalScript/3 is not (string, string, bool)", kClass);
+    if (shape) {
+      g_eval_script = three;
+      eval_params = 3;
+    }
+  }
   g_name_field = mono_class_get_field_from_name(g_executor_class, "_name");
+  if (!g_name_field)
+    g_name_getter = find_method(g_executor_class, "get_Name", 0);
+  zt_log("js: executor %s.%s, EvalScript/%d", kNamespace, kClass, eval_params);
   const uint64_t run_script =
       Get_Address_of_Method(react_pui, kNamespace, kClass, "RunScript", 1);
   zt_boot_fine("js: methods found");
@@ -3895,6 +4217,13 @@ bool theme_hook(uint64_t address, void *destination, void **original) {
 }
 
 bool theme_quitting() { return g_quit; }
+
+long theme_idle_ms() {
+  if (!g_bind_orig)
+    return -1;
+  const long moved = g_focus_moved_ms;
+  return moved ? zt_now_ms() - moved : 1000000;
+}
 
 /* for GET /version: hooks in place and hooks found already hooked */
 void theme_status(int *hooks, int *doubles) {
@@ -3930,6 +4259,7 @@ std::string theme_games() { return "[]"; }
 std::string theme_system_font(const char *) { return std::string(); }
 void theme_tick() {}
 bool theme_quitting() { return false; }
+long theme_idle_ms() { return -1; }
 void theme_status(int *hooks, int *doubles) { *hooks = *doubles = 0; }
 int theme_unload() { return 0; }
 

@@ -48,6 +48,14 @@ bool theme_hook(uint64_t address, void *destination, void **original);
 bool theme_quitting();
 void theme_status(int *hooks, int *doubles);
 int theme_unload();
+/* ms since the focus frame last moved on the Home (GET /idle); -1 = not
+   known (the frame hook is not in: PS5 default, or not loaded yet) */
+long theme_idle_ms();
 /* THEME number / string value of theme.js (zt_native_theme.cpp) */
 double zt_theme_number(const std::string &src, const char *key, double fallback);
 std::string zt_theme_text(const std::string &src, const char *key);
+/* "A field <key> <old> -> <new>" lines in the log for the THEME values that
+   differ between two theme files (an editor save); returns how many */
+int zt_theme_log_changes(const std::string &before, const std::string &after, const char *who);
+/* "key: value" lines of a theme file's THEME block (Report a problem) */
+std::string zt_theme_values_text(const std::string &src);

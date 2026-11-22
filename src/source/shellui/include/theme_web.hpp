@@ -22,6 +22,9 @@ later version. See LICENSE and NOTICE.  */
 #include <string>
 
 void theme_web_start();
+/* the video server (127.0.0.1:4445): connections open now, answered and
+   refused since the start */
+void zt_video_counts(int *open, unsigned *accepted, unsigned *refused);
 bool theme_set_field(const std::string &key, const std::string &value);
 /* the same in another theme file */
 bool theme_set_field_in(const std::string &file, const std::string &key, const std::string &value);

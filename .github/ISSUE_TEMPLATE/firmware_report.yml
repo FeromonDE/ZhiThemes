@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         ZhiThemes is only tested on firmware 9.60. A report from another firmware, even "everything works", helps a lot.
-        Please turn on **Debug mode** in the Logs tab first and attach the log.
+        Please turn on **Debug mode** in the Logs tab first, visit the screens, then attach the report from **Report a problem…**.
 
   - type: input
     id: firmware
@@ -45,7 +45,7 @@ body:
     id: log
     attributes:
       label: Log
-      description: Attach the log file (drag it here), or paste it.
+      description: Attach the report or the log file (drag it here).
       render: text
     validations:
       required: true

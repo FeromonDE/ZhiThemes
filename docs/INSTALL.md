@@ -23,9 +23,25 @@ ZhiThemes lives in memory. After a reboot the PS5 is stock again: send `ZhiTheme
 
 Rest mode keeps the theme: ShellUI does not restart, so the Home comes back as you left it. If ShellUI itself restarts (for example after a crash), ZhiThemes is still running in the background and loads the theme again on its own.
 
+## Fork updates
+
+This fork integrates upstream through `4765dbf` while retaining the reflection,
+offline trophy and Assets backup fixes. Official ELF updates are disabled in
+both the module and payload (`ZT_OFFICIAL_UPDATES=0`): neither an update button
+nor a previously staged official ELF may replace this fork. Install a new fork
+ELF manually when one has been built. The upstream update instructions below
+apply to upstream builds, not this fork.
+
 ## Update
 
-Send the new `ZhiThemes.elf`. It asks the running copy to remove its hooks, stops the old background process and loads the new one. You don't need to reboot.
+**Automatic:** ZhiThemes checks GitHub when it starts and once a day. When a new version is out you get a notification, a ❗ in Options > 🎨 ZhiThemes > ⬇ Updates and a button in the editor's header (click the version there to check now). *Download and install* gets it, checks it (signed by the author, size and SHA-256) and starts it right away; after many loads since the PS5 started (2 on 13.xx, 3 below 9.00, else 5) it waits for a restart instead.
+
+- **Payload manager:** the new ELF replaces the old one in its folder, so it also loads at the next boot.
+- **Other loaders / autoload:** the new ELF is kept as `/data/ZhiThemes/Update/ZhiThemes.elf`; copy it to your autoload.
+- **Going back:** for 30 minutes the new version is on trial. If the Home goes down twice in that time, the previous version comes back by itself and the Updates menu offers *Try again* and *Report a problem*.
+- *Check automatically* in the same menu turns the daily check off.
+
+**By hand:** send the new `ZhiThemes.elf`. It asks the running copy to remove its hooks, stops the old background process and loads the new one. You don't need to reboot.
 
 ## Remove
 
@@ -36,14 +52,14 @@ Send the new `ZhiThemes.elf`. It asks the running copy to remove its hooks, stop
 
 - **Safe mode:** if ShellUI crashes twice within 3 minutes, ZhiThemes stops loading the theme and shows "Theme off (safe mode)". Send the payload again after fixing the theme.
 - **After a ShellUI restart** ZhiThemes waits 15 s before putting the theme in again (Logs tab → "Injection after a ShellUI restart", 5–120 s). Rest mode does not restart ShellUI: the theme stays in.
-- **A theme that breaks the Home:** delete (or rename) `/data/ZhiThemes/Themes/<Name>.ztheme` (the name is in `active_theme.txt`) over FTP and send the payload again. `Default` is used if it exists, else ZhiThemes starts off (*PS5 default*); a copy of the previous theme is kept in `Themes/.backup/<Name>.ztheme`.
+- **A theme that breaks the Home:** delete (or rename) `/data/ZhiThemes/Themes/<Name>/theme.json` (the name is in `active_theme.txt`) over FTP and send the payload again. `Default` is used if it exists, else ZhiThemes starts off (*PS5 default*); a copy of the previous theme is kept in `Themes/.backup/<Name>.json`.
 - **Report it:** see [LOGS.md](LOGS.md).
 
 ## Files on the PS5 (`/data/ZhiThemes/`)
 
 | Path | What |
 |---|---|
-| `Themes/<Name>.ztheme` | one theme (values only); you can keep several |
+| `Themes/<Name>/theme.json` | one theme (name, author, description and its values); you can keep several |
 | `Themes/<Name>/wallpapers/` | that theme's wallpapers, overlays, Settings backgrounds, `.mp4` videos |
 | `Themes/<Name>/icons/` | that theme's uploaded icons (top bar, L1/R1, footer, decorations) |
 | `Themes/<Name>/fonts/` | that theme's uploaded fonts |
@@ -60,9 +76,10 @@ Send the new `ZhiThemes.elf`. It asks the running copy to remove its hooks, stop
 | `Logs/` | logs (see [LOGS.md](LOGS.md)) |
 | `Dumps/<firmware>/` | the screen dump and, with debug mode, the colour and shape tokens of this firmware |
 | `steamgrid.key` | your SteamGridDB API key, if you entered one (never put in a theme) |
+| `Update/` | automatic updates: `state.txt`, the previous ELF while a new version is on trial, and `ZhiThemes.elf` when you don't use the payload manager |
 | `watcher.pid`, `inject_count`, `inject_delay`, `debug.on`, `session.open` | small state files of ZhiThemes; leave them alone |
 
-Everything in `Assets/` is yours and the same in every theme. Deleting a theme in the editor deletes its `.ztheme` and its folder. A file two themes share (same bytes) is stored once on the PS5. Files from older versions are moved here automatically on the first start.
+Everything in `Assets/` is yours and the same in every theme. Deleting a theme in the editor deletes its folder (theme.json and files). A file two themes share (same bytes) is stored once on the PS5. Files from older versions are moved here automatically on the first start, and older `Themes/<Name>.ztheme` files are turned into `theme.json` (the old file stays, unused).
 
 ## The editor
 

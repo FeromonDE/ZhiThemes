@@ -18,14 +18,14 @@
     focusX: 0,               /* move only the focused tile, + = right (0) */
     focusY: 0,               /* move only the focused tile, + = down (0) */
     fixDetails: true,        /* keep the details view (arrow down) aligned */
-    hubOffset: 0,            /* hub/library page position: − = lower (down to the bottom of the screen), + = higher (0) */
-    hideRowInLibrary: true,  /* hide the row (tiles + name) at the top while the Game/App Library is open; always on with vertical tiles (false) */
-    libraryPeekDown: 0,      /* px the Game/Apps Library page goes down while only its tile is selected; 0 = off (0) */
-    libraryHideGames: true,  /* keep the Game/App Library page (its games) out of sight until it is opened (false) */
+    hubOffset: 0,            /* not an option any more: always 0 (set after THEME) (0) */
+    hideRowInLibrary: true,  /* not an option any more: always on (set after THEME) (true) */
+    libraryPeekDown: 0,      /* not an option any more: always 0 (set after THEME) (0) */
+    libraryHideGames: false, /* not an option any more: on only when the row is moved or resized (set after THEME) (false) */
     rowSpeed: 1,             /* row slide speed: 1 normal, 0.5 slower, 2 faster (1) */
     rowBounce: false,        /* the row bounces at the end of the slide (false) */
     rowBounceStrength: 0.65, /* bounce strength, 0 to 1 (0.65) */
-    rowMaxGames: 12,         /* games (and folders) in the Games row, 1 to 12; the Store and the Game Library stay (12) */
+    rowMaxGames: 12,         /* games (and folders) in the Games row, 1 to 20; the Store and the Game Library stay; above 12 the row is filled from every installed title (12) */
     rowFastRepeat: true,     /* when pressing several times in a row, the row and animations use the stock speed (true) */
     rowRepeatWindow: 350,    /* ms between presses to count as "in a row"; more = more presses are fast (350) */
     rowX: 0,                 /* move the row horizontally, + = right (0) */
@@ -353,6 +353,7 @@
     bgVignetteSize: 360,        /* how far the vignette reaches into the screen, px (360) */
     bgEdges: 0,                 /* darken the top and the bottom of the screen, 0-1 (0) */
     bgEdgesHeight: 260,         /* height of each edge, px (260) */
+    bgShade: '',                /* the PS5's own dark shade behind the focused tile ('basemat' of the screen background): '' = as the PS5 (an ellipse), 'flat' = even, 'none' = off ('') */
     particlesOn: false,         /* glowing particles rising over the background (false) */
     particlesCount: 40,         /* how many, 1-120 (40) */
     particlesSize: 6,           /* size of the nearest ones, px; far ones are smaller (6) */
@@ -369,6 +370,7 @@
     wallpaper: '',              /* your wallpaper, uploaded from the editor; an .mp4 plays as a video behind the Home ('') */
     wallpaperVideoSound: false, /* .mp4 wallpaper: play its sound (false) */
     wallpaperVideoVolume: 0.5,  /* .mp4 wallpaper: volume of its sound, 0-1 (0.5) */
+    wallpaperVideoFit: 'center', /* .mp4 wallpaper that is not 16:9: 'center' = fills the screen, centred, the rest cut off; 'stretch' = stretched to the screen, nothing cut off ('center') */
     /* --- sounds --- */
     homeMusicOn: false,         /* Home music: your own music on the Home while the focused tile has no music of its own; the .mp4 wallpaper stays silent (false) */
     homeMusic: '',              /* the music file, uploaded from the editor (.mp3 .m4a .aac .wav .at9 .mp4) ('') */
@@ -409,7 +411,7 @@
     avatar: '',                 /* that picture, made with the editor's avatar maker or any file of Assets/avatars; a big GIF is fitted on the PS5 (256 px, 120 frames) and shown still meanwhile ('') */
     avatarCrop: '',             /* the square of a GIF chosen in the avatar maker, 'x,y,side' in its pixels; the PS5 cuts it out ('' = the middle) ('') */
     /* --- logs --- */
-    measureScreen: true,        /* the console tells the editor where each element is, for the Visual tab (true) */
+    measureScreen: false,       /* the console tells the editor where each element is (set by debug mode, not the theme) (false) */
     /* --- bars --- */
     topBarOpacity: 1,           /* opacity of the tabs, icons and clock (1) */
     topBarBgOn: false,          /* show a background behind the top bar (false) */
@@ -447,6 +449,7 @@
     footerBgWidth: 600,         /* footer background: width (600) */
     footerBgHeight: 80,         /* footer background: height (80) */
     footerBgCorners: 40,        /* footer background: corner radius (40) */
+    footerBgPadding: 16,        /* footer background: space around the hints, px (it follows the footer) (16) */
     /* free background boxes (behind descriptions, names...) */
     box1On: false,              /* box 1 (false) */
     box1: '#000000',            /* box 1: colour ('#000000') */
@@ -505,22 +508,22 @@
     deco4Opacity: 1,          /* icon 4: opacity, 0-1 (1) */
     /* --- system screens --- */
     /* Settings and Trophies (their own apps): rows as rounded "pills" over your own background */
-    sysOn: false,               /* turn on the look below in Settings and Trophies (false) */
+    sysOn: true,                /* old switch for the look below (the editor no longer has it: each part has its own off) (true) */
     sysTrophies: true,          /* also in the Trophies list, with its own fields below (true) */
     sysTrophyColor: '#ffffff',  /* Trophies list: background colour of each game row ('#ffffff') */
-    sysTrophyOpacity: 0.08,     /* opacity of that background, 0-1; 0 = none (0.08) */
+    sysTrophyOpacity: 0,        /* opacity of that background, 0-1; 0 = none (0) */
     sysTrophyCorners: 16,       /* corner radius of the game rows (16) */
-    sysTrophyGap: 8,            /* space between the game rows, px (the row gets shorter) (8) */
+    sysTrophyGap: 0,            /* space between the game rows, px (the row gets shorter) (0) */
     sysTrophyBorderColor: '#ffffff', /* colour of a thin line around each game row ('#ffffff') */
     sysTrophyBorderWidth: 0,    /* thickness of that line; 0 = none (0) */
-    sysTrophyNoLine: true,      /* remove the lines between the games (the list separators) (true) */
+    sysTrophyNoLine: false,     /* remove the lines between the games (the list separators) (false) */
     sysRowColor: '#ffffff',     /* background colour of each row ('#ffffff') */
-    sysRowOpacity: 0.08,        /* opacity of that background, 0-1; 0 = no background (0.08) */
+    sysRowOpacity: 0,           /* opacity of that background, 0-1; 0 = no background (0) */
     sysRowCorners: 24,          /* corner radius of the rows (24) */
     sysRowGap: 0,               /* space between the Settings rows, px (0) */
     sysRowBorderColor: '#ffffff', /* colour of a thin line around each row ('#ffffff') */
     sysRowBorderWidth: 0,       /* thickness of that line; 0 = none (0) */
-    sysNoSeparators: true,      /* remove the lines between the rows (true) */
+    sysNoSeparators: false,     /* remove the lines between the rows (false) */
     sysListX: 0,                /* move the Settings list, + = right (0) */
     sysListY: 0,                /* move the Settings list, + = down (0) */
     sysSideColor: '#ffffff',    /* side bar of the Settings pages (Accessibility...): background colour ('#ffffff') */
@@ -580,6 +583,7 @@
     /* --- experimental --- */
     tileAnimAll: false,      /* every tile with an animated picture moves, not only the focused one (a video player each: heavy) (false) */
     tileAnimAllMax: 6,       /* at most this many tiles move at once (the focused one always) (6) */
+    videoResourceTry: '',    /* decoder type every video asks: '' = auto (fullHD first; UHD only if a video bigger than 1920x1080 fails there), 'fullHD', 'UHD', 'none' ('') */
     debugOverlay: false,     /* debug panel on the Home: fps, memory, mono, CPU, temperatures... (like Aniketos' OSD) (false) */
     debugX: 60,              /* debug panel: distance from the left of the screen (60) */
     debugY: 60,              /* debug panel: distance from the top of the screen (60) */
@@ -605,6 +609,7 @@
     foldersVertical: 'grid',    /* folder icon with vertical tiles: 'grid' (2x2 of tall covers), 'stack' (covers stacked) or 'square' (square folder, at the bottom of the tile) ('grid') */
     foldersHorizontal: 'grid',  /* folder picture of the Steam (horizontal) focused tile: 'grid' (4 covers 2:3 in a row), 'icons' (4 square icons in a row), 'stack' (2:3 covers overlapping) or 'square' (square icons, 2 rows) ('grid') */
     foldersBg: 'slices',        /* screen background of a focused folder, made by ZhiThemes from its first 4 games' art: 'slices', 'grid' (mosaic) or 'art' (the first game's art); empty = slices ('slices') */
+    foldersNoSound: false,      /* a selected (closed) folder plays no music; off = the music of its first game, as its game page is that game's (false) */
     foldersStripMax: 0,         /* games shown at a time in an open folder (the rest scroll); 0 = as many as fit (0) */
     foldersHideName: false,     /* hide the name of the highlighted game of an open folder (false) */
     foldersTitle: true,         /* a selected folder shows its name where the game title goes (the folder hides its hub page); with the fake title on, the fake title shows it (true) */
@@ -637,6 +642,51 @@
   /* favourites are console wide (ZhiThemes keeps them in favorites.txt, not
      in the theme): the same list whatever theme is in use */
   if (typeof globalThis.__ztFavorites === 'string') THEME.favorites = globalThis.__ztFavorites;
+  /* Settings / Trophies without the old Own look switch: a theme that had
+     it off shows nothing of its own there (as before) */
+  if (THEME.sysOn === false) {
+    THEME.sysRowOpacity = 0; THEME.sysRowBorderWidth = 0; THEME.sysRowGap = 0; THEME.sysNoSeparators = false;
+    THEME.sysListX = 0; THEME.sysListY = 0; THEME.sysSideOpacity = 0; THEME.sysBgOn = false; THEME.sysBgWallpaper = false;
+    THEME.sysTrophies = false;
+  }
+  if (THEME.sysTrophies === false) {
+    THEME.sysTrophyOpacity = 0; THEME.sysTrophyBorderWidth = 0; THEME.sysTrophyGap = 0; THEME.sysTrophyNoLine = false;
+  }
+  THEME.sysOn = true;
+  THEME.sysTrophies = true;
+  /* folder options the editor no longer has: always their default (an
+     older theme may still carry another value) */
+  THEME.foldersOpenWithX = true;
+  THEME.foldersStripAbove = false;
+  THEME.foldersHideName = true;
+  THEME.foldersTitle = true;
+  /* Options menu options the editor no longer has: the screen stays dark
+     behind it, folder items on, the tile menu at its own place (menuX/Y,
+     0 = where the focused tile is) */
+  THEME.menuNoDim = false;
+  THEME.folderMenu = true;
+  THEME.menuMove = true;
+  /* the game page buttons: no own place (moving them broke the hub), one
+     switch for the game and the Media buttons */
+  THEME.buttonsX = 0; THEME.buttonsY = 0;
+  THEME.hideMediaButtons = !!THEME.hideButtons;
+  /* the Home animations at their normal speed (no longer in the editor) */
+  THEME.animationSpeed = 1;
+  /* folder, message, play info and button animations: always on */
+  THEME.animFolders = true; THEME.animFolderClose = true; THEME.animToast = true;
+  THEME.animFav = true; THEME.animInfo = true; THEME.animButtons = true;
+  /* own pictures (custom tile, background, animated): used when a game has
+     them, else its stock picture; the Options menu switches back */
+  THEME.customTilesOn = true; THEME.customBgOn = true; THEME.tileAnimOn = true;
+  /* video decoder: Auto (FullHD first) */
+  THEME.videoResourceTry = '';
+  /* Game/App Library: the row is always hidden while it is open, the page
+     stays at its stock place and does not peek; its games stay out of sight
+     under the row only when the row was moved or resized (they showed in
+     the wrong place), with the stock row they show as on the PS5 */
+  THEME.hubOffset = 0; THEME.libraryPeekDown = 0; THEME.hideRowInLibrary = true;
+  THEME.libraryHideGames = (Number(THEME.rowX) || 0) !== 0 || (Number(THEME.rowOffsetY) || 0) !== 0 ||
+    (Number(THEME.tileSize) || 106) !== 106 || (Number(THEME.focusSize) || 168) !== 168;
   /* "home", "hub" or "library": ZhiThemes sets it before running this file */
   var APP = globalThis.__themeApp || '?';
   /* debug mode (editor's Logs tab, kept by ZhiThemes in debug.on, not in
@@ -652,11 +702,17 @@
     THEME.debugOverlay = true;
     THEME.screenDump = true;
   }
+  /* where each element is, for the editor's Screen tab: only with debug
+     mode on (the diagnostic build always) */
+  if (!globalThis.__ztDiag) THEME.measureScreen = DEBUG.on;
   /* Settings and Trophies: only the "system screens" fields */
   var SYS_APP = APP === 'settings' || APP === 'trophy';
 
+  /* how many times this file ran in this JS context (health line): above 1
+     = a reload kept the context (and its timers) */
+  globalThis.__ztEvals = (globalThis.__ztEvals || 0) + 1;
   if (globalThis.__theme) return;
-  var T = globalThis.__theme = { done: {}, errors: 0, hooked: false, ctaStyles: [] };
+  var T = globalThis.__theme = { done: {}, doneN: {}, errors: 0, hooked: false, ctaStyles: [] };
   /* ZhiThemes off ("PS5 default" in Options > ZhiThemes, or a USB
      stick with ZhiThemes/no_theme): only the Home runs this file, with the
      factory values, and only adds Options menu > ZhiThemes (afterModule) */
@@ -673,10 +729,47 @@
     THEME.tabFavOn = false;
   }
 
-  function log(msg) {
-    try { console.log('THEME [' + APP + '] ' + msg); } catch (e) {}
+  /* one line in zhithemes.log; lvl = the level letter (E error, W warning,
+     A user action, D debug, H health; none = guessed by ZhiThemes) */
+  function log(msg, lvl) {
+    try { console.log('THEME [' + APP + '] ' + (lvl ? lvl + ' ' : '') + msg); } catch (e) {}
   }
+  function logE(msg) { log(msg, 'E'); }
+  /* flight recorder: short events (keys, testIDs seen for the first time,
+     so also each newly focused item) batched every 100 ms into one D line.
+     D lines go to zhithemes.log only with debug mode on; ZhiThemes always
+     keeps them in its recorder (pasted into the log after a crash). */
+  var bbQueue = [], bbTimer = null, bbIds = Object.create(null), bbIdCount = 0;
+  function bb(ev) {
+    if (bbQueue.length < 60) bbQueue.push(ev);
+    if (bbTimer) return;
+    bbTimer = setTimeout(function () {
+      bbTimer = null;
+      var q = bbQueue;
+      bbQueue = [];
+      if (q.length) log(q.join(' | '), 'D');
+    }, 100);
+  }
+  function bbTestId(id) {
+    if (bbIds[id] === 1 || bbIdCount > 5000) return;
+    bbIds[id] = 1;
+    bbIdCount++;
+    bb('new ' + id);
+  }
+  /* a long text in lines of up to 3000 characters ("name (2/4): ..."): a
+     log line holds up to 4 KB */
+  function logLong(name, text, lvl) {
+    var parts = Math.max(1, Math.ceil(text.length / 3000));
+    /* level I unless told: the guess would see "errors=0" or a field
+       name as a warning */
+    for (var i = 0; i < parts; i++)
+      log(name + (parts > 1 ? ' (' + (i + 1) + '/' + parts + ')' : '') + ': ' + text.slice(i * 3000, (i + 1) * 3000),
+          lvl || 'I');
+  }
+  /* first time: "applied: <name>"; every call is counted (the busiest ones
+     go in the health line) */
   function done(name) {
+    T.doneN[name] = (T.doneN[name] || 0) + 1;
     if (T.done[name]) return;
     T.done[name] = true;
     log('applied: ' + name);
@@ -1379,13 +1472,27 @@
         typeof React.useRef !== 'function')
       return props.children;
     var me = React.useRef(null), st = React.useState(0), bump = st[1];
-    if (!me.current) me.current = {};
+    if (!me.current) me.current = { renders: 0 };
+    /* for the health line: when each copy was mounted, on which tab, and
+       whether it still renders (a copy that never renders again after a
+       bump is no longer on screen: unmounted without its cleanup) */
+    me.current.renders++;
+    me.current.lastRender = Date.now();
     React.useEffect(function () {
       var list = singles[slot] = singles[slot] || [];
+      me.current.born = Date.now();
+      me.current.tab = T.tabSel || '-';
+      me.current.noBack = !!props.noBack;
       var entry = { id: me.current, bump: bump };
       me.current.on = true;
       list.push(entry);
-      if (list.length > 1 && !T.done['layer copies ' + slot]) done('layer copies ' + slot + ': ' + list.length);
+      /* logged only when it reaches a new most (the health line has the
+         count now) */
+      var most = T.copiesMost = T.copiesMost || {};
+      if (list.length > 1 && list.length > (most[slot] || 1)) {
+        most[slot] = list.length;
+        log('layer copies ' + slot + ': ' + list.length + ' (most so far)');
+      }
       list.forEach(function (x) { x.bump(function (n) { return n + 1; }); });
       return function () {
         var i = list.indexOf(entry);
@@ -1465,9 +1572,9 @@
       return children;
     return [React.createElement(ReadyGate, { key: 'theme-ready-gate' }, children)];
   }
-  function single(slot, children) {
+  function single(slot, children, noBack) {
     if (!T.React || !children || !children.length) return children;
-    return [T.React.createElement(Single, { key: 'single-' + slot, slot: slot }, children)];
+    return [T.React.createElement(Single, { key: 'single-' + slot, slot: slot, noBack: noBack }, children)];
   }
   /* 0 on the Home, 1 once it went up to the hub (the small tile in
      the corner with its name); without the lift value, always 0 */
@@ -1542,13 +1649,20 @@
     catch (e) { try { v.setValue(on ? 1 : 0); } catch (e2) {} }
   }
   /* the Media hub (apps) too: its poster name is the game title there */
-  if ((APP === 'hub' || APP === 'media') && hubTitleGated()) {
+  /* where the focus is (hub or Home row), asked every 150 ms: for the
+     gated title, and on older firmwares for their trophy card */
+  function hubFocusRelay150() {
+    if (T.hubFocusAsking) return;
+    T.hubFocusAsking = true;
     globalThis.__themeHubFocus = function (on) { hubTitleShow(!!on, on ? 'hub focused' : 'back on the Home'); };
     setInterval(function () { try { console.log('THEME-HUBASK ' + (globalThis.__ztHubId || '')); } catch (e) {} }, 150);
   }
+  if ((APP === 'hub' || APP === 'media') && hubTitleGated()) hubFocusRelay150();
   /* Home: the game hub page (not the Game/App Library) with isHubFocused */
   function hubFocusRelay(props) {
-    if (APP !== 'home' || !hubTitleGated() || !('isHubFocused' in props) || isLibraryUrl(props.hubUrl)) return;
+    /* also on older firmwares (Haul): their hub's old trophy card is shown
+       only in the hub view */
+    if (APP !== 'home' || !(hubTitleGated() || T.haul) || !('isHubFocused' in props) || isLibraryUrl(props.hubUrl)) return;
     var on = !!props.isHubFocused;
     if (T.hubFocusedNow === on) return;
     T.hubFocusedNow = on;
@@ -2020,7 +2134,7 @@
     var wait = React.useState(false), mounted = wait[0], setMounted = wait[1];
     var tries = React.useState(0), attempt = tries[0], setAttempt = tries[1];
     var restarts = React.useState(0), restart = restarts[0], setRestart = restarts[1];
-    var kinds = ['fullHD', '', 'UHD'];
+    var kinds = videoKinds(props.file, ['fullHD', '', 'UHD']);
     var me = React.useState(function () { return {}; })[0];
     React.useEffect(function () {
       /* one player per video: the focused game is also in the rows of
@@ -2108,11 +2222,24 @@
                          borderRadius: radius * K, transform: [{ scale: 1 / K }] }
     });
     /* not invisible while loading (a hidden native player can stall) */
-    return React.createElement(rn.View, {
-      pointerEvents: 'none',
-      style: { position: 'absolute', left: props.left || 0, top: props.top || 0, width: w, height: h,
-               borderRadius: radius, overflow: 'hidden', opacity: shown ? 1 : 0.01 }
-    }, video);
+    var box = { position: 'absolute', left: props.left || 0, top: props.top || 0, width: w, height: h,
+                borderRadius: radius, overflow: 'hidden', opacity: shown ? 1 : 0.01 };
+    /* fadeMs (animated background): fades in once it plays, from 0.01 */
+    var A = rn.Animated;
+    if (props.fadeMs > 0 && A && A.View && A.Value) {
+      if (!me.fade) me.fade = new A.Value(0.01);
+      if (shown && !me.faded) {
+        me.faded = true;
+        try { A.timing(me.fade, { toValue: 1, duration: props.fadeMs, useNativeDriver: true }).start(); }
+        catch (e) { try { me.fade.setValue(1); } catch (e2) {} }
+      } else if (!shown && me.faded) {
+        me.faded = false;
+        try { me.fade.setValue(0.01); } catch (e) {}
+      }
+      box.opacity = me.fade;
+      return React.createElement(A.View, { pointerEvents: 'none', style: box }, video);
+    }
+    return React.createElement(rn.View, { pointerEvents: 'none', style: box }, video);
   }
   /* jsx: the focused tile's Image + its video over it (null = nothing to play) */
   function animTileWrap(fn, self, args, props) {
@@ -2386,15 +2513,15 @@
     if (!id) return null;
     /* unfocused, a square folder keeps its place (folderSquareView runs later in the jsx hook) */
     if (tileRatio() !== 1 && THEME.folders && folderVerticalStyle() === 'square')
-      try { folderSquareView(props); } catch (e) { T.errors++; log('folder square: ' + e); }
+      try { folderSquareView(props); } catch (e) { T.errors++; logE('folder square: ' + e); }
     /* the folder tile's keys (left/right in the open folder, back
        closes it) are on this view: set before it is made (returned it
        before the jsx hook got to folderTileKeys: the folder did not close) */
     if (THEME.folders || DEBUG.on)
-      try { folderTileKeys(props); } catch (e) { T.errors++; log('folder keys: ' + e); }
+      try { folderTileKeys(props); } catch (e) { T.errors++; logE('folder keys: ' + e); }
     /* this view goes out here, before the jsx hook's own pass */
     if (!PLAIN && props.focusable === true && typeof props.name === 'string' && props.name)
-      try { qrTileKeys(props); } catch (e) { T.errors++; log('about QR keys: ' + e); }
+      try { qrTileKeys(props); } catch (e) { T.errors++; logE('about QR keys: ' + e); }
     return fn(FocusShapeSlot, { id: id, el: fn.apply(self, args) }, args[2]);
   }
   /* jsx inside the <Tile />: image wrapper (testID experience-switcher-<ID>) */
@@ -3007,10 +3134,10 @@
       done('space around the focus');
     }
     if (APP === 'home' && THEME.rowWindow && s.selected0 && s.position0) {
-      try { rowWindow(s); } catch (e) { T.errors++; log('row window: ' + e); }
+      try { rowWindow(s); } catch (e) { T.errors++; logE('row window: ' + e); }
     }
     if (APP === 'home' && (THEME.tileEdgeFade || THEME.rowHideLeft) && s.selected0 && s.position0) {
-      try { edgeFade(s); } catch (e) { T.errors++; log('edge fade: ' + e); }
+      try { edgeFade(s); } catch (e) { T.errors++; logE('edge fade: ' + e); }
     }
     /* rowWindow: the hub view's small tile goes back to the stock place */
     if (APP === 'home' && THEME.rowWindow && s.minimizeExperience0) {
@@ -3043,7 +3170,7 @@
     var create = sheet.create;
     var replaced = function (s) {
       toMark = [];
-      try { styles(s); } catch (e) { T.errors++; log('styles: ' + e); }
+      try { styles(s); } catch (e) { T.errors++; logE('styles: ' + e); }
       var r = create.apply(this, arguments);
       /* create may return another object: the tabs one counts as well */
       if (s && r && typeof r === 'object' && s.spaceSwitcherItemText &&
@@ -3057,7 +3184,7 @@
         T.routeStyle2 = r.route;
       try {
         if (APP === 'home' && s && s.selected0 && s.position0) registerSelected(s, r);
-      } catch (e) { T.errors++; log('selected: ' + e); }
+      } catch (e) { T.errors++; logE('selected: ' + e); }
       /* create may return the same object or numbers: both are marked */
       toMark.forEach(function (p) {
         mark(p[1], s[p[0]]);
@@ -3090,7 +3217,7 @@
           enumerable: true, configurable: true,
           get: function () { return fn; }
         });
-      } catch (e) { log('icon ' + name + ' not replaceable: ' + e); }
+      } catch (e) { log(name + ' not replaceable: ' + e); }
     }
     return o[name] === fn;
   }
@@ -3299,7 +3426,7 @@
     if (pressed(e)) {
       tabMoveSound(step);
       try { ref.focus(); } catch (x) { log('tabs: focus ' + next + ': ' + x); }
-      if ((T.tabStepLogs = (T.tabStepLogs || 0) + 1) <= 6) log('tabs: ' + (step > 0 ? 'right' : 'left') + ' ' + name.slice(15) + ' -> ' + next);
+      if ((T.tabStepLogs = (T.tabStepLogs || 0) + 1) <= 40) log('tabs: ' + (step > 0 ? 'right' : 'left') + ' ' + name.slice(15) + ' -> ' + next);
     }
     return false;
   }
@@ -3434,10 +3561,19 @@
   function pressed(e) { return !e || !e.keyEventType || e.keyEventType === 'Down'; }
   function taken(e) { return !!(e && typeof e === 'object' && e.__zt); }
   function take(e) { if (e && typeof e === 'object') try { e.__zt = true; } catch (x) {} }
+  /* keys our handlers see: always into the flight recorder (in the log only
+     with debug mode on) */
   function keyLog(where, e) {
-    if (!DEBUG.on) return;
+    var text = 'key ' + where + ' ' + (e && e.keyEventType) + (taken(e) ? ' (taken)' : '');
+    /* one press reaches the same handler twice (two key props of one view):
+       once in the recorder */
+    var now = Date.now();
+    if (text === T.keyLogLast && (e === T.keyLogE || now - T.keyLogAt < 40)) return;
+    T.keyLogLast = text;
+    T.keyLogE = e;
+    T.keyLogAt = now;
     T.keyLogs = (T.keyLogs || 0) + 1;
-    if (T.keyLogs <= 60) log('key ' + where + ' type=' + (e && e.keyEventType) + (taken(e) ? ' (taken)' : ''));
+    if (T.keyLogs <= 3000) bb(text);
   }
   function focusIcon(pre) {
     var r = T.iconRefs && T.iconRefs[pre];
@@ -3566,7 +3702,9 @@
   /* every section of the game hub hidden: nothing there takes the focus, and
      going down only showed an empty page; the PS5 itself blocked the
      down key from the row in that case */
-  var HUB_PARTS = ['hideButtons', 'hideTrophies', 'hideFriends', 'hideActivities', 'hideNews',
+  /* (the Play / "…" buttons do not count: with only them the hub page was
+     still empty below, a blank screen) */
+  var HUB_PARTS = ['hideTrophies', 'hideFriends', 'hideActivities', 'hideNews',
                    'hideRecommendations', 'hideTournaments', 'hideCommunity', 'hideHubStore', 'hideAbout'];
   function hubEmpty() {
     for (var i = 0; i < HUB_PARTS.length; i++) if (!THEME[HUB_PARTS[i]]) return false;
@@ -3931,6 +4069,8 @@
     var setTick = React.useState(0)[1];
     var powerRef = React.useRef(null), menuRef = React.useRef(null), anchorRef = React.useRef(null);
     var tgt = React.useState(null), target = tgt[0], setTarget = tgt[1];
+    var pxs = React.useState(null), powerX = pxs[0], setPowerX = pxs[1];
+    var powerHost = React.useRef(null);
     /* the bar button (module 270) is known once Search or Settings has
        drawn: drawn again then */
     React.useEffect(function () {
@@ -3957,6 +4097,26 @@
         p.onLayout = function () { barBoxMeasure(pre); };
       }
       if (THEME.measureScreen) withMeasure(pre, p);
+      /* the Power button's place on the screen: its menu is kept inside the
+         right edge (powerAnchor) */
+      if (pre === 'powerBtn') {
+        var innerRef = p.ref, innerLayout = p.onLayout;
+        p.ref = function (inst) {
+          powerHost.current = inst || null;
+          if (typeof innerRef === 'function') innerRef(inst);
+          else if (innerRef) innerRef.current = inst;
+        };
+        p.onLayout = function (ev) {
+          if (typeof innerLayout === 'function') innerLayout.apply(this, arguments);
+          var h = powerHost.current;
+          if (!h || typeof h.measureInWindow !== 'function') return;
+          try {
+            h.measureInWindow(function (mx) {
+              if (typeof mx === 'number' && (powerX == null || Math.abs(mx - powerX) > 1)) setPowerX(mx);
+            });
+          } catch (e) { if (!T.done['power box']) done('power box: ' + e); }
+        };
+      }
       /* far below the bar (a side bar): the bar goes up out of the screen when
          the Home moves up to a hub / the Game Library, these stayed on it */
       var fade = barLowFade(y);
@@ -3977,7 +4137,7 @@
           var m = menuRef.current;
           if (!T.done['power menu ref']) done('power menu ref (' + (m ? Object.keys(m).concat(Object.keys(Object.getPrototypeOf(m) || {})).join(',').slice(0, 200) : 'none') + ')');
           try { if (m && typeof m.open === 'function') m.open(); else log('power menu: no open()'); } catch (e) { log('power menu open: ' + e); }
-        }), powerAnchor(anchorRef)]));
+        }), powerAnchor(anchorRef, powerX)]));
       var ps = T.rnps;
       if (ps && ps.OptionsMenuPS && ps.MenuListItemPS && ps.MenuListItemPS.Button) {
         var items = POWER_ITEMS.map(function (it) {
@@ -4008,16 +4168,25 @@
   /* The power menu opens at its target: a button low on the screen had the
      menu going out of the bottom. The target is an empty box over the button,
      moved up so the whole menu fits above the last line of the screen. */
-  var POWER_MENU_H = 330, SCREEN_BOTTOM = 1040;
-  function powerAnchor(ref) {
+  /* A button near the right edge had the menu going out of the right side
+     (it opens beside its target): the box also moves left, by the button's
+     measured place, so the menu's width fits before the right edge. */
+  var POWER_MENU_H = 330, SCREEN_BOTTOM = 1040, POWER_MENU_W = 480, SCREEN_RIGHT = 1880;
+  function powerAnchor(ref, screenX) {
     var React = T.React, rn = T.rn;
     var sc = THEME.powerBtnScale > 0 ? THEME.powerBtnScale : 1;
     var top = BAR_TOP + (THEME.iconsY || 0) + (THEME.powerBtnY || 0);
     var bottom = top + 28 + 28 * sc; /* scaled from the centre of its 56 px */
     var dy = Math.min(0, SCREEN_BOTTOM - POWER_MENU_H - bottom);
     if (dy && !T.done['power menu anchor']) done('power menu anchor ' + Math.round(dy) + ' px');
+    var dx = 0;
+    if (typeof screenX === 'number') {
+      var right = screenX + 104 * (sc - 1) + 104 * sc; /* a scaled button is drawn (s-1) of its width further right */
+      dx = Math.min(0, SCREEN_RIGHT - POWER_MENU_W - right);
+      if (dx && !T.done['power menu anchor x']) done('power menu anchor x ' + Math.round(dx) + ' px (button at ' + Math.round(screenX) + ')');
+    }
     return React.createElement(rn.View, { key: 'zt-power-anchor', ref: ref, collapsable: false, pointerEvents: 'none',
-      style: { position: 'absolute', left: 0, top: dy / sc, width: 104, height: 56 } });
+      style: { position: 'absolute', left: dx / sc, top: dy / sc, width: 104, height: 56 } });
   }
   /* the bar buttons' top on the screen (measured: y = 21 + iconsY + …Y) */
   var BAR_TOP = 21;
@@ -4407,6 +4576,8 @@
       t.bgImagePath = { uri: '/user/app/' + first.id + '/sce_sys/pic0.dds' };
       t.bgMusicPath = null;
     }
+    /* foldersNoSound: the folder tile had its first game's music */
+    if (THEME.foldersNoSound) t.bgMusicPath = null;
     var src = t.iconPath && t.iconPath.uri || '';
     var path = f.icon ? folderIconPath(f.icon)
                       : first.icon;
@@ -4599,6 +4770,7 @@
                       'localConceptId', 'pic0PathWithTs', 'pinnedStatus', 'sndPathWithTs', 'titleId', 'titleName'];
   var APP_SORT = [{ fieldName: 'sortPriority', ordering: 'ascend' }, { fieldName: 'altPinnedStatus', ordering: 'descend' },
                   { fieldName: 'lastAccessDate', ordering: 'descend' }];
+  var APP_SORT_OLD = [{ fieldName: 'sortPriority', ordering: 'ascend' }, { fieldName: 'lastAccessDate', ordering: 'descend' }];
   /* the query again in `delay` ms: after a failure (it failed right
      after each reload, BuildOrderClause), when a folder opens, after Delete
      in the Options menu (a game of a folder leaves no trace in the row) */
@@ -4619,7 +4791,9 @@
     T.titlesGet = getItems;
     /* the order: the one that worked last, else ours, else the Home's;
        each failure tries the next (BuildOrderClause NullReference) */
-    var sorts = [T.goodSort, APP_SORT, T.appSort, [{ fieldName: 'lastAccessDate', ordering: 'descend' }]]
+    /* older Homes (4.03) have no altPinnedStatus column: the query failed
+       at each reload before the next order worked */
+    var sorts = [T.goodSort, T.haul ? APP_SORT_OLD : APP_SORT, T.appSort, [{ fieldName: 'lastAccessDate', ordering: 'descend' }]]
       .filter(function (s, i, all) { return s && all.indexOf(s) === i; });
     var sortUsed = sorts[(T.titlesFails || 0) % sorts.length];
     var spaces = ['game', 'media'], got = {}, left = spaces.length, failed = false;
@@ -4700,17 +4874,97 @@
   }
   /* rowMaxGames = how many games (folder tiles count too) the Games row
      keeps; the system tiles (Game Library at the end) all stay. Only the list
-     with the Game Library and without the Media one (NPXS40139) */
-  var limitLogs = 0;
-  function rowLimit(items) {
+     with the Game Library and without the Media one (NPXS40139). Also at 12:
+     the Home's row takes 14 items at most (Store + 12 + Game Library), and
+     folder tiles put in the place of their games made it longer, so the
+     Game Library fell off the end (3 folders + 12 = 13 icons) */
+  var limitLogs = 0, fillRowLogs = 0;
+  function rowMaxWanted() {
     var max = Math.floor(Number(THEME.rowMaxGames));
-    if (!(max >= 1 && max < 12) || !Array.isArray(items)) return items;
+    return max >= 1 && max <= 20 ? max : 12;
+  }
+  /* the Home's row length: DEFAULT_MAX_TILES (14 = Store + 12 + Game
+     Library) is also the contentLimit of its query; above 12 games the
+     theme makes it rowMaxGames + 2 (moreTiles) */
+  function rowItemsMax() { return Math.max(14, rowMaxWanted() + 2); }
+  /* the row's length the Home really uses is the module's default export,
+     an atom: get(setting 'switcherSize') || 14 (the fetch asks that many
+     and cuts the list there; DEFAULT_MAX_TILES is only a fallback): its
+     read gives at least rowMaxGames + 2 */
+  function moreTiles(exp) {
+    if (APP !== 'home' || !exp || typeof exp !== 'object' || typeof exp.DEFAULT_MAX_TILES !== 'number' ||
+        rowMaxWanted() <= 12) return;
+    var want = rowItemsMax();
+    if (exp.DEFAULT_MAX_TILES !== want) {
+      var was = exp.DEFAULT_MAX_TILES;
+      try { exp.DEFAULT_MAX_TILES = want; } catch (e) {}
+      if (exp.DEFAULT_MAX_TILES === want) done('row tiles ' + was + ' -> ' + want);
+      else log('row: DEFAULT_MAX_TILES not replaceable');
+    }
+    var a = exp['default'];
+    if (!a || typeof a !== 'object' || typeof a.read !== 'function' || a.read.__theme) return;
+    var read = a.read, sizeLogs = 0;
+    var more = function () {
+      var v = read.apply(this, arguments);
+      if (v && typeof v.then === 'function') return v;
+      var n = typeof v === 'number' && v > 0 ? v : 14;
+      if (sizeLogs++ < 3) log('row: switcher size ' + v + ' -> ' + Math.max(n, want));
+      return Math.max(n, want);
+    };
+    more.__theme = true;
+    try { a.read = more; } catch (e) {}
+    if (a.read === more) done('row switcher size ' + want);
+    else log('row: switcher size atom not replaceable');
+  }
+  function gameRow(items) {
+    if (!Array.isArray(items)) return false;
     var game = false, media = false;
     items.forEach(function (r) {
       if (r && r.titleId === 'NPXS40071') game = true;
       if (r && r.titleId === 'NPXS40139') media = true;
     });
+    return game && !media;
+  }
+  /* rowMaxGames above 12: the Home's list (the titles marked for the row)
+     may stop short of it; the next ones of every installed title (same
+     order) fill it, before the system tiles at the end */
+  function rowFill(items) {
+    var max = rowMaxWanted(), all = T.allRecords && T.allRecords.game;
+    if (APP !== 'home' || max <= 12 || !all || !gameRow(items)) return items;
+    var have = {}, count = 0;
+    items.forEach(function (r) {
+      if (!r || typeof r.titleId !== 'string') return;
+      have[r.titleId] = true;
+      if (r.titleId.indexOf('NPXS') !== 0) count++;
+    });
+    if (count >= max) return items;
+    var inside = {}, hidden = T.hideInItems ? removedIds() : {}, now = Date.now();
+    folderList().forEach(function (f) { f.ids.forEach(function (id) { inside[id] = true; }); });
+    var extra = [];
+    all.forEach(function (r) {
+      if (count + extra.length >= max || !r || typeof r.titleId !== 'string' || have[r.titleId] || inside[r.titleId] ||
+          hidden[r.titleId] || r.titleId.indexOf('NPXS') === 0 ||
+          (T.leftRow && T.leftRow[r.titleId] && now - T.leftRow[r.titleId] < 600000)) return;
+      extra.push(r);
+    });
+    if (!extra.length) return items;
+    var end = items.length;
+    while (end > 0 && items[end - 1] && /^NPXS/.test(items[end - 1].titleId)) end--;
+    if (fillRowLogs++ < 6) log('row: ' + count + ' items from the Home, ' + extra.length + ' more from all titles (rowMaxGames ' + max + ')');
+    return items.slice(0, end).concat(extra, items.slice(end));
+  }
+  function rowLimit(items) {
+    var max = rowMaxWanted(), ROW_ITEMS_MAX = rowItemsMax();
+    if (!Array.isArray(items)) return items;
+    var game = false, media = false, sys = 0;
+    items.forEach(function (r) {
+      if (r && r.titleId === 'NPXS40071') game = true;
+      if (r && r.titleId === 'NPXS40139') media = true;
+      if (!r || typeof r.titleId !== 'string' || r.titleId.indexOf('NPXS') === 0) sys++;
+    });
     if (!game || media) return items;
+    /* the system tiles all stay: the games get what is left of the 14 */
+    max = Math.max(1, Math.min(max, ROW_ITEMS_MAX - sys));
     var kept = 0, res = items.filter(function (r) {
       if (!r || typeof r.titleId !== 'string' || r.titleId.indexOf('NPXS') === 0) return true;
       return ++kept <= max;
@@ -4756,7 +5010,7 @@
       try {
         if (res && typeof res === 'object' && Array.isArray(res.items)) {
           notePlayed(res.items);
-          var items = ownBgRecords(rowLimit(folderRecords(res.items)));
+          var items = ownBgRecords(rowLimit(rowFill(folderRecords(hiddenRecords(res.items)))));
           if (items !== res.items) {
             var copy = {};
             for (var k in res) copy[k] = res[k];
@@ -4778,7 +5032,7 @@
       var r = original.apply(this, arguments);
       if (!r || typeof r.then !== 'function') return patch(r);
       return r.then(function (res) {
-        if (T.allRecords || !hidesFolderGames(res)) return patch(res);
+        if (T.allRecords || !(hidesFolderGames(res) || (rowMaxWanted() > 12 && gameRow(res && res.items)))) return patch(res);
         /* the row's games that are in folders are replaced with the
            next titles: the first time, every title is asked for now */
         return new Promise(function (ok) {
@@ -4839,9 +5093,72 @@
     var out = [];
     if (APP !== 'home') return out;
     if (THEME.tabRecentOn) out.push({ id: 'zt_recent', name: THEME.tabRecentName || 'Recently played' });
-    if (THEME.tabFavOn) out.push({ id: 'zt_fav', name: THEME.tabFavName || 'Favourites' });
+    /* older Homes (4.03): an empty Favourites tab left only the hidden Game
+       Library tile in the row and the keys never came back (L1/R1 dead
+       until a reload), so there the tab shows once it has a game */
+    if (THEME.tabFavOn && !(T.haul && !favList().length))
+      out.push({ id: 'zt_fav', name: THEME.tabFavName || 'Favourites' });
     if (THEME.tabNeverOn) out.push({ id: 'zt_never', name: THEME.tabNeverName || 'Never played' });
     return out;
+  }
+  /* Older Homes (4.03): every tab's list comes from one call,
+     fetchTitleByUserId (module with spaceIds + itemColumnForConcept), an
+     array in the order of spaceIds; the row keeps the first 11 of each. Our
+     tabs never reach setSearchCondition there, so their lists are made here
+     from every title (tabFilter), like tabItems does on newer Homes. */
+  function hookTitleFetch(exp, id) {
+    if (APP !== 'home' || !exp || !Array.isArray(exp.spaceIds) || !exp.itemColumnForConcept) return;
+    var inst = exp.default;
+    if (!inst || typeof inst.fetchTitleByUserId !== 'function' || inst.fetchTitleByUserId.__theme) return;
+    var orig = inst.fetchTitleByUserId, ids = exp.spaceIds;
+    var w = function () {
+      var r = orig.apply(this, arguments);
+      if (!r || typeof r.then !== 'function' || !extraTabs().length) return r;
+      return r.then(function (a) {
+        /* newer Homes asked for our tabs themselves (tabItems): nothing to do */
+        var need = ids.some(function (sp) { return extraTab(sp) && !T.done['tab query ' + sp]; });
+        if (!need) return a;
+        if (T.allRecords) return tabAnswers(ids, a);
+        /* every title comes a moment after the Home starts: wait a little */
+        return new Promise(function (ok) {
+          var went = false, go = function () { if (!went) { went = true; ok(tabAnswers(ids, a)); } };
+          (T.allWaiters = T.allWaiters || []).push(go);
+          setTimeout(go, 1500);
+        });
+      });
+    };
+    w.__theme = true;
+    try { inst.fetchTitleByUserId = w; } catch (e) {}
+    if (inst.fetchTitleByUserId === w) done('tabs: title fetch of the older Home (module ' + id + ')');
+    else log('tabs: fetchTitleByUserId not replaceable');
+  }
+  function tabAnswers(ids, a) {
+    try {
+      if (!Array.isArray(a)) return a;
+      var out = a.slice(), changed = false;
+      ids.forEach(function (sp, i) {
+        var tab = extraTab(sp);
+        /* a Home that asked for the tab itself went through tabItems */
+        if (!tab || T.done['tab query ' + tab.id]) return;
+        /* every title, else the Games row (without our folder tiles) */
+        var base = T.allRecords && T.allRecords.game ||
+                   ((a[ids.indexOf('game')] && a[ids.indexOf('game')].items) || []).filter(function (r) {
+                     return !(r && typeof r.titleId === 'string' && r.titleId.indexOf(FOLDER) === 0);
+                   });
+        var res = a[i] && typeof a[i] === 'object' ? a[i] : {}, c = {};
+        for (var k in res) c[k] = res[k];
+        c.items = tabFilter(tab.id, base.slice());
+        out[i] = c;
+        changed = true;
+        if (!T.done['tab list (older Home) ' + tab.id])
+          done('tab list (older Home) ' + tab.id + ': ' + c.items.length + ' of ' + base.length +
+               (T.allRecords ? '' : ' (row only, every title not here yet)'));
+      });
+      return changed ? out : a;
+    } catch (e) {
+      log('tabs (older Home): ' + e);
+      return a;
+    }
   }
   function extraTab(id) {
     if (typeof id !== 'string' || id.indexOf('zt_') !== 0) return null;
@@ -4852,9 +5169,13 @@
   function isExtraSpace(v) { return !!extraTab(v); }
   /* when a record was last played (ms); 0 = never. conceptInfo.lastPlayedDate
      is what the Home itself reads (conceptLastPlayedDate) */
+  /* the record's own lastPlayedDate or conceptInfo's, the later valid one
+     (4.03: every title has an empty top-level one, the date is in conceptInfo) */
   function playedAt(r) {
-    var v = r && (r.lastPlayedDate != null && r.lastPlayedDate !== '' ? r.lastPlayedDate
-                                                                     : r.conceptInfo && r.conceptInfo.lastPlayedDate);
+    if (!r) return 0;
+    return Math.max(playedValue(r.lastPlayedDate), playedValue(r.conceptInfo && r.conceptInfo.lastPlayedDate));
+  }
+  function playedValue(v) {
     if (v == null || v === '') return 0;
     var t = typeof v === 'number' ? v : Date.parse(String(v));
     if (!(t > 0) && /^\d+$/.test(String(v))) t = Number(v);
@@ -4868,7 +5189,8 @@
     var m = T.played = T.played || {}, changed = false;
     items.forEach(function (r) {
       if (!r || typeof r.titleId !== 'string' || /^(NPXS|ZTFOLDER)/.test(r.titleId)) return;
-      var t = playedAt(r);
+      /* a query without dates never takes away a date the row gave */
+      var t = Math.max(playedAt(r), m[r.titleId] || 0);
       if (m[r.titleId] !== t) { m[r.titleId] = t; changed = true; }
       if (playedLogs < 4) {
         playedLogs++;
@@ -4995,15 +5317,50 @@
         T.favWaiting = true;
         (T.allWaiters = T.allWaiters || []).push(function () { T.favWaiting = false; refreshTitleRows(); });
       }
-    } else if (tab === 'zt_never') {
-      out = games.filter(function (r) { return !playedAt(r); });
     } else {
-      out = games.filter(function (r) { return playedAt(r) > 0; });
-      out.sort(function (a, b) { return playedAt(b) - playedAt(a); });
-      out = out.slice(0, Math.max(1, Math.floor(Number(THEME.tabRecentMax)) || 12));
+      /* the date of the record, else the one the Home's own row query
+         gave (notePlayed); older firmwares may leave it out of our query */
+      var when = function (r) { return playedAt(r) || (T.played && T.played[r.titleId]) || 0; };
+      if (!T.done['tab dates ' + tab]) {
+        var own = games.filter(function (r) { return playedAt(r) > 0; }).length;
+        var c0 = games[0] && games[0].conceptInfo;
+        /* the raw dates of a title the row says was played */
+        var known = games.filter(function (r) { return T.played && T.played[r.titleId] > 0; })[0];
+        if (known) {
+          try {
+            log('tab dates ' + tab + ': ' + known.titleId + ' lastPlayedDate=' + JSON.stringify(known.lastPlayedDate) +
+                ' conceptInfo.lastPlayedDate=' + JSON.stringify(known.conceptInfo && known.conceptInfo.lastPlayedDate));
+          } catch (e) {}
+        }
+        done('tab dates ' + tab + ': ' + own + ' of ' + games.length + ' with a date, ' +
+             games.filter(function (r) { return when(r) > 0; }).length + ' with the row\'s dates' +
+             (games[0] ? ' (keys ' + Object.keys(games[0]).join(',').slice(0, 160) +
+                         (c0 && typeof c0 === 'object' ? '; conceptInfo ' + Object.keys(c0).join(',').slice(0, 160) : '') + ')' : ''));
+      }
+      if (tab === 'zt_never') {
+        out = games.filter(function (r) { return !when(r); });
+      } else {
+        out = games.filter(function (r) { return when(r) > 0; });
+        out.sort(function (a, b) { return when(b) - when(a); });
+        out = out.slice(0, Math.max(1, Math.floor(Number(THEME.tabRecentMax)) || 12));
+      }
     }
     (T.tabEmpty = T.tabEmpty || {})[tab] = !out.length;
     favEmptyUpdate();
+    /* an empty row is never drawn right; on older Homes (4.03) an empty
+       tab took the whole Home with it. The library record may not come in
+       this query there: a copy of any record stands in as the (hidden)
+       Game Library tile */
+    if (!out.length && !lib) {
+      var any = null;
+      for (var ai = 0; ai < items.length && !any; ai++) if (items[ai] && typeof items[ai] === 'object') any = items[ai];
+      if (any) {
+        lib = {};
+        for (var lk in any) lib[lk] = any[lk];
+        lib.titleId = 'NPXS40071';
+        if (!T.done['tab stand-in tile']) done('tab stand-in tile (' + tab + ')');
+      }
+    }
     if (lib && !out.length) out.push(lib);
     T.tabRows[out.map(function (r) { return r.titleId; }).join(',')] = tab;
     var line = tab + ': ' + out.length + ' of ' + items.length + ' titles';
@@ -5197,51 +5554,108 @@
     if ((cur === 'game' && next === 'media') || (cur === 'media' && next === 'game')) return null;
     return next;
   }
+  /* a tab change closes the open folder: back in its tab the strip is not
+     drawn, but T.folderOpen still said open, so X on the folder went to
+     stripLaunch (nothing) until O closed it (6.02) */
+  function tabLeftFolder(old, space) {
+    if (!T.folderOpen || old === space) return;
+    log('folder: tab ' + old + ' -> ' + space + ', open folder closed');
+    /* only the state: folderOpenSet('') also puts the folder's background
+       back, which the new tab must not get */
+    T.folderOpen = '';
+    T.folderInStrip = false;
+    T.stripIdx = 0;
+    setTimeout(folderChanged, 0);
+  }
+  /* L1/R1 presses (from which tab, to which; "next tab (by the Home)" =
+     left to the Home's own handler, which only knows Games <-> Media) */
+  var tabKeyLogs = 0;
+  function tabKeyLog(key, e, next) {
+    if (tabKeyLogs >= 3000 || !e || e.keyEventType === 'Repeat') return;
+    tabKeyLogs++;
+    /* flight recorder (D); the tab order only on the first one; the first
+       presses also in the log (6.02: L1/R1 in our tabs did nothing) */
+    var line = 'key ' + key + ' at ' + (T.tabSel || T.space || '?') + ' (space ' + (T.space || '?') + ') -> ' +
+               (next || 'next tab (by the Home)') + (tabKeyLogs === 1 ? ' (order ' + spaceOrder().join(',') + ')' : '');
+    if (tabKeyLogs <= 40) log('tabs: ' + line); else bb(line);
+  }
+  /* our L1/R1 for a pair of the Home's handlers (+ its
+     focusSpaceDefaultPosition), the same functions while they stay the same */
+  var spaceKeyCache = { right: null, left: null, go: null, value: null };
+  function spaceKeys(right, left, go) {
+    var cache = spaceKeyCache;
+    if (cache.right !== right || cache.left !== left || cache.go !== go) {
+      cache.right = right; cache.left = left; cache.go = go;
+      /* held down (Repeat): no more tabs */
+      var still = function (e) {
+        if (e && e.keyEventType === 'Repeat') { take(e); return true; }
+        return false;
+      };
+      var r = function (e) {
+        if (still(e)) return false;
+        var next = e && e.keyEventType === 'Down' ? tabNeighbour(1) : null;
+        tabKeyLog('R1', e, next);
+        return next ? spaceMove(go, next) : right.apply(this, arguments);
+      };
+      var l = function (e) {
+        if (still(e)) return false;
+        var next = e && e.keyEventType === 'Down' ? tabNeighbour(-1) : null;
+        tabKeyLog('L1', e, next);
+        return next ? spaceMove(go, next) : left.apply(this, arguments);
+      };
+      r.__ztTab = l.__ztTab = true;
+      cache.value = { right: r, left: l };
+    }
+    return cache.value;
+  }
+  /* older Homes (6.02): the tab bar component gets onLKeyDown /
+     onRKeyDown / focusSpaceDefaultPosition as props (a useMemo of the Home);
+     the useSpaceFocus swap did not reach it there (no key of ours in the
+     log, L1/R1 in our tabs did nothing: the Home's own only knows Games <->
+     Media). Ours are put on those props too */
+  function spaceKeyProps(props) {
+    if (APP !== 'home' || !props || typeof props.onRKeyDown !== 'function' || typeof props.onLKeyDown !== 'function' ||
+        typeof props.focusSpaceDefaultPosition !== 'function' || props.onRKeyDown.__ztTab || !extraTabs().length) return;
+    var k = spaceKeys(props.onRKeyDown, props.onLKeyDown, props.focusSpaceDefaultPosition);
+    props.onRKeyDown = k.right;
+    props.onLKeyDown = k.left;
+    if (!T.done['tabs: L1/R1 on the bar props']) done('tabs: L1/R1 on the bar props');
+  }
+  function spaceMove(go, space) {
+    try {
+      var sound = T.rn && T.rn.SystemSoundPS;
+      if (sound && typeof sound.playByID === 'function') sound.playByID('psfx_change_space');
+    } catch (e) {}
+    /* the new tab at once (a second quick press starts from it);
+       the bar's own render then sees nothing new */
+    var old = T.tabSel || T.space;
+    tabLeftFolder(old, space);
+    T.space = space;
+    /* the bar's render (tabSeen) will find T.tabSel already moved: the
+       change is logged here */
+    if (old && old !== space) tabAction(old, space);
+    if (T.tabSel && old !== space) {
+      T.tabSel = space;
+      try { spaceMoved(old, space); } catch (e) {}
+      favEmptyUpdate();
+    }
+    go(space);
+    return false;
+  }
   function hookSpaceFocus(exp) {
     var use = exp && exp.useSpaceFocus;
     if (APP !== 'home' || !extraTabs().length || typeof use !== 'function' || use.__theme) return;
-    var cache = { right: null, left: null, go: null, value: null };
-    var move = function (go, space) {
-      try {
-        var sound = T.rn && T.rn.SystemSoundPS;
-        if (sound && typeof sound.playByID === 'function') sound.playByID('psfx_change_space');
-      } catch (e) {}
-      /* the new tab at once (a second quick press starts from it);
-         the bar's own render then sees nothing new */
-      var old = T.tabSel || T.space;
-      T.space = space;
-      if (T.tabSel && old !== space) {
-        T.tabSel = space;
-        try { spaceMoved(old, space); } catch (e) {}
-        favEmptyUpdate();
-      }
-      go(space);
-      return false;
-    };
     var wrapped = function () {
       var focus = use.apply(this, arguments);
       try {
         if (!focus || typeof focus.onRKeyDown !== 'function' || typeof focus.onLKeyDown !== 'function' ||
             typeof focus.focusSpaceDefaultPosition !== 'function')
           return focus;
-        var right = focus.onRKeyDown, left = focus.onLKeyDown, go = focus.focusSpaceDefaultPosition;
-        if (cache.right !== right || cache.left !== left || cache.go !== go) {
-          cache.right = right; cache.left = left; cache.go = go;
-          cache.value = {
-            right: function (e) {
-              var next = e && e.keyEventType === 'Down' ? tabNeighbour(1) : null;
-              return next ? move(go, next) : right.apply(this, arguments);
-            },
-            left: function (e) {
-              var next = e && e.keyEventType === 'Down' ? tabNeighbour(-1) : null;
-              return next ? move(go, next) : left.apply(this, arguments);
-            }
-          };
-        }
+        var k = spaceKeys(focus.onRKeyDown, focus.onLKeyDown, focus.focusSpaceDefaultPosition);
         var own = {};
-        for (var k in focus) own[k] = focus[k];
-        own.onRKeyDown = cache.value.right;
-        own.onLKeyDown = cache.value.left;
+        for (var key in focus) own[key] = focus[key];
+        own.onRKeyDown = k.right;
+        own.onLKeyDown = k.left;
         return own;
       } catch (e) { log('tabs: L1/R1 ' + e); }
       return focus;
@@ -5322,15 +5736,20 @@
     var m = /^ztfav:(add|remove)\?([A-Za-z]{4}\d{5})$/.exec(url);
     if (!m) return;
     var key = m[2].toUpperCase(), list = favList().filter(function (t) { return t !== key; });
+    var hadNone = !favList().length;
     if (m[1] === 'add') list.unshift(key);
     THEME.favorites = list.join(',');
+    /* older Homes show the tab only with games in it: the first one in or
+       the last one out adds / removes the tab, which needs a reload */
+    var tabChange = T.haul && hadNone !== !list.length;
     /* the star over the tile once the menu has gone */
     setTimeout(function () { favEffect(m[1] === 'add', key); }, 250);
     /* the menu closes first; then the rows again, or a reload when the Home
        gave no listeners */
     setTimeout(function () {
-      var n = refreshTitleRows();
-      log('favourites: ' + m[1] + ' ' + key + ' -> ' + (THEME.favorites || '(none)') + (n ? ' (rows again, ' + n + ')' : ' (reload)'));
+      var n = tabChange ? 0 : refreshTitleRows();
+      log('favourites: ' + m[1] + ' ' + key + ' -> ' + (THEME.favorites || '(none)') + (n ? ' (rows again, ' + n + ')' : ' (reload)') +
+          (tabChange ? ' (the Favourites tab ' + (list.length ? 'appears' : 'goes') + ')' : ''));
       try { console.log((n ? 'THEME-SETQ' : 'THEME-SET') + ' favorites ' + THEME.favorites); } catch (e) {}
     }, 400);
   }
@@ -5344,6 +5763,12 @@
      each time ("refresh" 2-3 times) and L1/R1 started from the wrong tab
      ("blocked" until pressed again). The tab change animation, the worm and
      L1/R1 follow this one only. */
+  /* a tab change (native tabs: tabSeen; the extra tabs zt_recent / zt_fav
+     / zt_never: the L1/R1 move): one "A tab" line + the health count */
+  function tabAction(from, to) {
+    T.tabChanges = (T.tabChanges || 0) + 1;
+    log('tab ' + from + ' -> ' + to, 'A');
+  }
   function tabSeen(props) {
     if (APP !== 'home' || typeof props.name !== 'string' || props.name.indexOf('space-switcher-') !== 0 ||
         props.focusable !== true)
@@ -5354,10 +5779,12 @@
     if (!T.homeReady) setTimeout(function () { homeReadySet('tabs'); }, 0);
     if (T.tabSel === sid) return;
     var old = T.tabSel;
+    if (old) tabLeftFolder(old, sid);
     T.tabSel = sid;
     T.space = sid;
     if (old) try { spaceMoved(old, sid); } catch (e) { log('tab animation: ' + e); }
     if (old) lagProbe('tab change ' + old + ' -> ' + sid, 'tabLagLogs');
+    if (old) tabAction(old, sid);
     favEmptyUpdate();
   }
   /* how busy the JS thread is for 1 s after a tab or game change: a 16 ms
@@ -5979,6 +6406,18 @@
         try {
           var id = a && a.item && a.item.id;
           if (typeof id === 'string') T.lastSelId = id;
+          /* flight recorder: each new focused tile of the row */
+          if (typeof id === 'string' && id !== T.bbFocusId) {
+            T.bbFocusId = id;
+            bb('focus ' + id + (a && typeof a.index === 'number' ? ' (' + (a.index + 1) + ')' : '') +
+               ' in ' + (T.tabSel || T.space || '?'));
+          }
+          /* which way the focus went (1 right, -1 left): the animated
+             background slides that way as it goes, like the still one */
+          if (a && typeof a.index === 'number' && typeof id === 'string' && id !== T.dirId) {
+            if (typeof T.dirIdx === 'number' && a.index !== T.dirIdx) T.focusDir = a.index > T.dirIdx ? 1 : -1;
+            T.dirIdx = a.index; T.dirId = id;
+          }
           /* rowWindow: the hub view's small tile follows where the focus stands */
           if (THEME.rowWindow && a && typeof a.index === 'number') rowWindowFocus(a.index);
           /* the focused tile's shape follows the focus */
@@ -6156,11 +6595,29 @@
     log('folder ' + id + ': games from every title (' + games.length + ')');
     return T.folders[id];
   }
+  /* a game started from the strip (or the PS button / a game over the
+     Home): the Home goes to the background and the folder closes, so it is
+     closed when the Home comes back */
+  function folderAwayWatch() {
+    var AS = T.rn && T.rn.AppState;
+    if (T.folderAS || !AS || typeof AS.addEventListener !== 'function') return;
+    T.folderAS = true;
+    try {
+      AS.addEventListener('change', function (st) {
+        if (!/background/i.test(String(st || '')) || !T.folderOpen) return;
+        log('folder: Home in the background, folder closed');
+        try { folderOpenSet(''); } catch (e) { T.folderOpen = ''; log('folder close error: ' + e); }
+      });
+    } catch (e) { T.folderAS = false; log('folder: no AppState ' + e); }
+  }
   function folderOpenSet(id) {
-    if (id) folderEntry(id);
+    if (id) { folderEntry(id); folderAwayWatch(); }
     T.folderOpen = id || '';
     T.stripIdx = 0;
-    pulseButton('x');
+    /* X opened it (the hint pulses); the Options menu renders again right
+       after an open or a close: no Options pulse for that (optionsMenu) */
+    T.folderActAt = Date.now();
+    if (id) pulseButton('x');
     log(id ? 'folder open ' + id : 'folder closed');
     if (id) refreshTitles(200, 'folder open');
     if (id) {
@@ -6306,10 +6763,10 @@
     var on = props.index === (props.sel != null ? props.sel : T.stripIdx);
     var uri = folderGameUri(g);
     var ready = function () { if (props.onReady) props.onReady(g.id); };
-    var corners = Math.round(size * (THEME.tileCorners || 16) / (THEME.tileSize || 106));
-    var ring = THEME.foldersRingColor || (THEME.focusLineColorOn
-      ? 'rgb(' + THEME.focusLineR + ',' + THEME.focusLineG + ',' + THEME.focusLineB + ')' : '#ffffff');
-    var w = THEME.foldersRingWidth >= 0 ? THEME.foldersRingWidth : 4;
+    var corners = folderGameCorners(size);
+    var ring = THEME.focusLineColorOn
+      ? 'rgb(' + THEME.focusLineR + ',' + THEME.focusLineG + ',' + THEME.focusLineB + ')' : '#ffffff';
+    var w = folderRingWidth(size);
     return React.createElement(rn.View, {
       ref: function (r) { T.stripRefs[props.index] = r; }, collapsable: false,
       style: { width: size + 2 * w, height: sizeH + 2 * w, borderRadius: corners + w, padding: w,
@@ -6326,6 +6783,16 @@
           ? React.createElement(AnimTileVideo, { key: animFileFor(uri), file: animFileFor(uri), w: size, h: sizeH, k: 2,
                                                  radius: corners, focused: on })
           : null));
+  }
+  /* an open folder's games look like the row: corners in the same
+     proportion as the tiles, the highlight frame as thick as the focus
+     frame (scaled to the game; 4 px with the stock frame) */
+  function folderGameCorners(size) {
+    return Math.round(size * (THEME.tileCorners || 16) / (THEME.tileSize || 106));
+  }
+  function folderRingWidth(size) {
+    var t = +THEME.focusThickness || 0;
+    return t > 0 ? Math.max(1, Math.round(t * size / (THEME.focusSize || 168))) : 4;
   }
   /* the picture of a game in an open folder: its own tile picture, else its icon */
   function folderGameUri(g) {
@@ -6432,7 +6899,7 @@
     if (gate && gate.readyAt && anim) fresh = Date.now() - gate.readyAt < 300;
     var items = shown.map(function (g, j) {
       var i = first + j;
-      var itemStyle = { marginRight: gap - 2 * (THEME.foldersRingWidth >= 0 ? THEME.foldersRingWidth : 4) };
+      var itemStyle = { marginRight: gap - 2 * folderRingWidth(size) };
       var game = React.createElement(FolderGame, { game: g, index: i, sel: idx, onReady: onReady });
       if (anim)
         return React.createElement(ZtEnter, { key: 'zt-fg-' + g.id, k: animKey, style: itemStyle,
@@ -6453,7 +6920,7 @@
       var w = shown.length * (size + gap) - gap;
       var bgColor = THEME.foldersStripBg || folder.color || THEME.foldersColor || '#24345a';
       var backBox = { position: 'absolute', left: x - pad, top: y - pad, width: w + 2 * pad, height: sizeH + 2 * pad };
-      var backLook = { borderRadius: THEME.foldersStripBgCorners >= 0 ? THEME.foldersStripBgCorners : 24,
+      var backLook = { borderRadius: folderGameCorners(size) + pad,
         backgroundColor: bgColor,
         opacity: THEME.foldersStripBgOpacity >= 0 ? THEME.foldersStripBgOpacity : 0.6 };
       var back = anim
@@ -6503,7 +6970,7 @@
        move / remove / move to another folder; next to the game in the strip
      - row game: "Add to folder"
      A change goes to ZhiThemes as "THEME-SET folders <value>": written into
-     theme.ztheme, then the Home reloads. */
+     the theme, then the Home reloads. */
   function MenuAnchor() {
     var React = T.React, rn = T.rn;
     if (!T.menuAnchor) T.menuAnchor = React.createRef();
@@ -6523,7 +6990,10 @@
     /* the Power button's own menu stays where it is */
     if (props.__ztPower) return;
     if (!T.done['options menu']) done('options menu (' + Object.keys(props).join(', ') + ')');
-    if (THEME.animButtons && Date.now() - (T.menuPulseAt || 0) > 1500) { T.menuPulseAt = Date.now(); pulseButton('options'); }
+    if (THEME.animButtons && Date.now() - (T.menuPulseAt || 0) > 1500 && Date.now() - (T.folderActAt || 0) > 1500) {
+      T.menuPulseAt = Date.now();
+      pulseButton('options');
+    }
     if (THEME.menuMove) {
       var h = nodeOf(T.menuAnchor && T.menuAnchor.current);
       if (h != null) {
@@ -6563,28 +7033,39 @@
       if (it && hide.ids[it.id]) { gone.push(it.id); return false; }
       return true;
     }).map(function (it) {
-      if (!it || !Array.isArray(it.subItems)) return it;
+      /* subItems (Home's list) or subMenu (native records, older Homes) */
+      var key = it && Array.isArray(it.subItems) ? 'subItems' : it && Array.isArray(it.subMenu) ? 'subMenu' : '';
+      if (!key) return it;
       var c = {};
       for (var k in it) c[k] = it[k];
-      c.subItems = menuFilter(it.subItems, hide, gone);
+      c[key] = menuFilter(it[key], hide, gone);
       return c;
     });
   }
   /* the titleId every Options menu asks the system for (OptionMenu.getOptionMenu
      of the native module wrapper); the Game Library's menu has no other way */
   function hookNativeOptionMenu(exp) {
+    /* an object on 9.60; on 4.03 a class with a static getOptionMenu */
     var om = exp && exp.OptionMenu;
-    if (!om || typeof om !== 'object' || typeof om.getOptionMenu !== 'function' || om.getOptionMenu.__theme) return;
+    if (!om || (typeof om !== 'object' && typeof om !== 'function') ||
+        typeof om.getOptionMenu !== 'function' || om.getOptionMenu.__theme) return;
     var orig = om.getOptionMenu;
     var w = function (q) {
       if (q && typeof q.titleId === 'string') {
         T.menuTitleId = q.titleId;
         if (!T.done['native options menu']) done('native options menu (' + q.titleId + ')');
       }
+      var self = this, args = arguments;
+      /* Home of an older firmware: the theme's items come in here */
+      if (APP === 'home' && T.haul && !T.menuFetchHooked && q && typeof q.titleId === 'string') {
+        if (!T.done['options menu items (native)']) done('options menu items (native)');
+        return composeMenu(q.titleId, function () { return orig.apply(self, args); }, nativeMenuItems);
+      }
       return orig.apply(this, arguments);
     };
     w.__theme = true;
     if (!replace(om, 'getOptionMenu', w)) log('native OptionMenu not replaceable');
+    else if (!T.done['native options menu hook']) done('native options menu hook');
   }
   /* Game Library: "Add to folder ..." items at the end of the menu, made like
      its own items (same component); flat, the library has no submenu here */
@@ -6613,6 +7094,7 @@
       var tileId = props.name, onFocus = props.onFocus;
       var f = function () {
         T.libFocusId = tileId;
+        if (tileId !== T.bbFocusId) { T.bbFocusId = tileId; bb('focus ' + tileId + ' in library'); }
         return onFocus.apply(this, arguments);
       };
       f.__ztLib = true;
@@ -6695,7 +7177,7 @@
     /* no theme features (diagnostic build with no theme): menu left stock */
     if (PLAIN) return;
     /* the custom tile items too (as the Home's menu) */
-    var tileItems = id && !/^NPXS/.test(id) ? customMenuItems(id) : [];
+    var tileItems = id && !/^NPXS/.test(id) ? customMenuItems(id).concat(bgMenuItems(id)) : [];
     if ((THEME.folderMenu === false && !tileItems.length) || !id || /^NPXS/.test(id) || T.libMenus.has(items)) return;
     var first = null;
     /* (labels are often translated text objects, not strings) */
@@ -6735,6 +7217,7 @@
         log('library menu: ' + e.url);
         try {
           if (e.url.indexOf('zttile:') === 0) customAction(e.url);
+          else if (e.url.indexOf('ztbg:') === 0) bgAction(e.url);
           else folderAction(e.url);
         } catch (err) { log('library menu error: ' + err); }
       } }, 'zt-lib-' + k);
@@ -6935,6 +7418,9 @@
     }
     var sel = typeof select === 'string' ? select : select && kept.indexOf(select) >= 0 ? FOLDER + kept.indexOf(select) : '';
     log('folder menu: ' + why + ' -> folders: ' + value.slice(0, 300) + (sel ? ' (then select ' + sel + ')' : ''));
+    /* Game / App Library: saved without the reload, so more games can be
+       added; the reload comes when the library is left */
+    if (APP === 'library') { libraryFolderSave(value, mosaics, sel); return; }
     if (quiet) {
       /* nothing the Home lists changes: no reload, this Home goes on with it */
       THEME.folders = value;
@@ -6970,6 +7456,67 @@
         console.log('THEME-SET folders ' + value);
       } catch (e) {}
     }, 400);
+  }
+  /* the library is a page the Home draws, and O out of it does not change
+     its AppState: it tells the Home (data 'zt-libfold'), and the Home
+     reloads when the library page loses the focus (homeLibraryLeft) */
+  function libraryFolderSave(value, mosaics, sel) {
+    THEME.folders = value;   /* the next menu already has it */
+    try {
+      mosaics.forEach(function (m) { console.log('THEME-MOSAIC ' + m); });
+      console.log('THEME-SETQ folders ' + value);
+    } catch (e) {}
+    var p = T.libPending && Date.now() - T.libPending.at < 600000 ? T.libPending : null;
+    var n = ((p && p.n) || 0) + 1;
+    /* the Home's own message ("Added to <folder>") after the reload:
+       every folder of this visit, once each */
+    var texts = ((p && p.texts) || []).slice();
+    if (T.toastNext && T.toastNext.text && texts.indexOf(T.toastNext.text) < 0) texts.push(T.toastNext.text);
+    T.toastNext = null;
+    var added = texts.filter(function (t) { return t.indexOf('Added to ') === 0; });
+    var toast = added.length && added.length === texts.length
+      ? 'Added to ' + added.map(function (t) { return t.slice(9); }).join(', ')
+      : texts[texts.length - 1] || '';
+    T.libPending = { sel: sel, texts: texts, toast: toast, n: n, at: Date.now() };
+    log('folder menu: saved (' + n + ' change' + (n > 1 ? 's' : '') + '), Home reload when the library closes');
+    try {
+      console.log('THEME-DATA zt-libfold ' + JSON.stringify({ t: Date.now(), n: n, sel: sel, toast: toast || '', value: value }));
+    } catch (e) {}
+    setTimeout(folderChanged, 0);
+  }
+  /* Home: folders changed in the library, waiting for it to close */
+  function homeLibFoldData(text) {
+    var s = null;
+    try { s = JSON.parse(String(text)); } catch (e) { return; }
+    if (!s || !s.t || typeof s.value !== 'string' || s.t === T.libFoldSeen) return;
+    T.libFoldSeen = s.t;
+    T.libFold = s;
+    log('folder: ' + s.n + ' change' + (s.n > 1 ? 's' : '') + ' in the library, Home reload when it closes' +
+        (T.libVidIn === true ? '' : ' (library page not focused now)'));
+    /* the library page already left (or never seen with the focus):
+       checked again a moment later */
+    if (T.libVidIn !== true)
+      setTimeout(function () { if (T.libFold === s && T.libVidIn !== true) homeLibraryLeft('library not focused'); }, 1500);
+  }
+  function homeLibraryLeft(why) {
+    var s = T.libFold;
+    if (!s) return;
+    T.libFold = null;
+    log('folder: ' + why + ', Home reload for the folders (' + s.n + ' change' + (s.n > 1 ? 's' : '') + ')');
+    try {
+      /* used: the new Home must not reload again */
+      console.log('THEME-DATA zt-libfold done');
+      if (s.sel) {
+        T.sentSelect = Date.now();
+        console.log('THEME-DATA zt-select ' + JSON.stringify({ id: s.sel, t: T.sentSelect }));
+      }
+      var text = s.toast;
+      if (text && THEME.animToast) {
+        T.sentToast = Date.now();
+        console.log('THEME-DATA zt-toast ' + JSON.stringify({ text: text, t: T.sentToast }));
+      }
+      console.log('THEME-SET folders ' + s.value);
+    } catch (e) { log('folder: library reload error: ' + e); }
   }
   /* after a folder change: the Home selects the folder (or game) the menu
      acted on, once its row and its app list both have it (the Home
@@ -7069,15 +7616,19 @@
      submenu (Themes > Installed one more level down). false = the old
      single list with greyed headers, if the PS5 shows no submenu in a submenu. */
   var THEME_MENU_NESTED = true;
-  /* the on/off fields the menu may change (the C++ keeps the same list) */
-  var QUICK_FIELDS = [
-    ['wallpaperOn', 'Wallpaper'],
-    ['tileAnimOn', 'Animated tiles'],
-    ['customTilesOn', 'Custom tiles'],
-    ['tabRecentOn', 'Recently played tab'],
-    ['tabFavOn', 'Favourites tab'],
-    ['tabNeverOn', 'Never played tab'],
-    ['debugOverlay', 'Debug panel']
+  /* the on/off fields the menu may change, each group a submenu of Quick
+     settings: [id, label, [[field, label]]] (the C++ keeps the same fields) */
+  var QUICK_GROUPS = [
+    ['tabs', 'Extra tabs', [
+      ['tabRecentOn', 'Recently played'],
+      ['tabFavOn', 'Favourites'],
+      ['tabNeverOn', 'Never played']
+    ]],
+    ['hide', 'Hide tiles', [
+      ['hideStore', 'PlayStation Store'],
+      ['hideAllApps', 'All apps'],
+      ['hideGallery', 'Media Gallery']
+    ]]
   ];
   function infoItem(id, label) {
     var it = menuItem(id, label, 'ztthemes:none');
@@ -7089,6 +7640,64 @@
     it.subItems = subs;
     return it;
   }
+  /* something to look at in Updates: a new version, one waiting for a
+     restart, or one that crashed */
+  function updateNews(u) {
+    return !!(u && (u.rolledBack || u.restart || (u.available && !u.crashedBefore)));
+  }
+  function updateAgo(s) {
+    if (!(s >= 0)) return 'not yet';
+    if (s < 90) return 'just now';
+    if (s < 5400) return Math.round(s / 60) + ' min ago';
+    return Math.round(s / 3600) + ' h ago';
+  }
+  /* Options menu > ZhiThemes > Updates (pure) */
+  function updateItems(u, tools) {
+    var items = [], busy = u.state === 'checking' || u.state === 'downloading' || u.state === 'applying';
+    items.push(infoItem('zt-upd-ver', 'Installed: ' + (u.current || tools.version || '?')));
+    if (u.disabled) {
+      items.push(infoItem('zt-upd-disabled', u.reason || 'Official updates are disabled in this fork.'));
+      return items;
+    }
+    if (u.rolledBack) {
+      items.push(infoItem('zt-upd-rb', '⚠ ' + u.rolledBack + ' crashed twice' +
+                          (u.rolledBackTo ? ': back on ' + u.rolledBackTo : ': ZhiThemes went to safe mode')));
+      items.push(menuItem('zt-upd-retry', 'Try ' + u.rolledBack + ' again', 'ztthemes:upd?retry'));
+      var rep = menuItem('zt-upd-report', tools.busy === 'report' ? 'Making the report...' :
+                         'Report the problem (logs ' + (tools.usb ? 'to USB)' : 'in the editor, Logs tab)'),
+                         'ztthemes:tool?report');
+      if (tools.busy) rep.disabled = true;
+      items.push(rep);
+      items.push(menuItem('zt-upd-hide', 'Hide this message', 'ztthemes:upd?dismiss'));
+    }
+    if (u.state === 'downloading')
+      items.push(infoItem('zt-upd-dl', 'Downloading ' + u.latest + (u.progress >= 0 ? '... ' + u.progress + '%' : '...')));
+    else if (u.state === 'applying')
+      items.push(infoItem('zt-upd-ap', 'Starting ' + u.latest + '...'));
+    else if (u.restart)
+      items.push(infoItem('zt-upd-rs', u.restartVersion + ' is installed: restart the PS5 to use it' +
+                          (u.restartPldmgr ? '' : ' (copy Update/ZhiThemes.elf to your autoload)')));
+    else if (u.available && !u.rolledBack) {
+      items.push(infoItem('zt-upd-new', '❗ New version: ' + u.latest + (u.crashedBefore ? ' (crashed here before)' : '')));
+      if (u.notes) items.push(infoItem('zt-upd-notes', u.notes.length > 90 ? u.notes.slice(0, 87) + '...' : u.notes));
+      var mb = u.size > 0 ? ' (' + (u.size / 1048576).toFixed(1) + ' MB)' : '';
+      items.push(menuItem('zt-upd-go', 'Download and install' + mb, 'ztthemes:upd?install'));
+      if (u.loadLimit === 0 || u.loads >= u.loadLimit)
+        items.push(infoItem('zt-upd-rsn', 'It starts after a PS5 restart' +
+                            (u.loadLimit === 0 ? ' on this firmware' : ' (loaded ' + u.loads + ' times already)')));
+    } else if (u.state !== 'error' && u.checkedAgo >= 0 && !u.rolledBack)
+      items.push(infoItem('zt-upd-ok', 'You have the latest version'));
+    if (u.state === 'error' && u.error) items.push(infoItem('zt-upd-err', 'Update: ' + u.error));
+    var chk = menuItem('zt-upd-chk', u.state === 'checking' ? 'Checking...' :
+                       'Check for updates (last: ' + updateAgo(u.checkedAgo) + ')', 'ztthemes:upd?check');
+    if (busy) chk.disabled = true;
+    items.push(chk);
+    items.push(menuItem('zt-upd-auto', 'Check automatically: ' + (u.auto === false ? 'Off' : 'On'),
+                        'ztthemes:upd?' + (u.auto === false ? 'auto1' : 'auto0')));
+    return items;
+  }
+  T.updateItems = updateItems;
+  T.updateNews = updateNews;
   /* the menu's sections, [[id, label, items]] (pure: the harness checks it) */
   function themeMenuSections(d) {
     var off = !!(d.off || d.usbOff), list = (d.list && d.list.themes) || [], active = d.list && d.list.active;
@@ -7130,15 +7739,17 @@
     var out = [['zt-themes-t', '🎨 Themes', themes]];
     /* Quick settings: only with a theme on (they change it) */
     if (!off) {
-      var quick = QUICK_FIELDS.map(function (q) {
-        var on = !!THEME[q[0]];
-        return menuItem('zt-q-' + q[0], q[1] + ': ' + (on ? 'On' : 'Off'), 'ztthemes:qset?' + q[0] + ',' + (on ? 0 : 1));
+      var quick = QUICK_GROUPS.map(function (g) {
+        return subMenu('zt-q-' + g[0], g[1], g[2].map(function (q) {
+          var on = !!THEME[q[0]];
+          return menuItem('zt-q-' + q[0], q[1] + ': ' + (on ? 'On' : 'Off'), 'ztthemes:qset?' + q[0] + ',' + (on ? 0 : 1));
+        }));
       });
       out.push(['zt-quick', '⚡ Quick settings', quick]);
     }
-    /* Updates: later (the ELF from GitHub) */
-    out.push(['zt-upd', '⬇ Updates', [infoItem('zt-upd-ver', 'Installed: ' + (tools.version || '?')),
-                                     infoItem('zt-upd-soon', 'Automatic updates: coming soon')]]);
+    /* Updates: ZhiThemes itself from GitHub (zt_update.cpp) */
+    var u = d.update || {};
+    out.push(['zt-upd', '⬇ Updates' + (updateNews(u) ? '  ❗' : ''), updateItems(u, tools)]);
     /* Tools */
     var t = [];
     t.push(infoItem('zt-t-ed', tools.ip ? 'Editor: http://' + tools.ip + ':' + (tools.port || 4444) : 'Editor: no network'));
@@ -7150,14 +7761,15 @@
                         'Copy logs to USB' + (tools.usb ? '' : ' (no USB stick)'), 'ztthemes:tool?logs');
     if (!tools.usb || busy) logs.disabled = true;
     t.push(logs);
-    /* screen dump: 1st time it turns the dump on (the apps are dumped as
-       they open), 2nd time the files go to the stick and it goes off */
-    if (!off) {
-      var dumping = !!THEME.screenDump && !globalThis.__ztDiag;
-      var dump = menuItem('zt-t-dump', busy === 'dump' ? 'Copying the screen dump...' :
-                          dumping ? 'Screen dump to USB (' + (tools.dumpFiles || 0) + ' files)' + (tools.usb ? '' : ' (no USB stick)') :
-                          'Screen dump to USB (start)', dumping || globalThis.__ztDiag ? 'ztthemes:tool?dump' : 'ztthemes:tool?dumpon');
-      if (busy || ((dumping || globalThis.__ztDiag) && !tools.usb)) dump.disabled = true;
+    /* the diagnostic build only: its screen dump and the decrypted app
+       bundles (Dumps/<fw>/: the dump is always on there) to the stick.
+       The normal build has only the logs (the problem report is made in
+       the editor's Logs tab) */
+    if (globalThis.__ztDiag) {
+      var dump = menuItem('zt-t-dump', busy === 'dump' ? 'Copying the dumps...' :
+                          'Screen dump + decrypted apps to USB (' + (tools.dumpFiles || 0) + ' files)' +
+                          (tools.usb ? '' : ' (no USB stick)'), 'ztthemes:tool?dump');
+      if (busy || !tools.usb) dump.disabled = true;
       t.push(dump);
     }
     out.push(['zt-tools', '🛠 Tools', t]);
@@ -7178,7 +7790,7 @@
     try { console.log('THEME-THEMES'); } catch (e) {}
     if (!T.themeMenu) T.themeMenu = last;
     var d = T.themeMenu, subs = [];
-    var top = subMenu('zt-themes', '🎨 ZhiThemes', subs);
+    var top = subMenu('zt-themes', '🎨 ZhiThemes' + (d && updateNews(d.update) ? '  ❗' : ''), subs);
     if (!d) {
       subs.push(menuItem('zt-th-none', 'ZhiThemes is not answering', 'ztthemes:none'));
       return top;
@@ -7200,13 +7812,14 @@
   function themesAction(url) {
     var m = /^ztthemes:(\w+)\??(.*)$/.exec(url);
     if (!m || m[1] === 'none') return;
-    log('theme menu: ' + url);
+    log('theme menu: ' + url, 'A');
     if (m[1] === 'qr') { aboutQrOpen(m[2] === 'github' ? 'github' : 'kofi'); return; }
     var q = m[1] === 'qset' ? /^(\w+),([01])$/.exec(m[2]) : null;
     var cmd = m[1] === 'use' ? 'THEME-THEMEUSE ' + m[2] : m[1] === 'off' ? 'THEME-THEMEOFF' :
               m[1] === 'file' ? 'THEME-THEMEFILE ' + m[2] :
               q ? 'THEME-QSET ' + q[1] + ' ' + q[2] :
-              m[1] === 'tool' && /^\w+$/.test(m[2]) ? 'THEME-TOOL ' + m[2] : '';
+              m[1] === 'tool' && /^\w+$/.test(m[2]) ? 'THEME-TOOL ' + m[2] :
+              m[1] === 'upd' && /^\w+$/.test(m[2]) ? 'THEME-UPDATE ' + m[2] : '';
     if (cmd) try { console.log(cmd); } catch (e) {}
   }
   /* ---- About: a card in the Home front layer. The version line shows the
@@ -7365,6 +7978,93 @@
     add.subItems = folderTargets('zt-add', id, T.space === 'media' ? 'media' : 'game', '');
     return [add];
   }
+  /* Rename folder on the older Homes (Haul): the UI3 TextField of the newer
+     ones took ShellUI down there (6.02). Their own Game Library names a game
+     list with a TextInput, and their network settings open the keyboard with
+     beginEdit() + focus() on it: the same here, inside the system dialog
+     (DialogPS, which holds the focus and closes with O). */
+  var renameListeners = [];
+  function renameAskOld(fid, cur) {
+    var TI = T.rn && T.rn.TextInput, D = T.DialogPS;
+    var ok = !!TI && (typeof TI === 'function' || typeof TI === 'object') &&
+             !!D && (typeof D === 'function' || typeof D === 'object') && !!T.React;
+    log('folder rename (old Home): ' + fid + ' TextInput ' + typeof TI + ', DialogPS ' + typeof D +
+        (ok ? ', dialog asked' : ', not available'));
+    if (!ok) return false;
+    /* after the Options menu has closed */
+    setTimeout(function () {
+      T.renameAsk = { id: fid, name: cur, n: ((T.renameAsk && T.renameAsk.n) || 0) + 1 };
+      renameListeners.forEach(function (f) { try { f(); } catch (e) {} });
+    }, 400);
+    return true;
+  }
+  function FolderRenameDialog() {
+    var React = T.React, rn = T.rn;
+    var tick = React.useState(0)[1];
+    var input = React.useRef(null), text = React.useRef('');
+    /* the front layer can be mounted more than once (tab copies): only the
+       first copy draws the dialog */
+    var me = React.useRef(null);
+    if (!me.current) me.current = {};
+    if (!T.renameHost) T.renameHost = me.current;
+    React.useEffect(function () {
+      var f = function () { tick(function (n) { return n + 1; }); };
+      renameListeners.push(f);
+      return function () {
+        var i = renameListeners.indexOf(f);
+        if (i >= 0) renameListeners.splice(i, 1);
+        if (T.renameHost === me.current) {
+          T.renameHost = null;
+          renameListeners.forEach(function (g) { try { g(); } catch (e) {} });
+        }
+      };
+    }, []);
+    var ask = T.renameHost === me.current ? T.renameAsk : null, n = ask ? ask.n : 0;
+    React.useEffect(function () {
+      if (!ask) return;
+      text.current = ask.name || '';
+      /* the keyboard, once the dialog is on screen */
+      var t = setTimeout(function () {
+        var r = input.current;
+        try {
+          if (r && typeof r.beginEdit === 'function') r.beginEdit();
+          if (r && typeof r.focus === 'function') r.focus();
+          log('folder rename (old Home): keyboard asked (beginEdit ' + typeof (r && r.beginEdit) +
+              ', focus ' + typeof (r && r.focus) + ')');
+        } catch (e) { log('folder rename (old Home): keyboard ' + e, 'E'); }
+      }, 500);
+      return function () { clearTimeout(t); };
+    }, [n]);
+    if (!ask) return null;
+    var close = function (save, why) {
+      if (T.renameAsk !== ask) return;
+      T.renameAsk = null;
+      var nm = String(text.current || '').trim();
+      log('folder rename (old Home): ' + why + (save ? ', name "' + nm + '"' : ''));
+      renameListeners.forEach(function (f) { try { f(); } catch (e) {} });
+      if (save && nm && nm !== ask.name)
+        setTimeout(function () { folderAction('ztfolder:rename?' + ask.id + ',' + nm); }, 300);
+    };
+    var typed = function (e) {
+      var v = e && e.nativeEvent && e.nativeEvent.text;
+      if (typeof v === 'string') text.current = v;
+    };
+    var px = fontSize(30) || 30;
+    return React.createElement(T.DialogPS, {
+        visible: true, presentationStyle: 'popup', widthStyle: 'basic', title: 'Rename folder',
+        hideOnBackButton: true, testID: 'zt-folder-rename',
+        onShow: function () { log('folder rename (old Home): dialog shown'); },
+        onRequestClose: function () { close(false, 'closed'); },
+        buttons: { positive: { text: React.createElement(rn.Text, null, 'Done'),
+                               onPress: function () { close(true, 'Done'); } } } },
+      React.createElement(rn.TextInput, {
+        ref: input, testID: 'zt-folder-rename-input', defaultValue: ask.name, maxLength: 40,
+        keyboardType: 'default', keyboardWindowType: 'default', autoCapitalize: 'none',
+        style: { width: 640, height: Math.round(px * 2.2), fontSize: px, color: '#ffffff' },
+        onChangeText: function (v) { if (typeof v === 'string') text.current = v; },
+        onSubmitEditing: function (e) { typed(e); close(true, 'keyboard done'); },
+        onEndEditing: function (e) { typed(e); log('folder rename (old Home): keyboard closed'); } }));
+  }
   function folderAction(url) {
     var m = /^ztfolder:(\w+)\?(.*)$/.exec(url);
     if (!m) return;
@@ -7375,8 +8075,18 @@
       return;
     }
     if (cmd === 'renamekb') {
+      /* older firmwares (Haul Home): the native TextField + keyboard took
+         ShellUI down right after the keyboard opened (6.02); the web editor
+         renames the folder there */
       var rp = folderPart(folderParts(), a[0]);
       var cur = rp ? rp.head.split('|')[0].trim() : '';
+      if (T.haul) {
+        /* the system's own dialog and keyboard instead (renameAskOld) */
+        if (renameAskOld(a[0], cur)) return;
+        log('folder rename: keyboard not used on this firmware, web editor instead');
+        setTimeout(function () { showToast('Rename it in the web editor: Folders (port 4444)'); }, 400);
+        return;
+      }
       /* after the menu has closed; the answer comes as data 'zt-rename' */
       setTimeout(function () {
         try { console.log('THEME-RENAME ' + a[0] + '|' + cur); } catch (e) {}
@@ -7439,40 +8149,61 @@
                               cmd === 'left' || cmd === 'right' ? 'Folder moved' : 'Moved');
     folderSave(parts, cmd + ' ' + m[2], select || p);
   }
+  /* the items of a tile's Options menu: ZhiThemes on top, the folder /
+     favourite / theme items after the system's (hidden ones taken out).
+     getNative() gives the system's list (a promise). own(list) turns the
+     theme's items into the format of that list (identity on 9.60). */
+  function composeMenu(titleId, getNative, own) {
+    var folderOn = !PLAIN && folderMenuOn();
+    /* Options > ZhiThemes on top */
+    var top = [];
+    try { aboutQrSet(false); top = [themesMenuItem()]; } catch (e) { log('theme menu error: ' + e); }
+    if (folderOn && typeof titleId === 'string' && titleId.indexOf(FOLDER) === 0) {
+      var mine = top.concat(folderMenuItems(titleId), customMenuItems(titleId));
+      log('options menu: folder ' + titleId + ' (' + mine.length + ' items)');
+      return Promise.resolve(own(mine));
+    }
+    var extra = PLAIN ? [] : (folderOn ? gameMenuItems(titleId) : []).concat(customMenuItems(titleId), bgMenuItems(titleId),
+                                                                             favMenuItems(titleId));
+    var hide = PLAIN ? { any: false, ids: {} } : menuHidden();
+    var native = getNative();
+    if (!top.length && !extra.length && !hide.any) return native;
+    if (extra.length) log('options menu: ' + titleId + ' + ' + extra.length + ' folder items');
+    return Promise.resolve(native).then(function (items) {
+      var gone = [];
+      var list = Array.isArray(items) ? (hide.any ? menuFilter(items, hide, gone) : items) : [];
+      if (!T.done['options menu ids']) {
+        done('options menu ids (' + (Array.isArray(items) ? items.map(function (i) { return i && i.id; }).join(', ') : typeof items) + ')');
+      }
+      if (gone.length && !T.done['options menu items removed']) done('options menu items removed (' + gone.join(', ') + ')');
+      return own(top).concat(list, own(extra));
+    }, function (e) {
+      log('options menu: native options of ' + titleId + ' failed: ' + e);
+      return own(top.concat(extra));
+    });
+  }
+  /* older Homes (4.03) have no fetchExperienceOptionsByTitleId: the menu
+     reads OptionMenu.getOptionMenu({titleId}) straight away and maps its
+     records {id, label, enable, actionId, actionUrl, messageId, subMenu};
+     the theme's items go in in that format */
+  function nativeMenuItems(list) {
+    return (list || []).map(function (i) {
+      if (!i || typeof i !== 'object') return i;
+      return { id: i.id, label: i.label, enable: !i.disabled, actionId: i.actionId == null ? null : i.actionId,
+               actionUrl: i.actionUrl == null ? null : i.actionUrl,
+               subMenu: Array.isArray(i.subItems) ? nativeMenuItems(i.subItems) : null };
+    });
+  }
   function hookOptionsMenu(exp) {
     if (APP !== 'home' || !exp) return;
     var fetchFn = exp.fetchExperienceOptionsByTitleId;
     if (typeof fetchFn === 'function' && !fetchFn.__theme) {
       var fetchWrapped = function (titleId) {
-        var folderOn = !PLAIN && folderMenuOn();
-        /* Options > ZhiThemes on top */
-        var top = [];
-        try { aboutQrSet(false); top = [themesMenuItem()]; } catch (e) { log('theme menu error: ' + e); }
-        if (folderOn && typeof titleId === 'string' && titleId.indexOf(FOLDER) === 0) {
-          var own = top.concat(folderMenuItems(titleId), customMenuItems(titleId));
-          log('options menu: folder ' + titleId + ' (' + own.length + ' items)');
-          return Promise.resolve(own);
-        }
-        var extra = PLAIN ? [] : (folderOn ? gameMenuItems(titleId) : []).concat(customMenuItems(titleId), favMenuItems(titleId));
-        var hide = PLAIN ? { any: false, ids: {} } : menuHidden();
-        var native = fetchFn.apply(this, arguments);
-        if (!top.length && !extra.length && !hide.any) return native;
-        if (extra.length) log('options menu: ' + titleId + ' + ' + extra.length + ' folder items');
-        return Promise.resolve(native).then(function (items) {
-          var gone = [];
-          var list = Array.isArray(items) ? (hide.any ? menuFilter(items, hide, gone) : items) : [];
-          if (!T.done['options menu ids']) {
-            done('options menu ids (' + (Array.isArray(items) ? items.map(function (i) { return i && i.id; }).join(', ') : typeof items) + ')');
-          }
-          if (gone.length && !T.done['options menu items removed']) done('options menu items removed (' + gone.join(', ') + ')');
-          return top.concat(list, extra);
-        }, function (e) {
-          log('options menu: native options of ' + titleId + ' failed: ' + e);
-          return top.concat(extra);
-        });
+        var self = this, args = arguments;
+        return composeMenu(titleId, function () { return fetchFn.apply(self, args); }, function (l) { return l; });
       };
       fetchWrapped.__theme = true;
-      if (replace(exp, 'fetchExperienceOptionsByTitleId', fetchWrapped)) done('options menu items');
+      if (replace(exp, 'fetchExperienceOptionsByTitleId', fetchWrapped)) { T.menuFetchHooked = true; done('options menu items'); }
     }
     var keepFn = exp.useKeepInHome;
     if (typeof keepFn === 'function' && !keepFn.__theme) {
@@ -7547,6 +8278,10 @@
             try { customAction(url); } catch (e) { log('custom tile menu error: ' + e); }
             return undefined;
           }
+          if (typeof url === 'string' && url.indexOf('ztbg:') === 0) {
+            try { bgAction(url); } catch (e) { log('custom background menu error: ' + e); }
+            return undefined;
+          }
           if (typeof url === 'string' && url.indexOf('ztthemes:') === 0) {
             try { themesAction(url); } catch (e) { log('theme menu error: ' + e); }
             return undefined;
@@ -7585,6 +8320,48 @@
     };
     swapped.__theme = true;
     if (replace(exp, 'useAtomValue', swapped)) done('useAtomValue (store)');
+  }
+  /* older Homes (4.03, home_v2 04.00) keep the same state in Recoil, not
+     jotai: the row reads its list with useRecoilValue(atomFamily(space)).
+     Without this the hidden tiles (Store...) stayed and the folder tiles
+     never entered the row. Same filter as useAtomValue. */
+  function hookRecoil(exp) {
+    if (APP !== 'home' || !exp ||
+        typeof exp.useRecoilValue !== 'function' ||
+        typeof exp.atomFamily !== 'function' || exp.useRecoilValue.__theme)
+      return;
+    var original = exp.useRecoilValue;
+    var swapped = function () {
+      var v = original.apply(this, arguments);
+      if ((v === 'game' || v === 'media' || isExtraSpace(v)) && T.space !== v) {
+        T.space = v;
+        if (APP === 'home' && THEME.fakeTrophies) tileChanged();
+        if (T.folderSel) { T.folderSel = ''; setTimeout(folderChanged, 0); }
+      }
+      return filterRow(v);
+    };
+    swapped.__theme = true;
+    if (replace(exp, 'useRecoilValue', swapped)) done('useRecoilValue (store)');
+    else {
+      /* 4.03: the export is neither writable nor configurable. The hidden
+         tiles then leave the records of the row's query (hiddenRecords) */
+      T.hideInItems = true;
+      if (!T.done['hidden tiles in the app list']) done('hidden tiles in the app list (useRecoilValue fixed)');
+    }
+  }
+  /* the row's records without the tiles the theme hides (Store, All Apps...),
+     for Homes whose state hook cannot be replaced */
+  var hiddenLogs = 0;
+  function hiddenRecords(items) {
+    if (!T.hideInItems || !Array.isArray(items)) return items;
+    var ids = removedIds(), gone = [];
+    var res = items.filter(function (r) {
+      if (r && typeof r.titleId === 'string' && ids[r.titleId]) { gone.push(r.titleId); return false; }
+      return true;
+    });
+    if (!gone.length) return items;
+    if (hiddenLogs++ < 4) log('row: hidden ' + gone.join(','));
+    return res;
   }
   /* The Home keeps the selected tile's id and looks the experience up in its
      full list (an atom read with useAtomValue): for a folder the lookup gives
@@ -7824,6 +8601,16 @@
     /* outer View = the width used for the alignment; inner row = only the
        texts/buttons (that one is measured, so the editor box is the content) */
     var p = { pointerEvents: 'none', style: { flexDirection: 'row', alignItems: 'center' } };
+    /* footer background: round the hints themselves, the hints stay where
+       they were (the padding goes outwards) */
+    var fbg = THEME.footerBgOn && sysColor(THEME.footerBg || '#000000',
+                                          THEME.footerBgOpacity == null ? 0.5 : +THEME.footerBgOpacity);
+    if (fbg) {
+      var fpad = THEME.footerBgPadding >= 0 ? +THEME.footerBgPadding : 16, fpadV = Math.round(fpad * 0.6);
+      p.style = merge(p.style, { backgroundColor: fbg, borderRadius: THEME.footerBgCorners >= 0 ? +THEME.footerBgCorners : 40,
+                                 paddingHorizontal: fpad, paddingVertical: fpadV,
+                                 marginHorizontal: -fpad, marginVertical: -fpadV });
+    }
     if (THEME.measureScreen) withMeasure('footer', p);
     return React.createElement(rn.View, {
       key: 'theme-footer', pointerEvents: 'none',
@@ -7898,10 +8685,11 @@
      and, when the Home asks ("THEME-ASK", on the Home's own thread), hands it
      over with __themeName(name). */
   var trophyListeners = [];
-  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.animToast || THEME.tileReflection > 0)) {
+  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.animToast || THEME.folderMenu !== false || THEME.tileReflection > 0)) {
     globalThis.__themeData = function (key, text) {
       if (reflectionReceived(key, text)) return;
       if (toastData(key, text)) return;
+      if (key === 'zt-libfold') { homeLibFoldData(text); return; }
       if (key === 'zt-select') {
         /* from the Home before the reload (not this one, not an old one) */
         try {
@@ -7968,7 +8756,7 @@
       }, 0);
     };
   }
-  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.tileReflection > 0))
+  if (APP === 'home' && (THEME.fakeTrophies || THEME.folders || THEME.folderMenu !== false || THEME.tileReflection > 0))
     setInterval(function () { try { console.log('THEME-ASK'); } catch (e) {} },
                 THEME.fakeTrophies && THEME.fakeTrophiesFast !== false ? 120 : 250);
   var TROPHY_ICONS = ['trophy_grade1_platinum', 'trophy_grade2_gold', 'trophy_grade3_silver', 'trophy_grade4_bronze'];
@@ -8058,6 +8846,54 @@
     if (own && !T.done['white button pictures']) done('white button pictures');
     return React.createElement(rn.Image, { key: key, source: own ? { uri: own } : src, resizeMode: 'contain', style: st });
   }
+  /* IconPS.iconIds: the icons this firmware has. Older ones (4.03) have no
+     'music_and_video', so the Media tab drew an empty picture; a close one
+     from the list stands in (first the names below, then any id that
+     contains one of them) */
+  var ICON_ALTS = { music_and_video: ['media', 'video', 'movie', 'tv', 'music'],
+                    history: ['history', 'recent', 'clock', 'time'],
+                    favorite: ['favorite', 'favourite', 'star', 'heart'],
+                    'new': ['new', 'star'], game: ['game', 'controller', 'gamepad'],
+                    /* the top bar's controller (4.03 has no ps5_wireless_controller) */
+                    ps5_wireless_controller: ['controller', 'dualsense', 'gamepad', 'ds4', 'joystick', 'game'] };
+  function iconIdSet(Icon) {
+    if (T.iconIdSet !== undefined) return T.iconIdSet;
+    var src = Icon && Icon.iconIds;
+    if (!src && T.rn && T.rn.IconPS) src = T.rn.IconPS.iconIds;
+    if (!src || typeof src !== 'object') return null;   /* not known yet: ask again later */
+    var set = {}, n = 0;
+    var add = function (s) { if (typeof s === 'string' && s && !set[s]) { set[s] = true; n++; } };
+    if (Array.isArray(src)) src.forEach(add);
+    else for (var k in src) { add(src[k]); add(k); }
+    T.iconIdSet = n ? set : null;
+    if (n) log('icons: ' + n + ' ids on this firmware');
+    return T.iconIdSet;
+  }
+  function iconOnThisFw(Icon, id) {
+    if (typeof id !== 'string' || !id) return id;
+    var set = iconIdSet(Icon);
+    if (!set || set[id]) return id;
+    var memo = (T.iconAlt = T.iconAlt || {});
+    if (id in memo) return memo[id];
+    /* each name in order: itself, else an id that contains it */
+    var alts = ICON_ALTS[id] || [], pick = '', all = Object.keys(set);
+    for (var i = 0; i < alts.length && !pick; i++) {
+      if (set[alts[i]]) { pick = alts[i]; break; }
+      for (var q = 0; q < all.length && !pick; q++) if (all[q].toLowerCase().indexOf(alts[i]) >= 0) pick = all[q];
+    }
+    /* nothing close: no icon (it drew an empty picture) */
+    memo[id] = pick;
+    log('icons: "' + id + '" not on this firmware' + (pick ? ', "' + pick + '" instead' : ', nothing close: not drawn'));
+    /* nothing close: every id of this firmware once, to pick one by hand */
+    if (!pick && !T.iconIdsLogged) {
+      T.iconIdsLogged = true;
+      var ids = Object.keys(set);
+      for (var c = 0; c < ids.length; c += 120)
+        log('icons on this firmware (' + (c + 1) + '-' + Math.min(c + 120, ids.length) + ' of ' + ids.length + '): ' +
+            ids.slice(c, c + 120).join(','));
+    }
+    return memo[id];
+  }
   function decoIcon(v, size, color) {
     var React = T.React, rn = T.rn;
     if (!React || !rn || typeof v !== 'string' || !v.trim()) return null;
@@ -8066,7 +8902,8 @@
       return rn.Image ? React.createElement(rn.Image, { source: { uri: 'file://' + path }, resizeMode: 'contain',
                                                          style: { width: size, height: size } }) : null;
     }
-    var Icon = iconComponent(), id = buttonIcon(v) || v.trim();
+    var Icon = iconComponent(), id = iconOnThisFw(Icon, buttonIcon(v) || v.trim());
+    if (!id) return null;
     var st = { width: size, height: size };
     /* IconPS ignores tintColor and draws its own grey (the L1/R1 of the tabs
        group came out darker than names of the same colour): with a colour
@@ -8176,8 +9013,8 @@
     var online = presence === true || /online|available/i.test(String(
         presence && typeof presence === 'object' ? JSON.stringify(presence) : presence));
     if (T.userName === name && T.userOnline === online) return;
-    if (!T.userName) log('user: "' + name + '" status=' + String(
-        presence && typeof presence === 'object' ? JSON.stringify(presence) : presence).slice(0, 120));
+    /* no name or account details in the log (logs are sent to other people) */
+    if (!T.userName) log('user: set, ' + (online ? 'online' : 'offline'));
     T.userName = name;
     T.userOnline = online;
     setTimeout(function () {
@@ -8199,7 +9036,7 @@
     if (!T.userName && typeof globalThis.__ztUser === 'string' && globalThis.__ztUser) {
       T.userName = globalThis.__ztUser;
       T.userOnline = true;
-      log('user: "' + T.userName + '" (from the system)');
+      log('user: set (from the system)');
     }
     if (!T.userName) return null;
     var px = fontSize(THEME.userFontSize || 27) || 27;
@@ -8476,7 +9313,8 @@
      Home goes over as data 'zt-toast' (like zt-select) and the new Home shows
      it. */
   function folderToast(text) {
-    return THEME.animToast ? { text: text } : null;
+    /* the library always says it: the Home decides (its animToast) */
+    return THEME.animToast || APP === 'library' ? { text: text } : null;
   }
   function toastData(key, text) {
     if (key !== 'zt-toast') return false;
@@ -8484,6 +9322,7 @@
       var s = JSON.parse(String(text));
       if (s && s.t && s.t !== T.sentToast && Date.now() - s.t < 15000 && T.toastSeen !== s.t) {
         T.toastSeen = s.t;
+        log('toast after the reload: ' + s.text + (toastOn() ? '' : ' (toasts off in this theme)'));
         console.log('THEME-DATA zt-toast done');
         setTimeout(function () { showToast(s.text); }, 900);
       }
@@ -8820,8 +9659,10 @@
     var f = T.folderSel && T.folders[T.folderSel];
     if (!f || !f.name || stripShown()) return null;
     var old = oldTitles();
-    var px = (old ? THEME.homeTitleFontSize : THEME.folderTitleSize) || 72, base = fontSize(Math.min(px, 72)) || 0;
-    var text = { color: (old ? THEME.homeTitleColor : THEME.folderTitleColor) || '#ffffff' };
+    /* the folder name looks like the game page title (Game page > Title) */
+    var px = (old ? THEME.homeTitleFontSize : THEME.titleFontSize) || 72, base = fontSize(Math.min(px, 72)) || 0;
+    var text = { color: (old ? THEME.homeTitleColor : THEME.titleColor) || '#ffffff' };
+    if (!old && THEME.titleFontStyle) merge(text, fontStyle(THEME.titleFontStyle));
     if (base) text.fontSize = base;
     var box = { position: 'absolute', left: old ? THEME.homeTitleX : THEME.folderTitleX,
                 top: old ? THEME.homeTitleY : THEME.folderTitleY, width: 1600 };
@@ -8864,6 +9705,63 @@
     try { text = ev == null ? '' : JSON.stringify(ev); } catch (x) { text = String(ev); }
     log('video: ' + name + ' ' + text.slice(0, 200));
   }
+  /* Decoder sizes asked for a video (coreResourceType), in order. The
+     PS5 has one 4K decoder: asking 'UHD' while another app holds it (a
+     homebrew like ProsperoStore open in the background) shows "Stopping
+     Features: <app>". So fullHD first (it also plays a 3440x1440 file);
+     'UHD' only after that fails, and never for a file known to be
+     1920x1080 or smaller (globalThis.__ztVideoSizes, read by ZhiThemes
+     from the MP4). Size unknown: the old order. videoResourceTry: only
+     that one type (the player's other types, Full, Basic,
+     LimitedForSpectating2Streams and Custom, did not play at all). */
+  var VIDEO_TYPES = /^(fullHD|UHD)$/;
+  /* A video wallpaper that is not 16:9 (3440x1440): the PS5 video view
+     has no 'cover' (it showed the whole video with black bands; a view
+     with the video's proportions did not help either). The whole-screen
+     view is scaled up by the cover factor instead (the PS5 scales from
+     the centre), so the extra width or height goes off the screen.
+     wallpaperVideoFit 'stretch': the whole-screen view with resizeMode
+     'AspectOutside' (on the PS5 that stretches the video to the screen,
+     nothing cut off).
+     Returns {style, resizeMode}. */
+  function videoFit(file) {
+    var full = { position: 'absolute', left: 0, top: 0, width: 1920, height: 1080 };
+    var name = String(file || '').split('?')[0].split('/').pop();
+    try { name = decodeURIComponent(name); } catch (e) {}
+    var wh = (globalThis.__ztVideoSizes || {})[name];
+    var a = wh && wh[0] > 0 && wh[1] > 0 ? wh[0] / wh[1] : 16 / 9;
+    if (Math.abs(a - 16 / 9) < 0.01) return { style: full, resizeMode: 'cover' };
+    var stretch = String(THEME.wallpaperVideoFit || '') === 'stretch';
+    var k = Math.round((a > 16 / 9 ? 1080 * a / 1920 : 1920 / (1080 * a)) * 1000) / 1000;
+    if (!stretch) full.transform = [{ scale: k }];
+    var how = stretch ? 'stretched (AspectOutside)' : 'centred x' + k;
+    if (!T.done['video fit ' + name + how]) done('video fit ' + name + ' ' + wh[0] + 'x' + wh[1] + ': ' + how);
+    return { style: full, resizeMode: stretch ? 'AspectOutside' : 'cover' };
+  }
+  function videoKinds(file, fallback) {
+    var name = String(file || '').split('?')[0].split('/').pop();
+    try { name = decodeURIComponent(name); } catch (e) {}
+    var test = String(THEME.videoResourceTry || '');
+    var out;
+    if (VIDEO_TYPES.test(test)) out = [test];
+    else if (test === 'none') out = [''];
+    else {
+      var sizes = globalThis.__ztVideoSizes, wh = sizes && sizes[name];
+      /* a bigger file tries fullHD first too (it plays 3440x1440 there);
+         UHD only if that fails */
+      if (wh && wh[0] > 0) out = wh[0] > 1920 || wh[1] > 1080 ? ['fullHD', 'UHD', ''] : ['fullHD', ''];
+      else out = fallback;
+    }
+    var key = name + ':' + out.join(',');
+    if (!T.videoKindsLogged) T.videoKindsLogged = {};
+    if (!T.videoKindsLogged[key] && Object.keys(T.videoKindsLogged).length < 30) {
+      T.videoKindsLogged[key] = true;
+      var wh2 = (globalThis.__ztVideoSizes || {})[name];
+      log('video decoder for ' + name + (wh2 ? ' ' + wh2[0] + 'x' + wh2[1] : ' (size unknown)') + ': ' +
+          out.map(function (k) { return k || 'no type'; }).join(' then ') + (VIDEO_TYPES.test(test) || test === 'none' ? ' (videoResourceTry)' : ''));
+    }
+    return out;
+  }
   function VideoWallpaper(props) {
     var React = T.React, rn = T.rn, Video = videoComponent();
     /* also behind Settings and Trophies (props.uri, props.sound) */
@@ -8878,7 +9776,7 @@
     var tries = React.useState(0), attempt = tries[0], setAttempt = tries[1];
     /* fullHD first (a 4K file errors and goes on to UHD): asking UHD
        made the PS5 show "Stopping Features: <game>" after a game */
-    var kinds = ['fullHD', 'UHD', ''];
+    var kinds = videoKinds(own ? props.uri : videoUri(), ['fullHD', 'UHD', '']);
     /* every kind failed (the decoder still busy just after a game):
        tried again later instead of never again */
     var rounds = React.useState(0), round = rounds[0], setRound = rounds[1];
@@ -8916,12 +9814,13 @@
     var vol = THEME.wallpaperVideoVolume == null ? 0.5 : Math.max(0, Math.min(1, +THEME.wallpaperVideoVolume || 0));
     var source = { source: uri, autoLoad: true };
     if (kind) source.coreResourceType = kind;
+    var fit = videoFit(uri);
     return React.createElement(Video, {
       key: 'v' + round + '-' + attempt + '-' + restart,
       pointerEvents: 'none',
       source: source,
       repeat: true, paused: !active, muted: !sound, volume: sound ? vol : 0,
-      suppressBgm: sound, resizeMode: 'cover',
+      suppressBgm: sound, resizeMode: fit.resizeMode,
       onLoad: function (e) { videoEvent('load', e); if (!T.done['video wallpaper']) done('video wallpaper'); },
       onStartPlaying: function (e) { videoEvent('playing', e); },
       onError: function (e) {
@@ -8935,7 +9834,7 @@
         videoEvent('end', e);
         if (restart < 50) setTimeout(function () { setRestart(restart + 1); }, 300);
       },
-      style: { position: 'absolute', left: 0, top: 0, width: 1920, height: 1080 }
+      style: fit.style
     });
   }
 
@@ -9452,7 +10351,7 @@
     /* background boxes (field prefix), bottom first: box 3, box 2, box 1,
        then the footer and the top bar backgrounds always over the free boxes */
     var boxes = [];
-    ['box3', 'box2', 'box1', 'footerBg', 'topBarBg'].forEach(function (k) {
+    ['box3', 'box2', 'box1', 'topBarBg'].forEach(function (k) {
       if (!THEME[k + 'On'] || !THEME[k] || (k === 'footerBg' && !THEME.footer)) return;
       boxes.push(React.createElement(rn.View, {
         key: 'theme-' + k, pointerEvents: 'none',
@@ -9926,7 +10825,7 @@
     return null;
   }
   function observeTrophyFetch(exp, id) {
-    if (APP !== 'hub' || !THEME.fakeTrophies || T.trophyFetcher) return;
+    if (APP !== 'hub' || !THEME.fakeTrophies || T.haul || T.trophyFetcher) return;
     var found = trophyFetchExport(exp, false) || (String(id) === '2578' ? trophyLocalExport(exp) : null);
     if (!found) return;
     T.trophyFetcher = found;
@@ -9943,6 +10842,7 @@
     }, 0);
   }
   function trophyFetcher() {
+    if (T.haul) return null;
     if (T.trophyFetcher) return T.trophyFetcher;
     if (!T.require) return null;
     /* The webpack cache contains already executed modules only. */
@@ -10081,6 +10981,34 @@
         }
       } finally { if (after) after(); }
     });
+  }
+  /* Older Homes (Haul, 6.02): no 2559 fetch and no 2558 hook, but the hub
+     draws its own old trophy card and its parts get the numbers as props:
+     story-progress-progress {point: %}, story-progress-earned {num, maxnum},
+     story-progress-unlocked-gl/sl/bz-num {num}, the platinum icon only when
+     one is earned (story-progress-pt-icon). The children are made before
+     the card (story-progress-view), so the card closes one reading. */
+  var oldCard = {};
+  function oldCardTrophies(props) {
+    var id = props.testID, num = function (v) { return typeof v === 'number' ? v : /^\d+$/.test(String(v)) ? Number(v) : null; };
+    if (id === 'story-progress-progress') oldCard.p = num(props.point);
+    else if (id === 'story-progress-earned') { oldCard.n = num(props.num); oldCard.max = num(props.maxnum); }
+    else if (id === 'story-progress-unlocked-gl-num') oldCard.gl = num(props.num);
+    else if (id === 'story-progress-unlocked-sl-num') oldCard.sl = num(props.num);
+    else if (id === 'story-progress-unlocked-bz-num') oldCard.bz = num(props.num);
+    else if (id === 'story-progress-pt-icon') oldCard.pt = 1;
+    else if (id === 'story-progress-error-view') oldCard.err = true;
+    if (id !== 'story-progress-view') return;
+    var c = oldCard, tid = hubTitleId();
+    oldCard = {};
+    if (!tid || fromLibrary()) return;
+    if (c.err || (c.p == null && c.n == null)) {
+      if (!T.done['old trophy card: no data']) done('old trophy card: no data (' + (c.err ? 'error view' : 'no record') + ')');
+      return;
+    }
+    T.trophyGotFor = tid;
+    sendTrophyData({ id: tid, e: [c.pt | 0, c.gl | 0, c.sl | 0, c.bz | 0], p: c.p });
+    if (!T.done['trophies from the old card']) done('trophies from the old card (' + tid + ': ' + c.p + '%, ' + c.n + '/' + c.max + ')');
   }
   if (APP === 'hub' && THEME.fakeTrophies && THEME.fakeTrophiesFast !== false) {
     var trophyQueue = [], trophyBusy = '';
@@ -10277,9 +11205,10 @@
   function sysBoxStyle(pre) {
     var st = {}, bg = sysNum(THEME[pre + 'Opacity']) > 0 && sysColor(THEME[pre + 'Color'], sysNum(THEME[pre + 'Opacity']));
     if (bg) st.backgroundColor = bg;
-    if (sysNum(THEME[pre + 'Corners']) > 0) st.borderRadius = sysNum(THEME[pre + 'Corners']);
     var line = sysNum(THEME[pre + 'BorderWidth']) > 0 && sysColor(THEME[pre + 'BorderColor']);
     if (line) { st.borderWidth = sysNum(THEME[pre + 'BorderWidth']); st.borderColor = line; }
+    /* corners only on something drawn (the stock row keeps its own shape) */
+    if ((bg || line) && sysNum(THEME[pre + 'Corners']) > 0) st.borderRadius = sysNum(THEME[pre + 'Corners']);
     return st;
   }
   /* the file behind Settings and Trophies: their own (sysBg) or,
@@ -10721,6 +11650,23 @@
         return;
       }
     }
+    return hubButtonsRest(props);
+  }
+  /* log: are the hub's buttons (Play, ...) drawn at all for this game
+     (not seen with a video wallpaper / animated background) */
+  function hubButtonsSeen(props) {
+    if (APP === 'hub' && T.ctaStyles.length && props.style) {
+      var tid = hubTitleId() || '?';
+      if (T.ctaSeen !== tid && (T.ctaLogs || 0) < 20) {
+        for (var j = 0; j < T.ctaStyles.length; j++) if (hasStyle(props.style, T.ctaStyles[j])) {
+          T.ctaSeen = tid; T.ctaLogs = (T.ctaLogs || 0) + 1;
+          log('game buttons drawn for ' + tid + (THEME.hideButtons ? ' (hideButtons)' : ''));
+          break;
+        }
+      }
+    }
+  }
+  function hubButtonsRest(props) {
     /* apps / Media hub (poster cover, module 683): Start comes in
        mainButtonComponent (in the Media app the whole poster goes). The
        pre-purchase game poster (with platforms) follows hideButtons. */
@@ -10799,7 +11745,10 @@
   }
   function libraryVideo(on) {
     if (T.libVidIn === on) return;
+    var was = T.libVidIn;
     T.libVidIn = on;
+    /* O out of the library: folders changed there reload the Home now */
+    if (!on && was === true && T.libFold) setTimeout(function () { homeLibraryLeft('library closed'); }, 300);
     var op = libVideoOp();
     if (!op) return;
     setTimeout(function () {
@@ -10859,17 +11808,18 @@
   function wrapJsx(fn) {
     if (typeof fn !== 'function' || fn.__theme) return fn;
     var wrapped = function (type, props) {
+      if (props && typeof props.testID === 'string') bbTestId(props.testID);
       if (SYS_APP) {
         if (props && typeof props === 'object') {
           try { trophyScreenRecord(props); } catch (e) { log('trophy screen record: ' + e); }
           if (DEBUG.sys) {
-            try { seeSys(type, props, arguments[2]); } catch (e) { T.errors++; log('map: ' + e); }
+            try { seeSys(type, props, arguments[2]); } catch (e) { T.errors++; logE('map: ' + e); }
           }
           if (THEME.sysOn) {
-            try { sysStyle(type, props); } catch (e) { T.errors++; log('system screens: ' + e); }
+            try { sysStyle(type, props); } catch (e) { T.errors++; logE('system screens: ' + e); }
             if (APP === 'settings' && sysNum(THEME.sysSideOpacity) > 0 && typeof type !== 'string' &&
                 typeName(type) === 'TabViewPS' && T.Fragment && T.React && T.rn && T.rn.View) {
-              try { return sysSideWrap(fn, this, arguments, props); } catch (e) { T.errors++; log('side bar: ' + e); }
+              try { return sysSideWrap(fn, this, arguments, props); } catch (e) { T.errors++; logE('side bar: ' + e); }
             }
           }
         }
@@ -10880,10 +11830,10 @@
           focusSlotUsed() && T.React && typeof T.React.useState === 'function') {
         if (props.testID.indexOf('focused-item-') === 0) {
           var shaped = null;
-          try { shaped = focusShapeWrap(fn, this, arguments, props); } catch (e) { T.errors++; log('focus shape: ' + e); }
+          try { shaped = focusShapeWrap(fn, this, arguments, props); } catch (e) { T.errors++; logE('focus shape: ' + e); }
           if (shaped) return shaped;
         } else if (focusShapeUsed() && props.testID.indexOf('experience-switcher-') === 0 && props.style) {
-          try { shapeWrapper(props); } catch (e) { T.errors++; log('focus shape: ' + e); }
+          try { shapeWrapper(props); } catch (e) { T.errors++; logE('focus shape: ' + e); }
         }
       }
       var shapedImage = false;
@@ -10893,12 +11843,12 @@
       if (APP === 'home' && focusShapeUsed() && props && typeof props === 'object' &&
           props.source && typeof props.source === 'object' && typeof props.source.uri === 'string' && props.style &&
           (props.style === T.tileImage || props.style === T.tileImage2)) {
-        try { shapedImage = shapeImage(props); } catch (e) { T.errors++; log('focus shape: ' + e); }
+        try { shapedImage = shapeImage(props); } catch (e) { T.errors++; logE('focus shape: ' + e); }
       }
       if (APP === 'home' && !shapedImage && customTilesUsed() && props && typeof props === 'object' &&
           props.source && typeof props.source === 'object' && typeof props.source.uri === 'string' && props.style &&
           (props.style === T.tileImage || props.style === T.tileImage2)) {
-        try { tileCover(props); } catch (e) { T.errors++; log('cover: ' + e); }
+        try { tileCover(props); } catch (e) { T.errors++; logE('cover: ' + e); }
       }
       /* vertical tiles, Game / App Library and All apps: their
          icon (a dark see-through square with the symbol) was stretched; they
@@ -10909,21 +11859,21 @@
       if (tileImg && props.source && typeof props.source === 'object' && typeof props.source.uri === 'string') {
         var sysRatio = focusShapeUsed() && shapeUriFor(props.source.uri) ? formatRatio(focusFormat()) : tileRatio();
         if (sysRatio !== 1)
-          try { systemTile(props, sysRatio); } catch (e) { T.errors++; log('system tile: ' + e); }
+          try { systemTile(props, sysRatio); } catch (e) { T.errors++; logE('system tile: ' + e); }
       }
       /* the focused tile's animated picture */
       if (tileImg && animTilesUsed() && props.source &&
           typeof props.source === 'object' && typeof props.source.uri === 'string' && T.React && T.React.Fragment) {
         var animEl = null;
-        try { animEl = animTileWrap(fn, this, arguments, props); } catch (e) { T.errors++; log('animated tile: ' + e); }
+        try { animEl = animTileWrap(fn, this, arguments, props); } catch (e) { T.errors++; logE('animated tile: ' + e); }
         if (animEl) return animEl;
       }
       if (APP === 'home' && tileRatio() !== 1 && props && typeof props === 'object') {
         if (THEME.folders && folderVerticalStyle() === 'square') {
           if (props.source && typeof props.source === 'object' && props.style)
-            try { folderSquare(props); } catch (e) { T.errors++; log('folder square: ' + e); }
+            try { folderSquare(props); } catch (e) { T.errors++; logE('folder square: ' + e); }
           if (typeof props.testID === 'string')
-            try { folderSquareView(props); } catch (e) { T.errors++; log('folder square: ' + e); }
+            try { folderSquareView(props); } catch (e) { T.errors++; logE('folder square: ' + e); }
         }
       }
       /* Options menu items (Home and Game Library): key '<MENU_ID_...>-<index>' */
@@ -10999,6 +11949,17 @@
             }
           }
         }
+        /* every hub section hidden: Play / "…" can take the focus, but down
+           from them stays there (the hub below is an empty page) */
+        if (APP === 'hub' && hubEmpty() && !fromLibrary() && T.ctaStyles.length && props.style &&
+            T.ctaStyles.some(function (cs) { return hasStyle(props.style, cs); })) {
+          props.onDownKeyDown = function (e) {
+            take(e);
+            if (!T.done['empty hub: down stays on Play']) done('empty hub: down stays on Play');
+            return false;
+          };
+        }
+        if (APP === 'hub') hubButtonsSeen(props);
         if (THEME.hideButtons || THEME.hideMediaButtons) {
           if (hubButtons(props)) return null;
           if (startLike(props)) seeButton('start', props, type);
@@ -11035,6 +11996,22 @@
           if (!T.done['game title only in the hub view']) done('game title only in the hub view (' + typeName(type) + ')');
           return fn(T.rn.Animated.View, { pointerEvents: 'none', style: { opacity: op },
                                           children: fn.apply(this, arguments) }, arguments[2]);
+        }
+      }
+      if (APP === 'hub' && THEME.fakeTrophies && T.haul && props && typeof props === 'object' &&
+          typeof props.testID === 'string' && props.testID.indexOf('story-progress-') === 0) oldCardTrophies(props);
+      /* older firmwares (below 7.x): the hub's trophy card is the old
+         "Progress / Earned" one (story-progress-view), placed so it peeked
+         into the Home view over the hints. Shown only while the focus is
+         in the hub, like the gated title */
+      if (APP === 'hub' && props && typeof props === 'object' && props.testID === 'story-progress-view' &&
+          !props.__ztOldCard && !fromLibrary() && T.rn && T.rn.Animated && T.rn.Animated.View) {
+        hubFocusRelay150();
+        var cardOp = hubTitleValue();
+        if (cardOp) {
+          props.__ztOldCard = true;
+          if (!T.done['old trophy card only in the hub view']) done('old trophy card only in the hub view');
+          return fn(T.rn.Animated.View, { style: { opacity: cardOp }, children: fn.apply(this, arguments) }, arguments[2]);
         }
       }
       if (APP === 'hub' && THEME.fakeTrophies && props && typeof props === 'object') hubSummary(props);
@@ -11100,7 +12077,7 @@
       if (APP === 'home' && THEME.tileReflection > 0 && T.selected && props && typeof props === 'object' &&
           props.style && typeof props.style === 'object' && T.selected.has(props.style)) {
         var refl = null;
-        try { refl = tileReflection(props.children); } catch (e) { T.errors++; log('reflection: ' + e); }
+        try { refl = tileReflection(props.children); } catch (e) { T.errors++; logE('reflection: ' + e); }
         if (refl) {
           var chr = props.children;
           props.children = [refl].concat(Array.isArray(chr) ? chr : chr == null ? [] : [chr]);
@@ -11108,7 +12085,7 @@
       }
       if (APP === 'home' && THEME.rowWindow && T.rowWinBy && props && typeof props === 'object' &&
           props.style && typeof props.style === 'object' && Array.isArray(props.children)) {
-        try { rowWindowCount(props); } catch (e) { T.errors++; log('row window count: ' + e); }
+        try { rowWindowCount(props); } catch (e) { T.errors++; logE('row window count: ' + e); }
       }
       /* rowWindow: the tile name stands right of the stock focused tile; it
          follows the focused tile (same native value as the row). A child of
@@ -11196,7 +12173,7 @@
       }
       if (APP === 'home' && props && typeof props === 'object') {
         if (!PLAIN && props.focusable === true && typeof props.name === 'string' && props.name)
-          try { qrTileKeys(props); } catch (e) { T.errors++; log('about QR keys: ' + e); }
+          try { qrTileKeys(props); } catch (e) { T.errors++; logE('about QR keys: ' + e); }
         topIcons(props, type);
         seeRow(props);
         tileLeftKeys(props);
@@ -11223,6 +12200,7 @@
           if (THEME.folders && T.React && typeof T.React.useState === 'function') hubGateProps = props;
         }
         tabItem(props);
+        spaceKeyProps(props);
         tabSeen(props);
         tabPill(props);
         tabIcons(props);
@@ -11345,8 +12323,13 @@
           T.root && props && typeof props === 'object' && props.style === T.root) {
         var children = props.children;
         children = Array.isArray(children) ? children.slice() : children == null ? [] : [children];
+        T.rootRenders = (T.rootRenders || 0) + 1;
         var bg = backgroundElements();
         if (bg.length) {
+          /* the whole back layer (videos too) goes up with the Home and
+             fades out in the hub view: the hub is drawn under the Home's
+             layer, so a video over its area hid Play / ... / trophies (a
+             native video view is not clipped by overflow hidden either) */
           children = single('back', homeLayer('theme-layer-back', bg)).concat(children);
           if (!T.done.background) done('background');
         }
@@ -11373,6 +12356,8 @@
         front = front.concat(decoElements());
         if (THEME.folders && T.React && APP === 'home')
           front.push(T.React.createElement(FolderStrip, { key: 'theme-folder-strip' }));
+        if (THEME.folders && T.haul && T.React && APP === 'home' && typeof T.React.useState === 'function')
+          front.push(T.React.createElement(FolderRenameDialog, { key: 'theme-folder-rename' }));
         if (THEME.menuMove && T.React && APP === 'home')
           front.push(T.React.createElement(MenuAnchor, { key: 'theme-menu-anchor' }));
         var extra = THEME.footer ? footerElement() : null;
@@ -11386,18 +12371,56 @@
         /* Options > ZhiThemes > About: the Ko-fi QR code (null while closed) */
         if (APP === 'home' && !PLAIN && T.React && typeof T.React.useState === 'function')
           front.push(T.React.createElement(AboutQr, { key: 'theme-about-qr' }));
-        props.children = front.length ? children.concat(single('front', homeLayer('theme-layer-front', readyGate(front))))
+        props.children = front.length ? children.concat(single('front', homeLayer('theme-layer-front', readyGate(front)), !bg.length))
                                       : children;
       }
       if (hubGateProps && hubGateProps === props) {
         hubGateProps = null;
         try { return fn(HubPageGate, { el: fn.apply(this, arguments) }, arguments[2]); }
-        catch (e) { T.errors++; log('hub page gate: ' + e); }
+        catch (e) { T.errors++; logE('hub page gate: ' + e); }
       }
       return fn.apply(this, arguments);
     };
     wrapped.__theme = true;
     return wrapped;
+  }
+  /* ---- older firmwares: React.createElement instead of jsx ----
+     Their apps (Haul bundles, React Native 0.63) were built before the new
+     JSX: every element is React.createElement(type, props, ...children),
+     there is no jsx/jsxs to wrap. createElement is wrapped instead and each
+     call goes through the same wrapJsx code as jsx(type, props with
+     children, key). The theme's own elements keep the plain createElement
+     (T.React becomes a copy with the original). */
+  function hookCreateElement(exp) {
+    if (!exp || typeof exp !== 'object' || typeof exp.createElement !== 'function' ||
+        typeof exp.jsx === 'function' || !exp.Fragment || typeof exp.memo !== 'function' ||
+        exp.createElement.__theme)
+      return;
+    var ce = exp.createElement;
+    var asJsx = function (type, props, key) {
+      if (key !== undefined && key !== null) {
+        var p = {};
+        for (var k in props) p[k] = props[k];
+        p.key = key;
+        props = p;
+      }
+      return ce.call(this, type, props);
+    };
+    var viaJsx = wrapJsx(asJsx);
+    var wrapped = function (type, config) {
+      var n = arguments.length, props = {}, key;
+      if (config) for (var k in config) { if (k === 'key') key = config[k]; else props[k] = config[k]; }
+      if (n === 3) props.children = arguments[2];
+      else if (n > 3) props.children = Array.prototype.slice.call(arguments, 2);
+      return viaJsx.call(this, type, props, key);
+    };
+    wrapped.__theme = true;
+    try { exp.createElement = wrapped; } catch (e) { log('createElement not replaceable: ' + e); return; }
+    if (exp.createElement !== wrapped) { log('createElement not replaceable'); return; }
+    var own = Object.create(exp);
+    own.createElement = ce;
+    if (!T.React || T.React === exp) T.React = own;
+    done('jsx (createElement)');
   }
   function hookJsx(exp) {
     if (!T.Fragment && exp && exp.Fragment) T.Fragment = exp.Fragment;
@@ -11413,6 +12436,7 @@
                  (APP === 'home' ? (THEME.footer || THEME.tileNameColor)
                                  : APP === 'hub' && (THEME.hideMore || THEME.hideFriends ||
                                                      THEME.hideButtons || THEME.hideMediaButtons || THEME.hideHints));
+    if (needed && T.haul) hookCreateElement(exp);
     if (!needed || !exp ||
         typeof exp !== 'object' || typeof exp.jsx !== 'function' ||
         typeof exp.jsxs !== 'function' || !('Fragment' in exp) ||
@@ -11531,6 +12555,39 @@
     });
     if (ids.length) try { console.log('THEME-TROPHY-ASK ' + ids.join(',')); } catch (e) {}
   }
+  /* Options menu of a game with backgrounds of its own: next background
+     (n of N) and the game's own art, or "Use custom background" */
+  function bgMenuItems(id) {
+    var key = customKey(id);
+    if (!key || THEME.customBgOn === false) return [];
+    var pics = bgPics(key);
+    if (!pics.length) return [];
+    var c = bgChoice(key);
+    if (c === 0) return [menuItem('zt-bg-on', 'Use custom background', 'ztbg:set?' + key + ',' + pics[0].n)];
+    var i = 0, items = [];
+    pics.forEach(function (q, k) { if (q.n === c) i = k; });
+    if (pics.length > 1) {
+      var next = pics[(i + 1) % pics.length];
+      items.push(menuItem('zt-bg-next', 'Next custom background (' + ((i + 1) % pics.length + 1) + ' of ' + pics.length + ')',
+                          'ztbg:set?' + key + ',' + next.n));
+    }
+    items.push(menuItem('zt-bg-off', 'Use original background', 'ztbg:set?' + key + ',0'));
+    return items;
+  }
+  function bgAction(url) {
+    var m = /^ztbg:set\?([A-Za-z]{4}\d{5}),(\d+)$/.exec(url);
+    if (!m) return;
+    var key = m[1].toUpperCase(), n = parseInt(m[2], 10), pics = bgPics(key), list = [];
+    /* background 1 (the first) is the default: not written */
+    String(THEME.customBgChoice || '').split(';').forEach(function (t) {
+      var c = /^\s*([A-Za-z]{4}\d{5})\s*:\s*(\d+)\s*$/.exec(t);
+      if (c && c[1].toUpperCase() !== key) list.push(c[1].toUpperCase() + ':' + c[2]);
+    });
+    if (!(pics.length && n === pics[0].n)) list.push(key + ':' + n);
+    var value = list.join('; ');
+    log('custom background: ' + key + ' -> ' + (n ? 'background ' + n : 'own art'));
+    try { console.log('THEME-SET customBgChoice ' + value); } catch (e) {}
+  }
   /* ---- custom game backgrounds ----
      Pictures in /data/ZhiThemes/Assets/custombg, listed by ZhiThemes at every Home
      and hub start (globalThis.__ztCustomBgs): <titleId>_16x9_<n>.png|jpg
@@ -11615,8 +12672,62 @@
       return function () { var i = tileListeners.indexOf(f); if (i >= 0) tileListeners.splice(i, 1); };
     }, []);
     var file = bgVideoFor(T.shapeFocus || T.focusedId || T.strandSel);
-    if (!file) return null;
-    return React.createElement(AnimTileVideo, { key: file, file: file, dir: 'b', w: 1920, h: 1080, focused: true });
+    /* the still background changes with a fade, a little zoom and a
+       slide of a few pixels the way the focus went (the PS5 does it);
+       the video did not: the old one goes the same way (BgVideoLayer
+       leaving), the new one fades in once it plays. The new player
+       starts when the old one is gone (one decoder at a time). */
+    var st = React.useRef(null);
+    if (!st.current) st.current = { cur: '', gone: [] };
+    var s = st.current, fade = bgAnimMs();
+    if (file !== s.cur) {
+      /* back to one that is still going: it stays */
+      s.gone = s.gone.filter(function (g) { return g.file !== file; });
+      if (s.cur) s.gone.push({ file: s.cur, dir: T.focusDir || 0 });
+      s.cur = file;
+      if (s.gone.length > 2) s.gone = s.gone.slice(-2);
+    }
+    var gone = function (f) {
+      var n = s.gone.length;
+      s.gone = s.gone.filter(function (g) { return g.file !== f; });
+      if (s.gone.length !== n) tick(function (k) { return k + 1; });
+    };
+    var out = s.gone.map(function (g) {
+      return React.createElement(BgVideoLayer, { key: g.file, file: g.file, leaving: true, dir: g.dir, ms: fade, onGone: gone });
+    });
+    if (file) out.push(React.createElement(BgVideoLayer, { key: file, file: file, leaving: false, ms: fade,
+                                                           wait: s.gone.length ? fade : null }));
+    return out.length ? React.createElement(React.Fragment, null, out) : null;
+  }
+  function bgAnimMs() { return THEME.bgVideoAnimMs >= 0 ? +THEME.bgVideoAnimMs : 350; }
+  function BgVideoLayer(props) {
+    var React = T.React, rn = T.rn, A = rn.Animated;
+    var me = React.useState(function () { return {}; })[0];
+    var zoom = THEME.bgVideoZoom > 0 ? +THEME.bgVideoZoom : 1.04;
+    var shift = THEME.bgVideoShift >= 0 ? +THEME.bgVideoShift : 24;
+    if (A && A.Value && !me.op) { me.op = new A.Value(1); me.x = new A.Value(0); me.k = new A.Value(1); }
+    React.useEffect(function () {
+      if (!me.op) { if (props.leaving) props.onGone(props.file); return undefined; }
+      var to = props.leaving ? { op: 0, x: (props.dir || 0) * shift, k: zoom } : { op: 1, x: 0, k: 1 };
+      var ms = props.ms || 0, cfg = function (v) { return { toValue: v, duration: ms, useNativeDriver: true }; };
+      var anim = null, done = false;
+      var end = function () { if (!done && props.leaving) { done = true; props.onGone(props.file); } };
+      try {
+        anim = A.parallel([A.timing(me.op, cfg(to.op)), A.timing(me.x, cfg(to.x)), A.timing(me.k, cfg(to.k))]);
+        anim.start(function () { end(); });
+      } catch (e) { try { me.op.setValue(to.op); me.x.setValue(to.x); me.k.setValue(to.k); } catch (e2) {} end(); }
+      /* the end callback may not come (stopped): gone anyway */
+      var t = props.leaving ? setTimeout(end, ms + 200) : null;
+      return function () { clearTimeout(t); try { if (anim) anim.stop(); } catch (e) {} };
+    }, [props.leaving]);
+    var video = React.createElement(AnimTileVideo, { file: props.file, dir: 'b', w: 1920, h: 1080, focused: true,
+                                                     fadeMs: props.ms, wait: props.wait });
+    if (!me.op) return video;
+    return React.createElement(A.View, {
+      pointerEvents: 'none',
+      style: { position: 'absolute', left: 0, top: 0, width: 1920, height: 1080, opacity: me.op,
+               transform: [{ translateX: me.x }, { scale: me.k }] }
+    }, video);
   }
 
   /* Bloodborne (no pic0) with its own background showed it and lost it
@@ -11811,12 +12922,71 @@
       style: { position: 'absolute', left: 0, top: 0, width: 8, height: 8 }
     }));
   }
+  /* The PS5 draws a dark shade behind the focused tile, over the game art:
+     the 'basemat' of setBackground ('EllipseNarrow' on the Home, 'Flat' in
+     a hub when it scrolls). A video wallpaper covers it (drawn by the Home
+     over the native background). bgShade 'flat' / 'none' replaces it;
+     a request with no picture (clean background, try 3) keeps its own. */
+  var SHADE_MATS = { flat: 'Flat', none: 'None' };
+  function withShade(img) {
+    var mat = SHADE_MATS[String(THEME.bgShade || '').toLowerCase()];
+    if (!mat || !img || typeof img !== 'object' || !('uri' in img)) return img;
+    var copy = {};
+    for (var k in img) copy[k] = img[k];
+    copy.basemat = mat;
+    if (!T.done['background shade']) done('background shade ' + mat + ' (was ' + (img.basemat || 'none given') + ')');
+    return copy;
+  }
+  /* foldersNoSound: a selected folder played its first game's music: the
+     Home asks it for the tile (bgMusicPath, from the first game's data) and
+     the game page under the folder (the first game's hub, PostCover) asks
+     it too, both with SceneControl.setSystemBgm({src, type: 'AppSnd0'}).
+     A game of a folder is never in the row itself, so in the Home and in a
+     hub page under the row (not the Game Library) a request for one of them
+     is the folder's: it goes out as null (as for a tile without music) */
+  var folderMuteLogs = 0;
+  function folderOfMusic(bgm) {
+    if (fromLibrary()) return null;
+    var id = hubTitleId();
+    if (!id && bgm && typeof bgm === 'object') {
+      var m = /\/([A-Z]{4}\d{5})\//.exec(String(bgm.src || bgm.uri || ''));
+      id = m ? m[1] : '';
+    }
+    return id ? folderOfGame(id) : null;
+  }
+  function hookFolderMusic(sc) {
+    if ((APP !== 'hub' && APP !== 'home') || !THEME.foldersNoSound || !THEME.folders || !sc ||
+        typeof sc.setSystemBgm !== 'function' || sc.setSystemBgm.__themeFold) return;
+    var original = sc.setSystemBgm;
+    var replaced = function (bgm) {
+      try {
+        var fo = bgm ? folderOfMusic(bgm) : null;
+        if ((T.bgmLogs = (T.bgmLogs || 0) + 1) <= 8) {
+          try { log('folder music: asked ' + JSON.stringify(bgm).slice(0, 160) + (fo ? ' -> ' + fo : '')); } catch (e) {}
+        }
+        if (fo) {
+          if (folderMuteLogs++ < 6) log('folder music: ' + fo + ' (game page ' + (hubTitleId() || '?') + ') plays no music');
+          if (!T.done['folder without music']) done('folder without music');
+          return original.call(this, null);
+        }
+      } catch (e) { log('folder music error: ' + e); }
+      return original.apply(this, arguments);
+    };
+    replaced.__themeFold = true;
+    try { sc.setSystemBgm = replaced; } catch (e) {}
+    if (sc.setSystemBgm !== replaced) log('folder music: setSystemBgm not replaceable');
+  }
   function hookBackground(exp) {
     var sc;
     try { sc = exp.SceneControl; } catch (e) { return; }
     hookMusic(sc);
+    hookFolderMusic(sc);
     if (!sc || typeof sc.setBackground !== 'function' || sc.setBackground.__theme) return;
-    var original = sc.setBackground;
+    var nativeSet = sc.setBackground;
+    /* every request goes out with the theme's shade (bgShade) */
+    var original = function (img) {
+      return nativeSet.apply(this, arguments.length ? [withShade(img)] : arguments);
+    };
     var replaced = function (img) {
       var asked = img && typeof img === 'object' ? String(img.uri || '') : String(img);
       if (THEME.bgClean) {
@@ -11962,12 +13132,15 @@
       }
       if (!T.IconPS && exp.IconPS && typeof exp.IconPS !== 'string') T.IconPS = exp.IconPS;
       if (!T.FocusLayer && exp.FocusLayerPS && typeof exp.FocusLayerPS !== 'string') T.FocusLayer = exp.FocusLayerPS;
+      /* the system dialog (older Homes: the folder rename) */
+      if (!T.DialogPS && exp.DialogPS && typeof exp.DialogPS !== 'string') T.DialogPS = exp.DialogPS;
       /* the system menu parts (the Power button's menu) */
       if (!T.rnps && exp.OptionsMenuPS && exp.MenuListItemPS && typeof exp.OptionsMenuPS !== 'string') { T.rnps = exp; done('system menu parts'); }
       if (!T.useLink && typeof exp.useLink === 'function') { T.useLink = exp.useLink; done('useLink'); }
       if ('SceneControl' in exp) hookBackground(exp);
       findReact(exp);
       rowConstants(exp);
+      moreTiles(exp);
       verticalConstants(exp);
       shapeTitleConstants(exp);
       topConstants(exp);
@@ -11975,8 +13148,10 @@
       moveIcons(exp);
       hookJsx(exp);
       hookAtom(exp);
+      hookRecoil(exp);
       hookAppItems(exp);
       patchSpaces(exp, id);
+      hookTitleFetch(exp, id);
       hookTitleSpace(exp);
       hookSpaceFocus(exp);
       hookDefaultTile(exp);
@@ -11993,7 +13168,7 @@
       }
     } catch (e) {
       T.errors++;
-      log('error in module ' + id + ': ' + e);
+      logE('error in module ' + id + ': ' + e);
     }
   }
 
@@ -12002,6 +13177,36 @@
      module: factory.call(exports, module, exports, require). On the first call
      every factory (require.m) is wrapped and the detour goes away. */
   var callOriginal = Function.prototype.call;
+  /* how many factories a require holds (older firmwares: the first require
+     seen can be an inner bundle's, with none) */
+  function factoryCount(require) {
+    var m = require.m, n = 0;
+    if (!m || typeof m !== 'object') return 0;
+    for (var id in m) if (typeof m[id] === 'function') n++;
+    return n;
+  }
+  /* a require without factories, described for the log */
+  function requireShape(require, module) {
+    var out = [];
+    try {
+      var m = require.m, c = require.c, keys = [];
+      for (var k in require) keys.push(k);
+      out.push('keys=' + keys.slice(0, 30).join(','));
+      out.push('m=' + (m === null ? 'null' : typeof m) + (Array.isArray(m) ? '(array ' + m.length + ')' : ''));
+      if (m && typeof m === 'object') {
+        var mk = Object.keys(m);
+        out.push('m.keys=' + mk.length);
+        for (var i = 0; i < mk.length && i < 3; i++) {
+          var v = m[mk[i]];
+          out.push('m[' + mk[i] + ']=' + (v === null ? 'null' : typeof v) +
+                   (v && typeof v === 'object' ? '{' + Object.keys(v).slice(0, 8).join(',') + '}' : ''));
+        }
+      }
+      if (c && typeof c === 'object') out.push('c.keys=' + Object.keys(c).length);
+      if (module) out.push('module.i=' + module.i + ' module.id=' + module.id);
+    } catch (e) { out.push('error ' + e); }
+    return out.join(' ');
+  }
   function hookRequire(require) {
     T.require = require;
     var factories = require.m, n = 0;
@@ -12020,11 +13225,75 @@
     }
     log('require caught, ' + n + ' modules');
   }
+  /* ---- older firmwares: Haul RAM bundles ----
+     The app's own modules never sit in require.m (that stays {}): each one
+     arrives as JS text through globalThis.__haul_<bundle>.l(id, factory),
+     and the shared libraries (React, React Native) come from a separate
+     "base_dll" bundle with an ordinary require. The loader object is caught
+     when the bundle sets it, and its l is wrapped so every module of the
+     app also goes through afterModule. */
+  T.haulModules = 0;
+  function wrapHaul(name) {
+    var key = '__haul_' + name, holder;
+    try {
+      if (Object.getOwnPropertyDescriptor(globalThis, key)) return;
+      Object.defineProperty(globalThis, key, {
+        configurable: true, enumerable: true,
+        get: function () { return holder; },
+        set: function (f) {
+          holder = f;
+          T.haul = true;
+          if (!f || (typeof f !== 'object' && typeof f !== 'function')) return;
+          var load;
+          Object.defineProperty(f, 'l', {
+            configurable: true, enumerable: true,
+            get: function () { return load; },
+            set: function (fn) {
+              if (typeof fn !== 'function') { load = fn; return; }
+              load = function (id, factory) {
+                if (typeof factory !== 'function') return fn.apply(this, arguments);
+                return fn.call(this, id, function (module, exports, req) {
+                  var r = factory.call(this, module, exports, req);
+                  T.haulModules++;
+                  afterModule(module, id);
+                  return r;
+                });
+              };
+              /* the bundle names its loader (f.l.name = ...): keep that harmless */
+              try { Object.defineProperty(load, 'name', { value: 'loadSelf_' + name, writable: true, configurable: true }); } catch (e) {}
+              log('haul bundle ' + name + ': module loader wrapped');
+            }
+          });
+        }
+      });
+    } catch (e) { log('haul: ' + e); }
+  }
+  wrapHaul('application');
+
+  /* requires seen with no factories: logged, then the search goes on (up to
+     40 of them, or 20 s) */
+  var emptyRequires = 0, emptySeen = [];
+  function stopSearch(why) {
+    if (Function.prototype.call !== callOriginal && !T.hooked) {
+      Function.prototype.call = callOriginal;
+      log('require not caught (' + why + ', ' + emptyRequires + ' empty ones)');
+    }
+  }
+  setTimeout(function () { stopSearch('20 s'); }, 20000);
   Function.prototype.call = function (thisArg, module, exports, require) {
     if (!T.hooked && arguments.length === 4 &&
         typeof require === 'function' && module &&
         typeof module === 'object' && module.exports === exports &&
-        exports === thisArg && require.m && require.c) {
+        exports === thisArg && require.m && require.c &&
+        emptySeen.indexOf(require) < 0) {
+      if (!factoryCount(require)) {
+        emptySeen.push(require);
+        emptyRequires++;
+        if (emptyRequires <= 5) log('require ' + emptyRequires + ' has no factories: ' + requireShape(require, module));
+        if (emptyRequires >= 40) stopSearch('40 empty');
+        return callOriginal.apply(this, arguments);
+      }
+      if (emptyRequires) log('require caught after ' + emptyRequires + ' empty one(s)');
       T.hooked = true;
       Function.prototype.call = callOriginal;
       try { hookRequire(require); } catch (e) { log('failed: ' + e); }
@@ -12050,12 +13319,137 @@
         console.log('THEME-CACHE-KEEP icons|' + Object.keys(tallAsked).join(','));
       } catch (e) { log('cache keep: ' + e); }
     }, 30000);
+
+  /* ---- health: one "H" line a minute in each app ----
+     Where a leak of ours would show: Home layer copies (Single), listener
+     lists, runs of this file in the same JS context (a reload that keeps
+     the old timers), the longest stall of the JS thread (a 1 s timer that
+     came late) and the done() names called most in that minute. */
+  (function () {
+    var last = Date.now(), worst = 0, ticks = 0, doneSeen = {};
+    function listenerCount() {
+      var n = 0;
+      [function () { return readyListeners; }, function () { return logoListeners; },
+       function () { return folderListeners; }, function () { return playListeners; },
+       function () { return favEmptyListeners; }, function () { return T.titleListeners; },
+       function () { return wormListeners; }, function () { return qrListeners; },
+       function () { return nameListeners; }, function () { return trophyListeners; },
+       function () { return userListeners; }, function () { return favFxListeners; },
+       function () { return buttonListeners; }, function () { return statsListeners; },
+       function () { return sideListeners; }, function () { return tileListeners; },
+       function () { return musicListeners; }].forEach(function (f) {
+        try { var l = f(); if (l && l.length) n += l.length; } catch (e) {}
+      });
+      return n;
+    }
+    /* 2 s before the line every copy is asked to render again; the ones
+       that did are alive (still mounted), the rest are left over */
+    var probeAt = 0, rootLast = 0;
+    function copiesProbe() {
+      probeAt = Date.now();
+      Object.keys(singles).forEach(function (k) {
+        singles[k].forEach(function (x) { try { x.bump(function (n) { return n + 1; }); } catch (e) {} });
+      });
+    }
+    function copiesText(k) {
+      var l = singles[k], n = l.length;
+      if (n <= 3 || !probeAt) return k + ' ' + n;
+      var alive = 0, noBack = 0, tabs = {};
+      l.forEach(function (x) {
+        var c = x.id || {};
+        if (c.lastRender >= probeAt) alive++;
+        if (c.noBack) noBack++;
+        tabs[c.tab] = (tabs[c.tab] || 0) + 1;
+      });
+      var first = l[0].id || {}, age = first.born ? Math.round((Date.now() - first.born) / 1000) : -1;
+      return k + ' ' + n + ' (alive ' + alive + ', no back ' + noBack + ', tabs ' +
+        Object.keys(tabs).map(function (t) { return t + ' ' + tabs[t]; }).join(' ') +
+        ', oldest ' + age + ' s)';
+    }
+    /* After a tab change the Home leaves the old front layer behind without
+       running its cleanup (measured on 9.60: 39 copies, 2 still render).
+       Each entry keeps that old tree alive through its bump: the copies
+       that did not render after the probe are dropped (never the last one,
+       the copy on screen). */
+    function copiesPrune() {
+      if (!probeAt) return;
+      Object.keys(singles).forEach(function (k) {
+        var l = singles[k], n = l.length;
+        if (n <= 1) return;
+        var keep = l.filter(function (x, i) {
+          return i === n - 1 || (x.id && x.id.lastRender >= probeAt);
+        });
+        if (keep.length === n) return;
+        l.length = 0;
+        keep.forEach(function (x) { l.push(x); });
+        if (T.copiesMost) T.copiesMost[k] = keep.length;
+        log('layer copies ' + k + ': ' + (n - keep.length) + ' left over dropped, ' + keep.length + ' kept');
+      });
+    }
+    /* this JS context's own memory, from Hermes (HermesInternal is there
+       on the PS5's Hermes builds; other engines: nothing). The first time
+       the names it gives are logged once. */
+    var heapNamesLogged = false;
+    function jsHeapText() {
+      var HI = typeof HermesInternal !== 'undefined' ? HermesInternal : null;
+      if (!HI || typeof HI.getInstrumentedStats !== 'function') return '';
+      var s = HI.getInstrumentedStats() || {};
+      if (!heapNamesLogged) {
+        heapNamesLogged = true;
+        log('js heap fields: ' + Object.keys(s).join(','));
+      }
+      var mb = function (k) { return typeof s[k] === 'number' ? (s[k] / 1048576).toFixed(1) : '?'; };
+      return ' | js heap ' + mb('js_heapSize') + ' MB, used ' + mb('js_allocatedBytes') + ' MB' +
+        (typeof s.js_externalBytes === 'number' ? ', external ' + mb('js_externalBytes') + ' MB' : '') +
+        (typeof s.js_numGCs === 'number' ? ', gcs ' + s.js_numGCs : '');
+    }
+    function healthLine() {
+      var copies = Object.keys(singles).map(copiesText).join(', ');
+      var heap = '';
+      try { heap = jsHeapText(); } catch (e) { heap = ' | js heap: ' + e; }
+      try { copiesPrune(); } catch (e) { log('copies prune: ' + e, 'W'); }
+      var busy = Object.keys(T.doneN).map(function (k) { return [k, T.doneN[k] - (doneSeen[k] || 0)]; })
+        .filter(function (x) { return x[1] > 0; })
+        .sort(function (a, b) { return b[1] - a[1]; }).slice(0, 3);
+      Object.keys(T.doneN).forEach(function (k) { doneSeen[k] = T.doneN[k]; });
+      var rootSeen = rootLast;
+      rootLast = T.rootRenders || 0;
+      log('health: runs ' + (globalThis.__ztEvals || 1) + ' | errors ' + T.errors +
+          ' | copies ' + (copies || '-') +
+          (T.rootRenders ? ' | root renders ' + (T.rootRenders - rootSeen) : '') +
+          ' | listeners ' + listenerCount() +
+          ' | tabs ' + (T.tabChanges || 0) + ' | worst stall ' + worst + ' ms' + heap +
+          (busy.length ? ' | busiest: ' + busy.map(function (x) {
+            return String(x[0]).slice(0, 40) + ' x' + x[1];
+          }).join(', ') : ''), 'H');
+      worst = 0;
+    }
+    T.healthLine = healthLine; /* (harness) */
+    /* the heap once, 10 s after this context started: with Home reloads a
+       few seconds apart the minute line never comes, and this one gives
+       each new context's size (growing from reload to reload = something
+       kept from one context to the next) */
+    setTimeout(function () {
+      try {
+        var h = jsHeapText();
+        if (h) log('health (10 s after start)' + h.replace(/^ \|/, ':'), 'H');
+      } catch (e) {}
+    }, 10000);
+    setInterval(function () {
+      var now = Date.now(), late = now - last - 1000;
+      last = now;
+      if (late > worst) worst = late;
+      ++ticks;
+      if (ticks % 60 === 58) try { copiesProbe(); } catch (e) {}
+      if (ticks % 60 === 0) try { healthLine(); } catch (e) { log('health: ' + e, 'W'); }
+    }, 1000);
+  })();
   setTimeout(function () {
-    log('state: hooked=' + T.hooked + ' done=' +
-        JSON.stringify(T.done) + ' errors=' + T.errors);
+    logLong('state', 'hooked=' + T.hooked + (T.haulModules ? ' haulModules=' + T.haulModules : '') +
+        ' errors=' + T.errors + ' done=' + Object.keys(T.done).join(','));
   }, 8000);
-  log('installed: ' + JSON.stringify(THEME));
-  /* the JSON above is cut in the log: the most tested fields go on their own */
+  logLong('installed', JSON.stringify(THEME));
+  /* the most tested fields also on their own line, easy to find */
   log('options: titleMode=' + titleMode() + (oldTitles() ? ' (old fields)' : '') + 
       ' fontStyle=' + THEME.fontStyle + ' focusThickness=' + THEME.focusThickness +
       ' focusGap=' + THEME.focusGap + ' focusCorners=' + THEME.focusCorners);

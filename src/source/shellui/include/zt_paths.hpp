@@ -23,7 +23,7 @@ later version. See LICENSE and NOTICE.  */
    inject_count, debug.on, session.open):
      Assets/  the user's own files, shared by every theme (custom tiles,
               game backgrounds, folder icons, avatars, cache)
-     Themes/  <Name>.ztheme + <Name>/ (wallpapers, icons, fonts of that theme)
+     Themes/  <Name>/theme.json + wallpapers, icons and fonts of that theme
      Logs/    the logs */
 #define ZT_ASSETS ZT_DIR "/Assets"
 #define ZT_THEMES ZT_DIR "/Themes"

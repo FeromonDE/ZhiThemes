@@ -31,16 +31,17 @@ state = {'theme': THEME, 'log': ['js: hooks RunScript=1 ConsoleLog=1 name_field=
          'bgs': [], 'bgdata': {},
          # files by kind (wallpapers, icons, fonts), debug mode, saved logs
          'files': {'wallpapers': {}, 'icons': {}, 'fonts': {}, 'avatars': {}}, 'debug': False, 'sys': False,
-         'saved': {'previous.log': b'2026-10-30 10:00:00.000 +0.000  ==== ZhiThemes (mock) ====\n',
-                   'payload.log': b'2026-10-30 10:00:00  payload start\n'}}
+         'saved': {}}
 CUSTOM = os.environ.get('ZT_CUSTOMTILE', '')
+# ZT_SYSICONS=<folder>: system icons as <name>.svg / .png (GET /sysicon)
+SYSICONS = os.environ.get('ZT_SYSICONS', '')
 # game backgrounds next to it (<customtile>_bg)
 CUSTOMBG = CUSTOM + '_bg' if CUSTOM else ''
 if CUSTOMBG and not os.path.isdir(CUSTOMBG):
     os.makedirs(CUSTOMBG)
 
 
-# several themes (Themes/<name>.ztheme + their wallpapers/icons/fonts);
+# several themes (Themes/<name>/theme.json + their wallpapers/icons/fonts);
 # state['theme'] / state['files'] are the active one's
 PERSONAL = ('folders', 'foldersIcon', 'customTileChoice', 'customBgChoice')
 state['active'] = 'My-theme'
@@ -85,9 +86,10 @@ def themes_json():
     for n in sorted(state['themes'], key=str.lower):
         f = state['themes'][n]['files']
         lst = [[k, nm, len(b)] for k, d in f.items() for nm, b in d.items()]
-        items.append('{"name":"%s","files":%d,"bytes":%d,"modified":0,"list":%s}' % (
+        au, de = state.setdefault('info', {}).get(n, ('', ''))
+        items.append('{"name":"%s","files":%d,"bytes":%d,"modified":0,"title":%s,"author":%s,"description":%s,"list":%s}' % (
             n, sum(len(d) for d in f.values()), sum(len(b) for d in f.values() for b in d.values()),
-            json.dumps(lst)))
+            json.dumps(n), json.dumps(au), json.dumps(de), json.dumps(lst)))
     return '{"active":"%s","themes":[%s]}' % (state['active'], ','.join(items))
 
 
@@ -141,6 +143,11 @@ def themes_post(path, q, body=''):
             k, _, f = line.partition('/')
             if k in ('wallpapers', 'icons', 'fonts'):
                 files.get(k, {}).pop(f, None)
+    elif path == '/themes/info':
+        if n not in T:
+            return 'no such theme'
+        au, _, de = (body or '').partition('\n')
+        state.setdefault('info', {})[n] = (au.strip(), de)
     elif path == '/themes/clear':
         t = T.setdefault(n, {'text': THEME, 'files': {}})
         for k in ('wallpapers', 'icons', 'fonts'):
@@ -193,6 +200,21 @@ def measures():
     rec = ','.join('%s=%g' % (k, g(k)) for k in ['rowOffsetY', 'tileSize', 'focusSize', 'focusX', 'focusY'])
     out.append('js: THEME [home] layout tiles 50 126 1920 %d window %s xs=%s' % (t, rec, '/'.join(xs)))
     return out
+
+
+def update_json():
+    """GET /update like zt_update.cpp (ZT_MOCK_UPDATE=none|available|restart|rolledback)"""
+    kind = state.get('upd', os.environ.get('ZT_MOCK_UPDATE', 'available'))
+    u = {"current": "0.1.0-alpha", "build": 292, "state": "idle", "error": "", "progress": -1, "auto": True,
+         "checkedAgo": 120, "available": kind == 'available', "latest": "0.1.1-alpha", "latestBuild": 410,
+         "notes": "Automatic updates, faster Home start, fixes for old firmware.", "size": 10012345,
+         "crashedBefore": False, "restart": kind == 'restart', "restartVersion": "0.1.1-alpha" if kind == 'restart' else "",
+         "restartPldmgr": True, "restartWhere": "", "rolledBack": "0.1.1-alpha" if kind == 'rolledback' else "",
+         "rolledBackTo": "0.1.0-alpha" if kind == 'rolledback' else "", "loads": 1, "loadLimit": 5}
+    if state.get('updp') is not None:
+        state['updp'] += 25
+        u['state'], u['progress'] = ('downloading', state['updp']) if state['updp'] <= 100 else ('applying', 100)
+    return json.dumps(u)
 
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -327,13 +349,42 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._sgdb('GET')
         u = urllib.parse.urlparse(self.path)
         q = dict(urllib.parse.parse_qsl(u.query))
+        if u.path == '/reloads':
+            return self._send(200, str(state.get('reloads', 1)), 'text/plain')
+        if u.path == '/sysicon':  # the PS5 reads it from its own RCO; here a folder of <name>.svg/.png
+            n = q.get('name', '')
+            if SYSICONS and re.match(r'^[A-Za-z0-9_-]+$', n):
+                for ext, typ in (('.svg', 'image/svg+xml'), ('.png', 'image/png')):
+                    fp = os.path.join(SYSICONS, n + ext)
+                    if os.path.isfile(fp):
+                        with open(fp, 'rb') as fh:
+                            return self._bytes(fh.read(), typ)
+            return self._send(404, 'no such icon')
         if u.path == '/injectdelay':
             return self._send(200, '{"seconds":%d}' % state.get('inject', 15), 'application/json')
         if u.path == '/themes':
             return self._send(200, themes_json(), 'application/json')
+        if u.path == '/themes/active':
+            return self._send(200, state['active'], 'text/plain')
+        if u.path == '/themes/pack':  # the PS5 makes the .ztheme
+            t = _theme(q.get('name', ''))
+            if not t:
+                return self._send(400, 'no theme ' + q.get('name', ''))
+            files = [(k + '/' + nm, b) for k, d in t['files'].items() for nm, b in d.items()]
+            if q.get('check') == '1':
+                return self._send(200, json.dumps({'files': len(files), 'size': sum(len(b) for _, b in files) + 2000, 'missing': 0}), 'application/json')
+            import io as _io, zipfile
+            buf = _io.BytesIO()
+            with zipfile.ZipFile(buf, 'w') as z:
+                z.writestr('theme.json', json.dumps({'format': 2, 'name': q['name'], 'settings': {}}, indent=2))
+                for nm, b in files:
+                    z.writestr(nm, b)
+            return self._bytes(buf.getvalue(), 'application/zip')
         if u.path == '/themes/text':
             t = _theme(q.get('name', ''))
             return self._send(200, t['text'], 'text/plain') if t and t.get('text') else self._send(404, 'no such theme', 'text/plain')
+        if u.path == '/update':
+            return self._send(200, update_json(), 'application/json')
         if u.path == '/sysinfo':
             return self._send(200, '{"name":"ZhiThemes","version":"0.1.0-alpha","build":292,"author":"Zhi","home":"https://github.com/itsRealZhi/ZhiThemes","kofi":"https://ko-fi.com/zhi",'
                                    '"fw":"9.60","fwHex":"0x09600004","debug":%s,"sys":%s,"started":0}'
@@ -416,6 +467,13 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._sgdb('POST')
         u = urllib.parse.urlparse(self.path)
         q = dict(urllib.parse.parse_qsl(u.query))
+        if u.path == '/update':
+            d = q.get('do', '')
+            if d in ('install', 'retry'):
+                state['updp'] = 0
+            elif d == 'dismiss':
+                state['upd'] = 'none'
+            return self._send(200, update_json(), 'application/json')
         if u.path in ('/background', '/font') and 'kind' in q or u.path == '/font':
             kind = 'fonts' if u.path == '/font' else q['kind']
             name = q.get('name', '')
@@ -428,6 +486,18 @@ class H(http.server.BaseHTTPRequestHandler):
                 state['files'].setdefault(kind, {})[name] = raw
             state['log'].append('web: %s %s saved (%d bytes)' % (kind, name, len(raw)))
             return self._send(200, 'saved')
+        if u.path == '/install':  # the PS5 installs it: here a new theme named after the file
+            _store()
+            stem = re.sub(r'\.[^.]*$', '', q.get('name', 'theme')) or 'theme'
+            n = q.get('replace') or stem
+            i = 2
+            while n in state['themes'] and not q.get('replace'):
+                n = '%s-%d' % (stem, i)
+                i += 1
+            state['themes'][n] = {'text': THEME, 'files': {}}
+            themes_post('/themes/use', {'name': n})
+            state['log'].append('install: %s -> theme %s (mock, %d bytes)' % (q.get('name'), n, len(raw)))
+            return self._send(200, json.dumps({'theme': n}), 'application/json')
         if u.path.startswith('/themes/'):
             err = themes_post(u.path, q, raw.decode('utf-8', 'replace'))
             if err:
@@ -441,7 +511,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 state['theme'] = body
             else:
                 state['themes'].setdefault(q['name'], {'files': {}})['text'] = body
-            state['log'].append('web: Themes/%s.ztheme saved (%d bytes)' % (q['name'], len(body.encode())))
+            state['log'].append('web: Themes/%s/theme.json saved (%d bytes)' % (q['name'], len(body.encode())))
             return self._send(200, 'saved')
         if u.path == '/injectdelay':
             state['inject'] = max(5, min(120, int(q.get('s', '15') or 15)))
@@ -489,7 +559,8 @@ class H(http.server.BaseHTTPRequestHandler):
             state['log'].append('web: theme.js saved (%d bytes)' % len(body.encode()))
             return self._send(200, 'saved')
         if self.path == '/reload':
-            state['log'] += ['web: HomeUI reload requested',
+            state['reloads'] = state.get('reloads', 1) + 1
+            state['log'] +=['web: HomeUI reload requested',
                              'js: THEME installed: (mock)', 'js: THEME applied: constants'] + measures()
             return self._send(200, 'reload queued')
         if self.path == '/log/clear':

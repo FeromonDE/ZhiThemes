@@ -7,8 +7,9 @@ body:
     attributes:
       value: |
         Thanks for testing ZhiThemes! A log helps much more than a long description.
-        Turn on **Debug mode** in the editor's **Logs** tab, do the thing that fails again, then download the log from that tab
-        (or copy it from `/data/ZhiThemes/Logs/` by FTP). More in `docs/LOGS.md` in the repository.
+        In the editor's **Logs** tab press **Report a problem…** and attach the report it downloads (for more detail, turn on
+        **Debug mode** first and do the thing that fails again). Without the editor: 🎨 ZhiThemes > Tools > Copy logs to USB,
+        or `/data/ZhiThemes/Logs/zhithemes.log` by FTP. More in `docs/LOGS.md` in the repository.
 
   - type: input
     id: version
@@ -53,7 +54,7 @@ body:
     id: log
     attributes:
       label: Log
-      description: Attach the log file (drag it here), or paste it.
+      description: Attach the report or the log file (drag it here).
       render: text
     validations:
       required: true

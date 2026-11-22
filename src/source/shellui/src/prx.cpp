@@ -28,12 +28,14 @@ along with this program; see the file COPYING. If not, see
 #include "ps5/kernel.h"
 #include "zt_brand.hpp"
 #include "zt_log.hpp"
+#include "zt_paths.hpp"
 #include "zt_power.hpp"
 #include "zt_stats.hpp"
 #include "theme_web.hpp"
 #include "toolbox_i18n.hpp"
 #include "ucred.h"
 #include "webserver.hpp"
+#include "zt_update.hpp"
 
 #include <onion/notify.h>
 #include <onion/proc_query.h>
@@ -109,40 +111,15 @@ int KillAppWithReason_Hook(int appId, int reason);
 // Init constants
 // ---------------------------------------------------------------------------
 
-/* logs/boot.log, one line per start-up step written straight to the
-   file (small buffer, no lock): when ShellUI dies before the log is up, its
-   last line says where. */
+/* "[boot] <step>" lines in zhithemes.log, one per start-up step written
+   straight to the file: when ShellUI dies in the start, the last one says
+   where. The first one opens the session (zt_log.cpp). */
 namespace {
 /* last step written, for the heartbeat lines (always a string literal) */
 std::atomic<const char *> g_boot_step{"none"};
 }
 
-static void zt_boot_write(const char *step, int alive) {
-#if defined(ZHITHEMES) && ZHITHEMES
-  mkdir("/user/data/ZhiThemes", 0777);
-  mkdir("/user/data/ZhiThemes/Logs", 0777); /* (logs/ before) */
-  const char *path = "/user/data/ZhiThemes/Logs/boot.log";
-  struct stat st;
-  const bool big = stat(path, &st) == 0 && st.st_size > (64 << 10);
-  const int fd = open(path, O_WRONLY | O_CREAT | (big ? O_TRUNC : O_APPEND), 0666);
-  if (fd < 0)
-    return;
-  char line[160];
-  struct timespec ts {};
-  clock_gettime(CLOCK_REALTIME, &ts);
-  const int n = alive > 0
-                    ? snprintf(line, sizeof(line), "%ld.%03ld pid %d: alive %d s (last step: %s)\n",
-                               (long)ts.tv_sec, ts.tv_nsec / 1000000, (int)getpid(), alive, step)
-                    : snprintf(line, sizeof(line), "%ld.%03ld pid %d: %s\n", (long)ts.tv_sec,
-                               ts.tv_nsec / 1000000, (int)getpid(), step);
-  if (n > 0)
-    (void)!write(fd, line, (size_t)n < sizeof(line) ? (size_t)n : sizeof(line) - 1);
-  close(fd);
-#else
-  (void)step;
-  (void)alive;
-#endif
-}
+static void zt_boot_write(const char *step, int alive) { zt_log_boot(step, alive); }
 
 void zt_boot(const char *step) {
   g_boot_step.store(step);
@@ -163,7 +140,7 @@ __attribute__((constructor)) static void zt_boot_constructor() {
 }
 #endif
 
-/* heartbeat: one boot.log line a second for the first minute. If the lines
+/* heartbeat: one "[boot] alive" line a second for the first minute. If the lines
    go on until ShellUI dies, the start is stuck at the last step (and the
    system kills ShellUI); if they stop at once, it crashed in that step. */
 [[maybe_unused]] static void *zt_boot_heartbeat(void *) {
@@ -436,6 +413,9 @@ bool resolve_mono_symbols(pid_t pid) {
   KERNEL_DLSYM(libmono, mono_jit_info_get_code_start);
   KERNEL_DLSYM(libmono, mono_method_get_class);
   KERNEL_DLSYM(libmono, mono_class_get_name);
+  KERNEL_DLSYM(libmono, mono_class_get_namespace);
+  KERNEL_DLSYM(libmono, mono_image_get_table_rows);
+  KERNEL_DLSYM(libmono, mono_class_get);
 
   const bool ok =
       mono_object_to_string && mono_get_root_domain && mono_property_get_get_method &&
@@ -1080,24 +1060,109 @@ void ZT_OnRender_Hook(MonoObject *instance) {
    injection into one ShellUI, seen twice). The functions are
    looked up into local pointers (not KERNEL_DLSYM globals, see
    check_dlsym.py); a missing one is just left out of the line. */
+/* System.GC.GetTotalMemory(false): the managed memory of ShellUI, on every
+   firmware (mono_gc_get_heap_size is missing on the old ones). -1 when
+   not found. Called from the module's thread (attached to mono). */
+MonoMethod *g_gc_total = nullptr;
+
+double mono_total_mb() {
+  if (!g_gc_total)
+    return -1;
+  uint8_t force = 0; /* MonoBoolean */
+  void *args[1] = {&force};
+  MonoObject *exc = nullptr;
+  MonoObject *boxed = mono_runtime_invoke(g_gc_total, nullptr, args, &exc);
+  if (exc || !boxed)
+    return -1;
+  return *static_cast<int64_t *>(mono_object_unbox(boxed)) / 1048576.0;
+}
+
+/* injections into this ShellUI (the payload's inject_count "<pid> <n> ...") */
+int inject_number() {
+  const int fd = open("/user/data/ZhiThemes/inject_count", O_RDONLY);
+  if (fd < 0)
+    return 0;
+  char buf[64] = {};
+  (void)!read(fd, buf, sizeof(buf) - 1);
+  close(fd);
+  long p = 0, n = 0;
+  return sscanf(buf, "%ld %ld", &p, &n) == 2 && p == (long)getpid() ? (int)n : 0;
+}
+
 void zt_memory_log(pid_t pid, const char *why) {
   static bool looked = false;
+  static double mono_start = -1, mono_reload = -1;
+  static int reloads_seen = 0;
   if (!looked) {
     looked = true;
     void *flex_free = (void *)kernel_dynlib_dlsym(-1, libSceKernelHandle,
                                                   "sceKernelAvailableFlexibleMemorySize");
-    void *mono_heap = nullptr, *mono_used = nullptr;
+    void *mono_heap = nullptr, *mono_used = nullptr, *corlib = nullptr, *class_image = nullptr;
     const int libmono = get_module_handle(pid, "libmonosgen-2.0.sprx");
     if (libmono > 0) {
       mono_heap = (void *)kernel_dynlib_dlsym(-1, libmono, "mono_gc_get_heap_size");
       mono_used = (void *)kernel_dynlib_dlsym(-1, libmono, "mono_gc_get_used_size");
+      corlib = (void *)kernel_dynlib_dlsym(-1, libmono, "mono_get_corlib");
+      class_image = (void *)kernel_dynlib_dlsym(-1, libmono, "mono_class_get_image");
     }
-    zt_log("memory: functions flexible=%d monoHeap=%d monoUsed=%d", flex_free != nullptr,
-           mono_heap != nullptr, mono_used != nullptr);
+    /* the base library (where System.GC is), three ways: mono_get_corlib
+       (missing on 9.60), the image of System.String's class, or opening
+       mscorlib.dll (already loaded: mono gives the same one back) */
+    MonoImage *img = nullptr;
+    const char *how = "not found";
+    if (corlib && (img = reinterpret_cast<MonoImage *(*)()>(corlib)()) != nullptr)
+      how = "mono_get_corlib";
+    if (!img && class_image && mono_string_new && mono_object_get_class && mono_domain_get) {
+      MonoString *s = mono_string_new(mono_domain_get(), "zt");
+      MonoClass *k = s ? mono_object_get_class(reinterpret_cast<MonoObject *>(s)) : nullptr;
+      if (k && (img = reinterpret_cast<MonoImage *(*)(MonoClass *)>(class_image)(k)) != nullptr)
+        how = "String class";
+    }
+    static const char *const kCorlib[] = {"/system/common/lib/mscorlib.dll",
+                                          "/system_ex/common_ex/lib/mscorlib.dll"};
+    for (const char *path : kCorlib) {
+      if (img || !mono_domain_assembly_open || !Root_Domain)
+        break;
+      MonoAssembly *a = mono_domain_assembly_open(Root_Domain, path);
+      if (a && (img = mono_assembly_get_image(a)) != nullptr)
+        how = path;
+    }
+    MonoClass *gc = img ? mono_class_from_name(img, "System", "GC") : nullptr;
+    g_gc_total = gc ? mono_class_get_method_from_name(gc, "GetTotalMemory", 1) : nullptr;
+    zt_log("memory: functions flexible=%d monoHeap=%d monoUsed=%d corlib=%d classImage=%d; "
+           "base library: %s; GC class %d, GetTotalMemory %d",
+           flex_free != nullptr, mono_heap != nullptr, mono_used != nullptr, corlib != nullptr,
+           class_image != nullptr, how, gc != nullptr, g_gc_total != nullptr);
     /* also for the debug panel (zt_stats.cpp) */
     zt_stats_set_memory_fns(flex_free, mono_heap, mono_used);
   }
-  zt_log("memory (%s): %s", why, zt_stats_memory_line().c_str());
+  /* one health line: managed memory (and how it moved since the start and
+     since the last Home reload), the system's numbers, reloads, injections */
+  zt_log_flush_repeats();
+  const double mono = mono_total_mb();
+  const int reloads = zt_log_reloads();
+  if (mono_start < 0)
+    mono_start = mono;
+  if (reloads != reloads_seen || mono_reload < 0) {
+    reloads_seen = reloads;
+    mono_reload = mono;
+  }
+  char mono_text[96] = "mono ?";
+  if (mono >= 0)
+    snprintf(mono_text, sizeof(mono_text), "mono %.1f MB (%+.1f since start, %+.1f since reload)",
+             mono, mono - mono_start, mono - mono_reload);
+  /* video players: connections open now, requests since the last line */
+  int v_open = 0;
+  unsigned v_acc = 0, v_ref = 0;
+  zt_video_counts(&v_open, &v_acc, &v_ref);
+  static unsigned v_acc_seen = 0, v_ref_seen = 0;
+  char video_text[96];
+  snprintf(video_text, sizeof(video_text), "videos open %d, asked %u, refused %u", v_open,
+           v_acc - v_acc_seen, v_ref - v_ref_seen);
+  v_acc_seen = v_acc;
+  v_ref_seen = v_ref;
+  zt_logl('H', "health (%s): %s | %s | reloads %d | injection %d | %s", why, mono_text,
+          zt_stats_memory_line().c_str(), reloads, inject_number(), video_text);
 }
 
 /* diagnostic build: the modules loaded in this ShellUI, for comparing
@@ -1129,6 +1194,61 @@ void zt_diag_modules(pid_t pid) {
 #endif
 }
 
+#if ZT_DIAG
+/* diagnostic build: every app bundle ShellUI has the system decrypt (the
+   RNPS decrypt ioctl) is written once per size to
+   Dumps/<firmware>/rnps_<size>.bin, so the Home of another firmware can be
+   read on the PC (the files on disk are encrypted) */
+int (*g_zt_ioctl_orig)(int, unsigned long, void *) = nullptr;
+std::atomic<int> g_zt_rnps_dumps{0};
+thread_local bool g_zt_in_ioctl_dump = false;
+void zt_rnps_dump(const ioctl_C0105203_args *a) {
+  if (!a->buffer || a->size <= 0 || a->size > (64 << 20) || g_zt_rnps_dumps.load() >= 40)
+    return;
+  std::string fw = zt_fw_text();
+  for (char &c : fw)
+    if (!isalnum((unsigned char)c) && c != '.')
+      c = '_';
+  const std::string dir = std::string(ZT_DIR "/Dumps/") + (fw.empty() ? "unknown" : fw);
+  mkdir(ZT_DIR "/Dumps", 0777);
+  mkdir(dir.c_str(), 0777);
+  char name[48];
+  snprintf(name, sizeof(name), "/rnps_%d.bin", a->size);
+  const std::string path = dir + name;
+  struct stat st;
+  if (stat(path.c_str(), &st) == 0)
+    return;
+  const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+  if (fd < 0) {
+    zt_log("diag: decrypted bundle %d bytes: cannot write %s", a->size, path.c_str());
+    return;
+  }
+  const char *p = static_cast<const char *>(a->buffer);
+  size_t left = (size_t)a->size;
+  while (left > 0) {
+    const ssize_t w = write(fd, p, left);
+    if (w <= 0)
+      break;
+    p += w;
+    left -= (size_t)w;
+  }
+  close(fd);
+  g_zt_rnps_dumps++;
+  zt_log("diag: decrypted bundle %d bytes -> Dumps/%s%s%s", a->size, fw.c_str(), name,
+         left ? " (cut short)" : "");
+}
+int ZT_Ioctl_Hook(int fd, unsigned long request, void *argp) {
+  const int ret = g_zt_ioctl_orig(fd, request, argp);
+  if (ret == 0 && (request & 0xFFFFFFFFUL) == 0xC0105203UL && argp && !g_zt_in_ioctl_dump &&
+      !theme_quitting()) {
+    g_zt_in_ioctl_dump = true;
+    zt_rnps_dump(static_cast<const ioctl_C0105203_args *>(argp));
+    g_zt_in_ioctl_dump = false;
+  }
+  return ret;
+}
+#endif
+
 /*
  * ZhiThemes module: only the theme (theme.js injection, focus frame, editor on
  * :4444). Everything else OnionHEN does in ShellUI is left out. Runs until a
@@ -1153,6 +1273,12 @@ int zhithemes_main(pid_t pid, uint64_t old_authid, const OrbisKernelSwVersion &s
   zt_boot("shell images");
   install_homeui_js_hooks(images.react_pui, images.pui);
   zt_boot("js hooks");
+#if ZT_DIAG
+  zt_log("diag: RNPS dump hook=%d",
+         ioctl ? (int)theme_hook((uint64_t)ioctl, reinterpret_cast<void *>(&ZT_Ioctl_Hook),
+                                 reinterpret_cast<void **>(&g_zt_ioctl_orig))
+               : -1);
+#endif
   const uint64_t update = Get_Address_of_Method(
       images.pui, "Sce.PlayStation.PUI", "Application", "Update", 0);
   const bool tick = update &&
@@ -1165,6 +1291,19 @@ int zhithemes_main(pid_t pid, uint64_t old_authid, const OrbisKernelSwVersion &s
   zt_boot_fine("font probe");
   zt_boot("font hooks");
   theme_web_start();
+  zt_update_start();
+#if ZT_CRASH_TEST
+  {
+    pthread_t crash;
+    if (pthread_create(&crash, nullptr, [](void *) -> void * {
+          sleep(25);
+          zt_logl('E', "crash test build: taking ShellUI down on purpose");
+          __builtin_trap();
+          return nullptr;
+        }, nullptr) == 0)
+      pthread_detach(crash);
+  }
+#endif
   shellui_request_hub_reload();
   shellui_request_home_reload();
   hooked = true;
@@ -1172,8 +1311,15 @@ int zhithemes_main(pid_t pid, uint64_t old_authid, const OrbisKernelSwVersion &s
   zt_memory_log(pid, "start");
   for (int s = 1; !theme_quitting(); s++) {
     sleep(1);
-    if (s % 60 == 0)
+    if (s % 2 == 0) {
+      zt_power_watch();  /* rest mode / waking up -> A line (fsync) */
+      zt_log_box_sync(); /* flight recorder to the disk */
+    }
+    zt_log_home_watch(); /* a reload with no theme.js in the Home (stuck JS thread) */
+    if (s % 60 == 0) {
+      zt_log_usb_check();
       zt_memory_log(pid, "minute");
+    }
   }
   zt_memory_log(pid, "quit");
   zt_log("zhithemes: module thread ends");

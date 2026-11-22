@@ -17,8 +17,8 @@ later version. See LICENSE and NOTICE.  */
  * swap back to the original bytes) and close the port, then the new module is
  * injected. A previous watcher process is stopped through its pid file.
  *
- * Files: /data/ZhiThemes/Themes/<active>.ztheme; logs in /data/ZhiThemes/Logs/
- * (zhithemes.log from the module, payload.log from this payload).
+ * Files: /data/ZhiThemes/Themes/<active>/theme.json; logs in /data/ZhiThemes/Logs/
+ * (zhithemes.log: the module's lines and this payload's "[payload]" lines).
  */
 
 #include <onion/conflict.h>
@@ -49,7 +49,9 @@ later version. See LICENSE and NOTICE.  */
 #include <time.h>
 #include <unistd.h>
 
+#include <initializer_list>
 #include <string>
+#include <utility>
 
 #include "../../shellui/include/zt_brand.hpp"
 
@@ -63,7 +65,7 @@ namespace {
 
 constexpr const char *kDir = "/user/data/ZhiThemes";
 constexpr const char *kPidFile = "/user/data/ZhiThemes/watcher.pid";
-constexpr const char *kLog = "/user/data/ZhiThemes/Logs/payload.log";
+constexpr const char *kLog = "/user/data/ZhiThemes/Logs/zhithemes.log";
 constexpr int kPort = 4444;
 
 struct NotifyRequest {
@@ -80,33 +82,48 @@ void notify(const char *fmt, ...) {
   sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
 }
 
-/* one line with its UTC time; past 1 MB the file starts again */
+/* One "[payload]" line in the module's zhithemes.log (O_APPEND: lines of
+   the two processes do not mix), with its UTC time and a level letter
+   (W when it failed, else I). The module cuts the file at its start; this
+   only stops a runaway file when no module ever starts. */
 void logf(const char *fmt, ...) {
   struct stat st;
-  if (stat(kLog, &st) == 0 && st.st_size > (1 << 20))
+  if (stat(kLog, &st) == 0 && st.st_size > (64 << 20))
     unlink(kLog);
+  mkdir(kDir, 0777);
+  mkdir("/user/data/ZhiThemes/Logs", 0777);
   const int fd = open(kLog, O_WRONLY | O_CREAT | O_APPEND, 0666);
   if (fd < 0)
     return;
-  char line[600];
-  const time_t now = time(nullptr);
-  struct tm at = {};
-  gmtime_r(&now, &at);
-  int head = snprintf(line, sizeof(line), "%04d-%02d-%02d %02d:%02d:%02d  ", at.tm_year + 1900,
-                      at.tm_mon + 1, at.tm_mday, at.tm_hour, at.tm_min, at.tm_sec);
-  if (head < 0)
-    head = 0;
+  char text[900];
   va_list ap;
   va_start(ap, fmt);
-  int n = vsnprintf(line + head, sizeof(line) - 1 - head, fmt, ap);
+  int n = vsnprintf(text, sizeof(text), fmt, ap);
   va_end(ap);
   if (n < 0)
     n = 0;
-  n += head;
-  if (n > (int)sizeof(line) - 2)
-    n = sizeof(line) - 2;
-  line[n++] = '\n';
-  (void)write(fd, line, n);
+  if (n > (int)sizeof(text) - 1)
+    n = sizeof(text) - 1;
+  text[n] = 0;
+  for (int i = 0; i < n; ++i)
+    if (text[i] == '\n' || text[i] == '\r')
+      text[i] = ' ';
+  const bool bad = strstr(text, "fail") || strstr(text, "FAIL") || strstr(text, "cannot") ||
+                   strstr(text, "error") || strstr(text, "WARNING") || strstr(text, "still missing") ||
+                   strstr(text, "safe mode") || strstr(text, "two modules");
+  struct timespec now = {};
+  clock_gettime(CLOCK_REALTIME, &now);
+  struct tm at = {};
+  gmtime_r(&now.tv_sec, &at);
+  char line[1000];
+  const int len = snprintf(line, sizeof(line), "%04d-%02d-%02d %02d:%02d:%02d.%03d %c  [payload] %s\n",
+                           at.tm_year + 1900, at.tm_mon + 1, at.tm_mday, at.tm_hour, at.tm_min,
+                           at.tm_sec, (int)(now.tv_nsec / 1000000), bad ? 'W' : 'I', text);
+  if (len > 0)
+    (void)write(fd, line, len < (int)sizeof(line) ? len : (int)sizeof(line) - 1);
+  /* always on the disk at once: few lines, and the ones around an
+     injection are the ones a full-console crash would lose */
+  fsync(fd);
   close(fd);
 }
 
@@ -140,6 +157,38 @@ std::string ask_module(const char *method, const char *path) {
   return body == std::string::npos ? out : out.substr(body + 4);
 }
 
+/* Swapping the module while someone moves on the Home crashed ShellUI:
+   wait until the focus has not moved for kStillMs (the running module
+   tells, GET /idle), 30 s at most. A module without /idle (older build) or
+   without the frame hook (PS5 default) answers no number / -1: no wait. */
+void wait_still_home() {
+  const long kStillMs = 2000;
+  bool told = false;
+  for (int i = 0; i < 120; ++i) { /* 120 x 250 ms = 30 s */
+    const std::string idle = ask_module("GET", "/idle");
+    char *end = nullptr;
+    const long ms = strtol(idle.c_str(), &end, 10);
+    if (idle.empty() || end == idle.c_str() || ms < 0) {
+      if (i == 0)
+        logf("still check: not available ('%.40s')", idle.c_str());
+      return;
+    }
+    if (ms >= kStillMs) {
+      if (told)
+        logf("still check: Home still after %d ms", i * 250);
+      return;
+    }
+    if (!told) {
+      told = true;
+      logf("still check: Home moving (%ld ms), waiting", ms);
+      notify("ZhiThemes: stop moving on the Home for a moment.\n"
+             "Loading starts when the controller is left alone.");
+    }
+    usleep(250 * 1000);
+  }
+  logf("still check: Home kept moving for 30 s, going on");
+}
+
 /* A module already in ShellUI leaves (hooks out, port closed). False when
    something answers that cannot leave (an old OnionHEN theme build). */
 bool replace_running_module() {
@@ -149,11 +198,15 @@ bool replace_running_module() {
     return true;
   }
   logf("running module: '%s'", version.c_str());
+  wait_still_home();
   const std::string bye = ask_module("POST", "/quit");
   logf("quit -> '%s'", bye.c_str());
   if (bye.rfind("bye", 0) != 0)
     return false;
-  sleep(2); /* the old server closes :4444 after answering */
+  /* the hooks are out when it answers and its thread ends right after;
+     the new module's server retries :4444 until the old one closed it.
+     Short: the Home must still be still when the new module starts */
+  usleep(500 * 1000);
   return true;
 }
 
@@ -226,7 +279,8 @@ bool stock_mode() {
     return true;
   /* no theme file (first run, or deleted): the module keeps ZhiThemes off
      too. The name in active_theme.txt, else Default (zt_storage.cpp);
-     theme.ztheme = the old layout, moved by the module */
+     Themes/<Name>.ztheme and theme.ztheme = older layouts, made
+     Themes/<Name>/theme.json by the module */
   {
     std::string active;
     const int fd = open((std::string(kDir) + "/active_theme.txt").c_str(), O_RDONLY);
@@ -240,8 +294,11 @@ bool stock_mode() {
     while (!active.empty() && isspace((unsigned char)active.back()))
       active.pop_back();
     const bool named = !active.empty() && active.find('/') == std::string::npos && active[0] != '.';
-    const bool has = (named && stat((std::string(kDir) + "/Themes/" + active + ".ztheme").c_str(), &st) == 0) ||
-                     stat((std::string(kDir) + "/Themes/Default.ztheme").c_str(), &st) == 0 ||
+    auto theme_there = [&](const std::string &n) {
+      return stat((std::string(kDir) + "/Themes/" + n + "/theme.json").c_str(), &st) == 0 ||
+             stat((std::string(kDir) + "/Themes/" + n + ".ztheme").c_str(), &st) == 0;
+    };
+    const bool has = (named && theme_there(active)) || theme_there("Default") ||
                      stat((std::string(kDir) + "/theme.ztheme").c_str(), &st) == 0;
     if (!has)
       return true;
@@ -254,43 +311,20 @@ bool stock_mode() {
   return false;
 }
 
-/* the theme that will load: the name in `themeName: '...'` of theme.ztheme
-   (or of theme.js, renamed by the module); "default" without one */
+/* the theme that will load: the name in active_theme.txt (the theme's
+   folder, Rename in the editor); "default" without one */
 std::string current_theme() {
-  /* Themes/<active_theme.txt>.ztheme (theme.ztheme before the
-     module moves it) */
   std::string active;
-  int fd = open((std::string(kDir) + "/active_theme.txt").c_str(), O_RDONLY);
+  const int fd = open((std::string(kDir) + "/active_theme.txt").c_str(), O_RDONLY);
   if (fd >= 0) {
     char nb[64] = {};
     const ssize_t got = read(fd, nb, sizeof(nb) - 1);
     close(fd);
-    for (ssize_t i = 0; i < got && nb[i] != '\n' && nb[i] != '\r'; ++i)
+    for (ssize_t i = 0; i < got && nb[i] != 10 && nb[i] != 13; ++i)
       active += nb[i];
   }
-  /* the theme's own name (Rename in the editor), not themeName */
   if (!active.empty() && active.find('/') == std::string::npos)
     return active;
-  fd = -1;
-  if (!active.empty() && active.find('/') == std::string::npos)
-    fd = open((std::string(kDir) + "/Themes/" + active + ".ztheme").c_str(), O_RDONLY);
-  if (fd < 0)
-    fd = open((std::string(kDir) + "/theme.ztheme").c_str(), O_RDONLY);
-  if (fd < 0)
-    return active.empty() ? "default" : active;
-  std::string text;
-  char buf[4096];
-  ssize_t n;
-  while (text.size() < 65536 && (n = read(fd, buf, sizeof(buf))) > 0)
-    text.append(buf, (size_t)n);
-  close(fd);
-  const size_t key = text.find("themeName:");
-  if (key != std::string::npos) {
-    const size_t q1 = text.find('\'', key);
-    const size_t q2 = q1 == std::string::npos ? q1 : text.find('\'', q1 + 1);
-    if (q2 != std::string::npos && q2 > q1 + 1 && q2 - q1 < 60)
-      return text.substr(q1 + 1, q2 - q1 - 1);
-  }
   return "default";
 }
 
@@ -577,8 +611,10 @@ void close_browser_helpers() {
       if (onion_find_pid(name) > 0)
         left = true;
     if (!left) {
-      logf("browser helpers closed after %d ms", i * 50);
-      usleep(500 * 1000);
+      /* 0.5 s was too short once: the ShellUI still froze at the module's
+         start, the same sequence working other times */
+      logf("browser helpers closed after %d ms; injecting in 2 s", i * 50);
+      sleep(2);
       return;
     }
     usleep(50 * 1000);
@@ -648,6 +684,393 @@ int inject(pid_t shellui) {
   return n;
 }
 
+
+/* ---- Updates (Options menu > ZhiThemes > Updates, the editor). The
+   module in ShellUI checks GitHub, downloads and verifies the new ELF into
+   Update/staged.elf. This payload then:
+   - puts it in the payload manager's folder (/data/pldmgr/payloads/local/
+     <dir>/: the ELF + meta.json); ShellUI cannot write there, a payload can;
+   - counts ShellUI crashes with the new version: the second one puts the
+     previous ELF back and starts it;
+   - after kUpdateConfirmS without a crash the new version is kept.
+   One file holds the state, Update/state.txt (key=value lines, shared with
+   the module). ELFs: staged.elf while it is handed over, previous.elf only
+   while a new version is on trial, ZhiThemes.elf only without a payload
+   manager (the copy the user puts in the autoload). */
+constexpr const char *kUpd = "/user/data/ZhiThemes/Update";
+constexpr const char *kPldmgr = "/user/data/pldmgr/payloads/local";
+constexpr int kLoaderPort = 9021;
+constexpr long kUpdateConfirmS = 30 * 60;
+
+std::string upd(const char *name) { return std::string(kUpd) + "/" + name; }
+
+std::string read_text(const std::string &path, size_t max = 65536) {
+  std::string out;
+  const int fd = open(path.c_str(), O_RDONLY);
+  if (fd < 0)
+    return out;
+  char buf[4096];
+  ssize_t n;
+  while (out.size() < max && (n = read(fd, buf, sizeof(buf))) > 0)
+    out.append(buf, (size_t)n);
+  close(fd);
+  return out;
+}
+
+bool write_text(const std::string &path, const std::string &text) {
+  const std::string tmp = path + ".tmp";
+  const int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+  if (fd < 0)
+    return false;
+  const bool ok = write(fd, text.data(), text.size()) == (ssize_t)text.size();
+  fsync(fd);
+  close(fd);
+  if (!ok || rename(tmp.c_str(), path.c_str()) != 0) {
+    unlink(tmp.c_str());
+    return false;
+  }
+  return true;
+}
+
+/* "key=value" lines */
+std::string kv(const std::string &text, const char *key) {
+  const std::string k = std::string(key) + "=";
+  size_t at = 0;
+  while (at < text.size()) {
+    const size_t end = text.find('\n', at);
+    const std::string line = text.substr(at, end == std::string::npos ? std::string::npos : end - at);
+    if (line.rfind(k, 0) == 0) {
+      std::string v = line.substr(k.size());
+      while (!v.empty() && (v.back() == '\r' || v.back() == ' '))
+        v.pop_back();
+      return v;
+    }
+    if (end == std::string::npos)
+      break;
+    at = end + 1;
+  }
+  return "";
+}
+
+bool copy_path(const std::string &from, const std::string &to) {
+  const int in = open(from.c_str(), O_RDONLY);
+  if (in < 0)
+    return false;
+  const std::string tmp = to + ".tmp";
+  const int out = open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0777);
+  if (out < 0) {
+    close(in);
+    return false;
+  }
+  static char buf[1 << 16];
+  bool ok = true;
+  for (;;) {
+    const ssize_t n = read(in, buf, sizeof(buf));
+    if (n < 0)
+      ok = false;
+    if (n <= 0)
+      break;
+    if (write(out, buf, (size_t)n) != n) {
+      ok = false;
+      break;
+    }
+  }
+  close(in);
+  fsync(out);
+  close(out);
+  if (!ok || rename(tmp.c_str(), to.c_str()) != 0) {
+    unlink(tmp.c_str());
+    return false;
+  }
+  return true;
+}
+
+/* the value of "key": "..." in a small JSON text ("" when missing) */
+std::string json_str(const std::string &text, const char *key) {
+  const size_t k = text.find(std::string("\"") + key + "\"");
+  if (k == std::string::npos)
+    return "";
+  const size_t colon = text.find(':', k);
+  const size_t q1 = colon == std::string::npos ? colon : text.find('"', colon);
+  const size_t q2 = q1 == std::string::npos ? q1 : text.find('"', q1 + 1);
+  if (q2 == std::string::npos)
+    return "";
+  return text.substr(q1 + 1, q2 - q1 - 1);
+}
+
+/* the same text with the string value of "key" replaced */
+bool json_set_str(std::string &text, const char *key, const std::string &value) {
+  const size_t k = text.find(std::string("\"") + key + "\"");
+  if (k == std::string::npos)
+    return false;
+  const size_t colon = text.find(':', k);
+  const size_t q1 = colon == std::string::npos ? colon : text.find('"', colon);
+  const size_t q2 = q1 == std::string::npos ? q1 : text.find('"', q1 + 1);
+  if (q2 == std::string::npos)
+    return false;
+  text.replace(q1 + 1, q2 - q1 - 1, value);
+  return true;
+}
+
+/* the payload manager's entry with a ZhiThemes ELF (meta.json schema 2
+   only); the newest when there are more. False when there is none. */
+bool pldmgr_entry(std::string &dir, std::string &file) {
+  DIR *d = opendir(kPldmgr);
+  if (!d)
+    return false;
+  std::string best_at;
+  while (dirent *e = readdir(d)) {
+    if (e->d_name[0] == '.')
+      continue;
+    const std::string here = std::string(kPldmgr) + "/" + e->d_name;
+    const std::string meta = read_text(here + "/meta.json", 16384);
+    if (meta.empty())
+      continue;
+    const size_t sk = meta.find("\"schema\"");
+    const size_t sc = sk == std::string::npos ? sk : meta.find(':', sk);
+    if (sc == std::string::npos || atoi(meta.c_str() + sc + 1) != 2)
+      continue;
+    const std::string f = json_str(meta, "filename");
+    std::string low = f;
+    for (char &c : low)
+      c = (char)tolower((unsigned char)c);
+    if (low.rfind("zhithemes", 0) != 0 || low.size() < 5 || low.compare(low.size() - 4, 4, ".elf") != 0 ||
+        f.find('/') != std::string::npos)
+      continue;
+    const std::string at = json_str(meta, "installed_at");
+    if (dir.empty() || at > best_at) {
+      dir = here;
+      file = f;
+      best_at = at;
+    }
+  }
+  closedir(d);
+  return !dir.empty();
+}
+
+/* the whole file to the ELF loader on this console (elfldr) */
+bool send_to_loader(const std::string &path) {
+  const std::string elf = read_text(path, 64u << 20);
+  if (elf.size() < 64 || elf.compare(0, 4, "\x7f" "ELF") != 0)
+    return false;
+  const int fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (fd < 0)
+    return false;
+  timeval tv = {10, 0};
+  setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+  sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(kLoaderPort);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  bool ok = connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0;
+  for (size_t at = 0; ok && at < elf.size();) {
+    const ssize_t n = send(fd, elf.data() + at, elf.size() - at, 0);
+    if (n <= 0)
+      ok = false;
+    else
+      at += (size_t)n;
+  }
+  shutdown(fd, SHUT_WR);
+  close(fd);
+  logf("update: %s sent to the ELF loader (:%d): %s", path.c_str(), kLoaderPort, ok ? "ok" : strerror(errno));
+  return ok;
+}
+
+std::string iso_now() {
+  const time_t now = time(nullptr);
+  struct tm tm = {};
+  gmtime_r(&now, &tm);
+  char b[40];
+  strftime(b, sizeof(b), "%Y-%m-%dT%H:%M:%S+0000", &tm);
+  return b;
+}
+
+std::string state() { return read_text(upd("state.txt")); }
+
+/* some keys of Update/state.txt changed ("" removes the key) */
+void state_set(std::initializer_list<std::pair<const char *, std::string>> keys) {
+  const std::string text = state();
+  std::string out;
+  size_t at = 0;
+  while (at < text.size()) {
+    size_t end = text.find('\n', at);
+    if (end == std::string::npos)
+      end = text.size();
+    const std::string line = text.substr(at, end - at);
+    at = end + 1;
+    const std::string key = line.substr(0, line.find('='));
+    bool drop = line.empty();
+    for (const auto &k : keys)
+      if (key == k.first)
+        drop = true;
+    if (!drop)
+      out += line + "\n";
+  }
+  for (const auto &k : keys)
+    if (!k.second.empty())
+      out += std::string(k.first) + "=" + k.second + "\n";
+  write_text(upd("state.txt"), out);
+}
+
+/* seconds without a crash before a new version is kept; for tests,
+   confirm_minutes=N (1-60) in state.txt makes it shorter */
+long confirm_seconds() {
+  const int m = atoi(kv(state(), "confirm_minutes").c_str());
+  return m >= 1 && m <= 60 ? m * 60L : kUpdateConfirmS;
+}
+
+/* the files of the first version of the updater: all in state.txt now */
+void drop_old_update_files() {
+  if (!ZT_OFFICIAL_UPDATES) return;
+  static const char *const kOld[] = {"staged.txt", "pending.txt", "installed.txt", "previous.txt",
+                                     "previous_meta.json", ".current.elf", ".current.txt", "rolledback.txt",
+                                     "failed.txt", "notified.txt", "auto_off", "confirm_minutes"};
+  for (const char *f : kOld)
+    unlink(upd(f).c_str());
+}
+
+/* Update/staged.elf into the payload manager (or Update/ZhiThemes.elf when
+   there is none). Returns the new version ("" = nothing done). */
+std::string install_staged() {
+  if (!ZT_OFFICIAL_UPDATES) return "";
+  const std::string st = state();
+  const std::string version = kv(st, "staged_version"), build = kv(st, "staged_build");
+  const std::string from_v = kv(st, "staged_from_version"), from_b = kv(st, "staged_from_build");
+  struct stat sb = {};
+  if (version.empty() || atoi(build.c_str()) <= 0 || stat(upd("staged.elf").c_str(), &sb) != 0) {
+    logf("update: staged update incomplete, removed");
+    state_set({{"staged_version", ""}, {"staged_build", ""}, {"staged_from_version", ""},
+               {"staged_from_build", ""}, {"staged_mode", ""}});
+    unlink(upd("staged.elf").c_str());
+    return "";
+  }
+  std::string safe;
+  for (char c : version)
+    safe += (isalnum((unsigned char)c) || c == '.' || c == '-') ? c : '_';
+  const std::string name = "ZhiThemes-" + safe + ".elf";
+  std::string dir, old_file, old_at, where = "none", cur_v, cur_b;
+  bool rollback = false, pldmgr = false;
+  if (pldmgr_entry(dir, old_file)) {
+    const std::string meta_path = dir + "/meta.json";
+    std::string meta = read_text(meta_path, 16384);
+    old_at = json_str(meta, "installed_at");
+    const bool saved = copy_path(dir + "/" + old_file, upd("previous.elf"));
+    if (!saved)
+      logf("update: cannot keep the old ELF %s/%s", dir.c_str(), old_file.c_str());
+    if (!copy_path(upd("staged.elf"), dir + "/" + name)) {
+      logf("update: cannot write %s/%s (%s)", dir.c_str(), name.c_str(), strerror(errno));
+    } else {
+      json_set_str(meta, "filename", name);
+      json_set_str(meta, "installed_at", iso_now());
+      if (!write_text(meta_path, meta)) {
+        logf("update: cannot write %s; old ELF kept", meta_path.c_str());
+        if (old_file != name)
+          unlink((dir + "/" + name).c_str());
+      } else {
+        if (old_file != name)
+          unlink((dir + "/" + old_file).c_str());
+        where = dir + "/" + name;
+        rollback = saved;
+        pldmgr = true;
+        logf("update: payload manager entry %s: %s -> %s", dir.c_str(), old_file.c_str(), name.c_str());
+      }
+    }
+  }
+  if (!pldmgr) {
+    dir.clear();
+    old_file.clear();
+    /* the way back: Update/ZhiThemes.elf, kept by the last update (only
+       the loader is told; the user's autoload keeps its own file) */
+    const bool have_current = !from_b.empty() && kv(st, "cur_build") == from_b &&
+                              stat(upd("ZhiThemes.elf").c_str(), &sb) == 0;
+    rollback = have_current && copy_path(upd("ZhiThemes.elf"), upd("previous.elf"));
+    if (copy_path(upd("staged.elf"), upd("ZhiThemes.elf"))) {
+      where = upd("ZhiThemes.elf");
+      cur_v = version;
+      cur_b = build;
+    }
+    logf("update: no payload manager entry; new ELF kept as %s; previous version %s", where.c_str(),
+         rollback ? "kept (from the last update)" : "unknown (sent by hand: no going back)");
+  }
+  if (!rollback)
+    unlink(upd("previous.elf").c_str());
+  state_set({{"staged_version", ""}, {"staged_build", ""}, {"staged_from_version", ""}, {"staged_from_build", ""},
+             {"staged_mode", ""}, {"inst_version", version}, {"inst_build", build}, {"inst_where", where},
+             {"inst_pldmgr", pldmgr ? "1" : "0"}, {"pend_version", version}, {"pend_build", build},
+             {"pend_from_version", from_v}, {"pend_crashes", "0"}, {"pend_rollback", rollback ? "1" : "0"},
+             {"prev_dir", dir}, {"prev_file", old_file}, {"prev_new", pldmgr ? name : ""}, {"prev_at", old_at},
+             {"prev_version", from_v}, {"prev_build", from_b}, {"cur_version", cur_v}, {"cur_build", cur_b},
+             {"rolled_version", ""}, {"rolled_previous", ""}});
+  unlink(upd("staged.elf").c_str());
+  logf("update: ZhiThemes %s (build %s) installed (%s)", version.c_str(), build.c_str(), where.c_str());
+  return version;
+}
+
+/* the new version ran long enough: the way back is not needed any more */
+void keep_new_version() {
+  if (!ZT_OFFICIAL_UPDATES) return;
+  state_set({{"pend_version", ""}, {"pend_build", ""}, {"pend_from_version", ""}, {"pend_crashes", ""},
+             {"pend_rollback", ""}, {"prev_dir", ""}, {"prev_file", ""}, {"prev_new", ""}, {"prev_at", ""},
+             {"prev_version", ""}, {"prev_build", ""}});
+  unlink(upd("previous.elf").c_str());
+}
+
+/* the second crash with a new version: the previous ELF back in the
+   payload manager and started. True when it was started (this payload
+   then stops). */
+bool roll_back() {
+  if (!ZT_OFFICIAL_UPDATES) return false;
+  const std::string st = state();
+  const std::string version = kv(st, "pend_version"), from = kv(st, "pend_from_version");
+  const std::string dir = kv(st, "prev_dir"), file = kv(st, "prev_file"), now_file = kv(st, "prev_new");
+  struct stat sb = {};
+  const bool can = kv(st, "pend_rollback") == "1" && stat(upd("previous.elf").c_str(), &sb) == 0;
+  bool back = false;
+  std::string start = upd("previous.elf"), cur_v = kv(st, "cur_version"), cur_b = kv(st, "cur_build");
+  if (can && dir.empty()) {
+    /* no payload manager: started now, and the current copy again */
+    back = copy_path(upd("previous.elf"), upd("ZhiThemes.elf"));
+    if (back) {
+      start = upd("ZhiThemes.elf");
+      cur_v = kv(st, "prev_version");
+      cur_b = kv(st, "prev_build");
+    }
+  } else if (can && !file.empty() && copy_path(upd("previous.elf"), dir + "/" + file)) {
+    std::string meta = read_text(dir + "/meta.json", 16384);
+    json_set_str(meta, "filename", file);
+    if (!kv(st, "prev_at").empty())
+      json_set_str(meta, "installed_at", kv(st, "prev_at"));
+    if (!meta.empty() && write_text(dir + "/meta.json", meta)) {
+      if (!now_file.empty() && now_file != file)
+        unlink((dir + "/" + now_file).c_str());
+      back = true;
+      start = dir + "/" + file;
+    }
+  }
+  unlink(upd("previous.elf").c_str());
+  state_set({{"failed_build", kv(st, "pend_build")}, {"rolled_version", version},
+             {"rolled_previous", back ? from : ""}, {"pend_version", ""}, {"pend_build", ""},
+             {"pend_from_version", ""}, {"pend_crashes", ""}, {"pend_rollback", ""}, {"prev_dir", ""},
+             {"prev_file", ""}, {"prev_new", ""}, {"prev_at", ""}, {"prev_version", ""}, {"prev_build", ""},
+             {"inst_version", ""}, {"inst_build", ""}, {"inst_where", ""}, {"inst_pldmgr", ""},
+             {"cur_version", cur_v}, {"cur_build", cur_b}});
+  logf("update: ZhiThemes %s crashed ShellUI twice; previous version %s", version.c_str(),
+       back ? ("put back: " + from).c_str() : "not available (safe mode)");
+  if (!back) {
+    notify("ZhiThemes %s crashed twice. Theme off (safe mode).\n"
+           "Send your previous ZhiThemes.elf, then Options > ZhiThemes > Updates to report it.",
+           version.c_str());
+    return false;
+  }
+  notify("ZhiThemes %s crashed twice, so ZhiThemes %s is back.\n"
+         "Options > ZhiThemes > Updates: try again or report the problem.",
+         version.c_str(), from.empty() ? "(previous)" : from.c_str());
+  if (send_to_loader(start))
+    return true;
+  notify("ZhiThemes: restart the PS5 to load the previous version.");
+  return false;
+}
+
 } // namespace
 
 int main() {
@@ -661,6 +1084,24 @@ int main() {
   if (ZT_DIAG)
     log_processes();
   stop_previous_watcher();
+  mkdir(kUpd, 0777);
+  /* this ELF is the update the module just downloaded and sent to the
+     loader: put it in the payload manager now */
+  drop_old_update_files();
+  std::string updated;
+  if (ZT_OFFICIAL_UPDATES && atoi(kv(state(), "staged_build").c_str()) == ZT_BUILD)
+    updated = install_staged();
+  {
+    const std::string st = state();
+    /* a new version on trial that is not this one: another ELF sent by hand */
+    if (ZT_OFFICIAL_UPDATES && !kv(st, "pend_build").empty() && atoi(kv(st, "pend_build").c_str()) != ZT_BUILD) {
+      logf("update: update %s on trial is not this build (%d), dropped", kv(st, "pend_version").c_str(), ZT_BUILD);
+      keep_new_version();
+    }
+    /* "restart to use it" is done once that build (or a newer one) runs */
+    if (ZT_OFFICIAL_UPDATES && !kv(st, "inst_build").empty() && atoi(kv(st, "inst_build").c_str()) <= ZT_BUILD)
+      state_set({{"inst_version", ""}, {"inst_build", ""}, {"inst_where", ""}, {"inst_pldmgr", ""}});
+  }
 
   pid_t shellui = onion_find_pid("SceShellUI");
   if (shellui <= 0) {
@@ -669,11 +1110,9 @@ int main() {
   }
   if (refuse_foreign("start"))
     return 1;
-  if (!replace_running_module()) {
-    notify("ZhiThemes: an older theme (OnionHEN) is active.\n"
-           "Reboot without it, then send ZhiThemes again.");
-    return 1;
-  }
+  /* the waits first, the module swap last: the still-Home check ran 4 s
+     before the injection (quit, helpers closed, 2 s waits) and moving the
+     controller in that gap crashed the new module as it started */
   if (!wait_browser_closed("start"))
     return 0;
   close_browser_helpers();
@@ -689,6 +1128,11 @@ int main() {
       notify("ZhiThemes: SceShellUI not ready");
       return 1;
     }
+  }
+  if (!replace_running_module()) {
+    notify("ZhiThemes: an older theme (OnionHEN) is active.\n"
+           "Reboot without it, then send ZhiThemes again.");
+    return 1;
   }
   const int loads = inject(shellui);
   if (!loads) {
@@ -713,8 +1157,8 @@ int main() {
     loading = "ZhiThemes is off (PS5 default): Options on a tile > ZhiThemes to pick a theme";
   else
     loading = "Now loading " + current_theme();
-  notify("Welcome to ZhiThemes %s by %s! \xF0\x9F\x8E\xA8\nOpen %s:%d to manage your themes.\n%s%s",
-         ZT_VERSION, ZT_AUTHOR, ip.empty() ? "the console's IP" : ip.c_str(), kPort,
+  notify("%sWelcome to ZhiThemes %s by %s! \xF0\x9F\x8E\xA8\nOpen %s:%d to manage your themes.\n%s%s",
+         updated.empty() ? "" : "Updated! ", ZT_VERSION, ZT_AUTHOR, ip.empty() ? "the console's IP" : ip.c_str(), kPort,
          loading.c_str(), extra);
   if (ZT_DIAG)
     notify("ZhiThemes DIAGNOSTIC build: everything goes to /data/ZhiThemes/Logs and Dumps.\n"
@@ -725,17 +1169,55 @@ int main() {
      ShellUI, so the watcher stops injecting (no crash loop) until a new
      ZhiThemes.elf is sent. */
   time_t last_restart = 0;
+  time_t calm_since = time(nullptr); /* last start or ShellUI restart */
   for (;;) {
     sleep(3);
     if (!still_the_watcher()) {
       logf("watcher %d: a newer watcher took over, stopping", getpid());
       return 0;
     }
+    /* an update the module could not start at once (too many loads into
+       this ShellUI, or the loader did not answer): into the payload
+       manager now, it runs after the next restart */
+    {
+      struct stat sb = {};
+      const std::string st = state();
+      if (ZT_OFFICIAL_UPDATES && !kv(st, "staged_build").empty() && stat(upd("staged.elf").c_str(), &sb) == 0 &&
+          (kv(st, "staged_mode") == "restart" || time(nullptr) - sb.st_mtime > 90)) {
+        const std::string v = install_staged();
+        if (!v.empty())
+          notify("ZhiThemes %s is installed.\nRestart the PS5 to use it.", v.c_str());
+      }
+    }
+    /* the new version ran long enough without a crash: kept */
+    {
+      const std::string st = state();
+      if (ZT_OFFICIAL_UPDATES && !kv(st, "pend_build").empty() && atoi(kv(st, "pend_build").c_str()) == ZT_BUILD &&
+          time(nullptr) - calm_since >= confirm_seconds()) {
+        keep_new_version();
+        logf("update: ZhiThemes %s kept (%ld min without a ShellUI crash)", ZT_VERSION, confirm_seconds() / 60);
+      }
+    }
     const pid_t now = onion_find_pid("SceShellUI");
     if (now <= 0 || now == shellui)
       continue;
     logf("SceShellUI changed %d -> %d", shellui, now);
     shellui = now;
+    calm_since = time(nullptr);
+    /* a ShellUI crash with a new version: the second one goes back to the
+       previous version (or safe mode when there is none) */
+    {
+      const std::string st = state();
+      if (ZT_OFFICIAL_UPDATES && !kv(st, "pend_build").empty() && atoi(kv(st, "pend_build").c_str()) == ZT_BUILD) {
+        const int crashes = atoi(kv(st, "pend_crashes").c_str()) + 1;
+        logf("update: ShellUI crash %d with the new version %s", crashes, ZT_VERSION);
+        if (crashes >= 2) {
+          roll_back();
+          return 0;
+        }
+        state_set({{"pend_crashes", std::to_string(crashes)}});
+      }
+    }
     const time_t t = time(nullptr);
     if (last_restart && t - last_restart < 180) {
       logf("safe mode: ShellUI restarted twice in %ld s, not injecting",

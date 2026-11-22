@@ -28,6 +28,7 @@ host_scene.cpp). */
 #include "homeui_js_inject.hpp"
 #include "zt_log.hpp"
 #include "zt_paths.hpp"
+#include "zt_power.hpp"
 #include "zt_storage.hpp"
 
 #if SHELLUI_HOMEUI_JS_INJECT == 1
@@ -588,6 +589,36 @@ void set_stage(MonoObject *panel, float opacity, bool keep_visible = false) {
 
 } // namespace
 
+bool zt_mp4_size(const char *path, int *width, int *height) { return mp4_video_size(path, width, height); }
+
+/* the power state from the module thread (every 2 s), for the log: going to
+   rest mode / waking up / switching off. Its own lookup (the video's one
+   runs on the UI thread). */
+void zt_power_watch() {
+  static bool tried = false;
+  static MonoClassField *field = nullptr;
+  static MonoVTable *vtable = nullptr;
+  static int last = 0;
+  if (!tried) {
+    tried = true;
+    MonoImage *img = getDLLimage("Sce.Vsh.ShellUI.AppSystem.dll");
+    MonoClass *pm = img ? mono_class_from_name(img, "Sce.Vsh.ShellUI.AppSystem", "PowerManager") : nullptr;
+    field = pm ? mono_class_get_field_from_name(pm, "<CurrentState>k__BackingField") : nullptr;
+    vtable = field ? mono_class_vtable(mono_domain_get(), pm) : nullptr;
+    if (!vtable)
+      zt_logl('W', "power: state not found (rest mode not in the log)");
+  }
+  if (!vtable)
+    return;
+  int32_t v = 0;
+  mono_field_static_get_value(vtable, field, &v);
+  if (v == last)
+    return;
+  static const char *const kNames[] = {"normal (awake)", "restarting", "switching off", "rest mode"};
+  zt_logl('A', "power: %s (state %d, was %d)", v >= 0 && v <= 3 ? kNames[v] : "?", v, last);
+  last = v;
+}
+
 /* the PUI image, from zt_native_install */
 static MonoImage *s_pui = nullptr;
 MonoImage *g_pui_image() { return s_pui; }
@@ -807,5 +838,6 @@ void zt_sys_video_install(MonoImage *) {}
 void zt_sys_video_apply(const std::string &) {}
 void zt_sys_video_tick() {}
 void zt_sys_video_library_ping() {}
+void zt_power_watch() {}
 
 #endif
