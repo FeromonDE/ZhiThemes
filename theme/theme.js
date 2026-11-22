@@ -2180,11 +2180,24 @@
                          borderRadius: radius * K, transform: [{ scale: 1 / K }] }
     });
     /* not invisible while loading (a hidden native player can stall) */
-    return React.createElement(rn.View, {
-      pointerEvents: 'none',
-      style: { position: 'absolute', left: props.left || 0, top: props.top || 0, width: w, height: h,
-               borderRadius: radius, overflow: 'hidden', opacity: shown ? 1 : 0.01 }
-    }, video);
+    var box = { position: 'absolute', left: props.left || 0, top: props.top || 0, width: w, height: h,
+                borderRadius: radius, overflow: 'hidden', opacity: shown ? 1 : 0.01 };
+    /* fadeMs (animated background): fades in once it plays, from 0.01 */
+    var A = rn.Animated;
+    if (props.fadeMs > 0 && A && A.View && A.Value) {
+      if (!me.fade) me.fade = new A.Value(0.01);
+      if (shown && !me.faded) {
+        me.faded = true;
+        try { A.timing(me.fade, { toValue: 1, duration: props.fadeMs, useNativeDriver: true }).start(); }
+        catch (e) { try { me.fade.setValue(1); } catch (e2) {} }
+      } else if (!shown && me.faded) {
+        me.faded = false;
+        try { me.fade.setValue(0.01); } catch (e) {}
+      }
+      box.opacity = me.fade;
+      return React.createElement(A.View, { pointerEvents: 'none', style: box }, video);
+    }
+    return React.createElement(rn.View, { pointerEvents: 'none', style: box }, video);
   }
   /* jsx: the focused tile's Image + its video over it (null = nothing to play) */
   function animTileWrap(fn, self, args, props) {
@@ -6356,6 +6369,12 @@
             T.bbFocusId = id;
             bb('focus ' + id + (a && typeof a.index === 'number' ? ' (' + (a.index + 1) + ')' : '') +
                ' in ' + (T.tabSel || T.space || '?'));
+          }
+          /* which way the focus went (1 right, -1 left): the animated
+             background slides that way as it goes, like the still one */
+          if (a && typeof a.index === 'number' && typeof id === 'string' && id !== T.dirId) {
+            if (typeof T.dirIdx === 'number' && a.index !== T.dirIdx) T.focusDir = a.index > T.dirIdx ? 1 : -1;
+            T.dirIdx = a.index; T.dirId = id;
           }
           /* rowWindow: the hub view's small tile follows where the focus stands */
           if (THEME.rowWindow && a && typeof a.index === 'number') rowWindowFocus(a.index);
@@ -11159,6 +11178,23 @@
         return;
       }
     }
+    return hubButtonsRest(props);
+  }
+  /* log: are the hub's buttons (Play, ...) drawn at all for this game
+     (not seen with a video wallpaper / animated background) */
+  function hubButtonsSeen(props) {
+    if (APP === 'hub' && T.ctaStyles.length && props.style) {
+      var tid = hubTitleId() || '?';
+      if (T.ctaSeen !== tid && (T.ctaLogs || 0) < 20) {
+        for (var j = 0; j < T.ctaStyles.length; j++) if (hasStyle(props.style, T.ctaStyles[j])) {
+          T.ctaSeen = tid; T.ctaLogs = (T.ctaLogs || 0) + 1;
+          log('game buttons drawn for ' + tid + (THEME.hideButtons ? ' (hideButtons)' : ''));
+          break;
+        }
+      }
+    }
+  }
+  function hubButtonsRest(props) {
     /* apps / Media hub (poster cover, module 683): Start comes in
        mainButtonComponent (in the Media app the whole poster goes). The
        pre-purchase game poster (with platforms) follows hideButtons. */
@@ -11450,6 +11486,7 @@
             return false;
           };
         }
+        if (APP === 'hub') hubButtonsSeen(props);
         if (THEME.hideButtons || THEME.hideMediaButtons) {
           if (hubButtons(props)) return null;
           if (startLike(props)) seeButton('start', props, type);
@@ -11816,6 +11853,10 @@
         T.rootRenders = (T.rootRenders || 0) + 1;
         var bg = backgroundElements();
         if (bg.length) {
+          /* the whole back layer (videos too) goes up with the Home and
+             fades out in the hub view: the hub is drawn under the Home's
+             layer, so a video over its area hid Play / ... / trophies (a
+             native video view is not clipped by overflow hidden either) */
           children = single('back', homeLayer('theme-layer-back', bg)).concat(children);
           if (!T.done.background) done('background');
         }
@@ -12155,8 +12196,62 @@
       return function () { var i = tileListeners.indexOf(f); if (i >= 0) tileListeners.splice(i, 1); };
     }, []);
     var file = bgVideoFor(T.shapeFocus || T.focusedId || T.strandSel);
-    if (!file) return null;
-    return React.createElement(AnimTileVideo, { key: file, file: file, dir: 'b', w: 1920, h: 1080, focused: true });
+    /* the still background changes with a fade, a little zoom and a
+       slide of a few pixels the way the focus went (the PS5 does it);
+       the video did not: the old one goes the same way (BgVideoLayer
+       leaving), the new one fades in once it plays. The new player
+       starts when the old one is gone (one decoder at a time). */
+    var st = React.useRef(null);
+    if (!st.current) st.current = { cur: '', gone: [] };
+    var s = st.current, fade = bgAnimMs();
+    if (file !== s.cur) {
+      /* back to one that is still going: it stays */
+      s.gone = s.gone.filter(function (g) { return g.file !== file; });
+      if (s.cur) s.gone.push({ file: s.cur, dir: T.focusDir || 0 });
+      s.cur = file;
+      if (s.gone.length > 2) s.gone = s.gone.slice(-2);
+    }
+    var gone = function (f) {
+      var n = s.gone.length;
+      s.gone = s.gone.filter(function (g) { return g.file !== f; });
+      if (s.gone.length !== n) tick(function (k) { return k + 1; });
+    };
+    var out = s.gone.map(function (g) {
+      return React.createElement(BgVideoLayer, { key: g.file, file: g.file, leaving: true, dir: g.dir, ms: fade, onGone: gone });
+    });
+    if (file) out.push(React.createElement(BgVideoLayer, { key: file, file: file, leaving: false, ms: fade,
+                                                           wait: s.gone.length ? fade : null }));
+    return out.length ? React.createElement(React.Fragment, null, out) : null;
+  }
+  function bgAnimMs() { return THEME.bgVideoAnimMs >= 0 ? +THEME.bgVideoAnimMs : 350; }
+  function BgVideoLayer(props) {
+    var React = T.React, rn = T.rn, A = rn.Animated;
+    var me = React.useState(function () { return {}; })[0];
+    var zoom = THEME.bgVideoZoom > 0 ? +THEME.bgVideoZoom : 1.04;
+    var shift = THEME.bgVideoShift >= 0 ? +THEME.bgVideoShift : 24;
+    if (A && A.Value && !me.op) { me.op = new A.Value(1); me.x = new A.Value(0); me.k = new A.Value(1); }
+    React.useEffect(function () {
+      if (!me.op) { if (props.leaving) props.onGone(props.file); return undefined; }
+      var to = props.leaving ? { op: 0, x: (props.dir || 0) * shift, k: zoom } : { op: 1, x: 0, k: 1 };
+      var ms = props.ms || 0, cfg = function (v) { return { toValue: v, duration: ms, useNativeDriver: true }; };
+      var anim = null, done = false;
+      var end = function () { if (!done && props.leaving) { done = true; props.onGone(props.file); } };
+      try {
+        anim = A.parallel([A.timing(me.op, cfg(to.op)), A.timing(me.x, cfg(to.x)), A.timing(me.k, cfg(to.k))]);
+        anim.start(function () { end(); });
+      } catch (e) { try { me.op.setValue(to.op); me.x.setValue(to.x); me.k.setValue(to.k); } catch (e2) {} end(); }
+      /* the end callback may not come (stopped): gone anyway */
+      var t = props.leaving ? setTimeout(end, ms + 200) : null;
+      return function () { clearTimeout(t); try { if (anim) anim.stop(); } catch (e) {} };
+    }, [props.leaving]);
+    var video = React.createElement(AnimTileVideo, { file: props.file, dir: 'b', w: 1920, h: 1080, focused: true,
+                                                     fadeMs: props.ms, wait: props.wait });
+    if (!me.op) return video;
+    return React.createElement(A.View, {
+      pointerEvents: 'none',
+      style: { position: 'absolute', left: 0, top: 0, width: 1920, height: 1080, opacity: me.op,
+               transform: [{ translateX: me.x }, { scale: me.k }] }
+    }, video);
   }
 
   /* Bloodborne (no pic0) with its own background showed it and lost it

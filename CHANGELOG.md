@@ -4,6 +4,8 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
 ## Unreleased
 
+- **Animated game backgrounds change like the still ones:** the old video fades out with a little zoom and slides a few pixels the way you moved; the next one fades in once it plays (before, both were instant).
+
 - **Games in the row: up to 20** (was 12). Above 12 the row also takes the next installed games the PS5 would leave out; the Store and the Game Library stay. With folders, the Game Library no longer falls off the end of the row (3 folders + 12 games left it out).
 - **Game Library options are automatic:** the row is always hidden while the Game/App Library is open; its games stay out of sight under the row only when you moved or resized the row (with the stock row they show as on the PS5). *Page position*, *Hide the row in the Library*, *Hide Library games until opened* and *Library peek* are gone from the editor.
 - **No folder music** (Folders): a selected folder no longer plays its first game's music.
