@@ -4,6 +4,11 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
 ## Unreleased
 
+- **Games in the row: up to 20** (was 12). Above 12 the row also takes the next installed games the PS5 would leave out; the Store and the Game Library stay. With folders, the Game Library no longer falls off the end of the row (3 folders + 12 games left it out).
+- **Game Library options are automatic:** the row is always hidden while the Game/App Library is open; its games stay out of sight under the row only when you moved or resized the row (with the stock row they show as on the PS5). *Page position*, *Hide the row in the Library*, *Hide Library games until opened* and *Library peek* are gone from the editor.
+- **No folder music** (Folders): a selected folder no longer plays its first game's music.
+- **Loading ZhiThemes from the payload manager while moving the controller** could bring the interface down: the still-Home check now runs right before the new copy goes in, and the first Home reload waits until the Home is still.
+
 - **Editor options reorganised:** every tab now has its options in titled groups, one line each (name on the left, control on the right, the explanation in the name's tooltip). Options that only matter with another one on stay hidden until it is on, sliders have their real range and unit (%, px, ×, ms; *Stock* / *Off* at 0) and many technical or duplicate options are gone (their values keep working). Text & fonts is gone (the font is in **Misc**, the old Extras), *Tools* is now **Info**, Settings & Trophies has no *Own look* switch any more (each part turns on with its own background).
 - **System icon picker:** icon fields show the icon and a *Pick…* button with every PS5 system icon, taken from your PS5 (nothing of Sony's is shipped).
 - **Editor on phones and tablets:** two-line header with a ⋯ menu (Install, Download, Reset all), tabs in a strip you swipe, every option fits the screen.

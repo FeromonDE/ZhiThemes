@@ -697,7 +697,7 @@
     rowSpeed: ['Row speed', 'Row sliding speed: 1× = normal'],
     rowBounce: ['Bounce', 'The row bounces at the end of the slide'],
     rowBounceStrength: ['Bounce strength', ''],
-    rowMaxGames: ['Games in the row', 'How many games (folders count too) the Games row shows, 1 to 12; the Store and the Game Library stay'],
+    rowMaxGames: ['Games in the row', 'How many games (folders count too) the Games row shows, 1 to 20; the Store and the Game Library stay. Above 12 the row also takes games the PS5 would leave out'],
     rowFastRepeat: ['Fast on repeat', 'When pressing several times in a row, the row and animations use the stock speed'],
     rowRepeatWindow: ['Repeat window', 'ms between presses to count as "in a row"'],
     rowX: ['Row X', 'Moves the row horizontally, + = right'],
@@ -960,6 +960,7 @@
     foldersPosition: ['Folders position', 'Where the folders go in the row, 0 = first'],
     foldersBg: ['Background when selected', 'Screen background of a focused folder, made on the PS5 from the art of its first 4 games (a few seconds the first time); first game = the art of its first game'],
     foldersHorizontal: ['Look with the Steam tile', 'Folder picture when the focused tile is the Steam horizontal one: 4 covers 2:3 in a row, 4 square icons in a row, covers 2:3 overlapping, or square icons (2 rows, up to 7 games)'],
+    foldersNoSound: ['No folder music', 'A selected folder plays no music (without it, the music of its first game plays)'],
     foldersVertical: ['Look with cover tiles', 'Folder icon when the tiles are vertical: stacked covers, a 2×2 mosaic of tall covers, or a square folder at the bottom of the tile'],
     sysOn: ['Own look', 'Turn on the look of this tab in Settings and Trophies'],
     sysTrophies: ['Trophies too', 'Use the game row fields below in the Trophies list'],
@@ -1526,7 +1527,7 @@
     shellBgGlowIntensity: [0, 2, 0.05, '×'], shellBgRainbowSpeed: [0.1, 10, 0.1, '×'],
     /* Games row */
     tileSize: [40, 400, 1, 'px'], focusSize: [60, 500, 1, 'px'], tileCorners: [0, 150, 1, 'px'], rowTileGap: [0, 100, 1, 'px'],
-    rowMaxGames: [1, 12, 1, ''], rowOffsetY: [-100, 800, 1, 'px'], rowGapBefore: [-100, 300, 1, 'px'], rowGapAfter: [-100, 300, 1, 'px'],
+    rowMaxGames: [1, 20, 1, ''], rowOffsetY: [-100, 800, 1, 'px'], rowGapBefore: [-100, 300, 1, 'px'], rowGapAfter: [-100, 300, 1, 'px'],
     rowSpeed: [0.25, 3, 0.05, '×'], rowBounceStrength: [0, 1, 0.05, '%'],
     rowWindowStart: [0, 10, 1, ''], rowWindowEnd: [0, 10, 1, ''],
     tileEdgeFadeLeft: [0, 1200, 10, 'px'], tileEdgeFadeRight: [0, 1200, 10, 'px'], tileEdgeFadeInset: [-300, 600, 5, 'px'],
@@ -1634,7 +1635,7 @@
     else if (key === 'tileReflectionGap') r = [-20, 60, 1];
     else if (key === 'tileReflectionSteps') r = [2, 24, 1];
     else if (key === 'tileReflectionWaves') r = [0, 20, 0.5];
-    else if (key === 'rowMaxGames') r = [1, 12, 1];
+    else if (key === 'rowMaxGames') r = [1, 20, 1];
     else if (key === 'tileReflectionWaveSpeed') r = [0.5, 10, 0.5];
     else if (key === 'tileEdgeFadeLeft' || key === 'tileEdgeFadeRight') r = [0, 1200, 10];
     else if (key === 'tileEdgeFadeInset') r = [-300, 600, 5];
@@ -5806,7 +5807,7 @@
       extra: ['tileSize', 'focusSize', 'rowTileGap', 'tileVertical', 'tileCorners', 'rowSpeed', 'rowBounce', 'rowBounceStrength', 'rowMaxGames', 'animationSpeed',
               'tileShadow', 'tileShadowColor', 'tileShadowOpacity', 'tileReflection', 'tileReflectionHeight',
               'tileReflectionGap', 'tileReflectionWaves', 'tileEdgeFade', 'tileEdgeFadeLeft', 'tileEdgeFadeRight', 'tileEdgeFadeMin', 'textShadow', 'textShadowColor',
-              'hideStore', 'hideAllApps', 'hideGallery', 'hideRowInLibrary', 'libraryHideGames', 'hideTiles', 'downloadBarColor', 'downloadBarBgColor', 'fixDetails'] },
+              'hideStore', 'hideAllApps', 'hideGallery', 'hideTiles', 'downloadBarColor', 'downloadBarBgColor', 'fixDetails'] },
     { id: 'focusTile', name: 'Focused tile', app: 'home', parent: 'row', guess: [172, 126, 168, 168],
       mx: 'focusX', my: 'focusY', grow: 'focusSize',
       extra: ['focusSize', 'tileSize', 'tileCorners', 'rowOffsetY', 'hideFocus', 'focusLineColorOn', 'focusThickness', 'focusGap',
@@ -5912,14 +5913,14 @@
               '#All top icons', 'iconsX', 'iconsY', 'topBarOpacity'],
     clock: ['#Look', 'clockFontSize', 'clockFontStyle', 'clockColor', 'clockGap', '#All top icons', 'iconsX', 'iconsY', 'topBarOpacity'],
     row: ['#Size & place', 'tileSize', 'focusSize', 'rowTileGap', 'rowGapBefore', 'rowGapAfter', 'tileCorners', 'tileVertical',
-          'rowMaxGames', 'hubOffset', 'libraryPeekDown', 'fixDetails',
+          'rowMaxGames', 'fixDetails',
           '#Movement', 'rowWindow', 'rowWindowStart', 'rowWindowEnd', 'rowHideLeft', 'rowHideLeftMove', 'rowHideLeftEdge', 'rowSpeed','rowBounce', 'rowBounceStrength', 'rowFastRepeat', 'rowRepeatWindow', 'animationSpeed',
           '#Shadow', 'tileShadow', 'tileShadowX', 'tileShadowY', 'tileShadowColor', 'tileShadowOpacity',
           '#Reflection', 'tileReflection', 'tileReflectionHeight', 'tileReflectionGap', 'tileReflectionSteps', 'tileReflectionWaves',
           'tileReflectionWaveSpeed', 'tileReflectionFlip',
           '#Edge fade', 'tileEdgeFade', 'tileEdgeFadeLeft', 'tileEdgeFadeRight', 'tileEdgeFadeInset', 'tileEdgeFadeMin', 'tileEdgeFadeFocused',
           '#Pictures', 'customTilesOn', 'tileAnimOn',
-          '#Items', 'hideStore', 'hideAllApps', 'hideGallery', 'hideRowInLibrary', 'libraryHideGames', 'hideTiles',
+          '#Items', 'hideStore', 'hideAllApps', 'hideGallery', 'hideTiles',
           '#Download bar', 'downloadBarColor', 'downloadBarBgColor'],
     focusTile: ['#Size & shape', 'focusSize', 'tileSize', 'focusShape', 'tileCorners', 'rowGapBefore', 'rowGapAfter', 'rowOffsetY',
                 '#Frame', 'hideFocus', 'focusThickness', 'focusGap', 'focusCorners', 'focusIntensity',
@@ -5940,11 +5941,11 @@
              'footerSpacing', 'footerAlign', 'footerWidth', '#Background', 'footerBgOn', 'footerBg', 'footerBgOpacity',
              'footerBgPadding', 'footerBgCorners'],
     title: ['#Show', 'titleMode', '#Look', 'titleFontSize', 'titleFontStyle', 'titleAlign', 'titleColor', 'textShadow', 'textShadowColor',
-            '#Glow animation', 'animTitleGlow', 'animTitleGlowColor', 'animTitleGlowSec', '#Page', 'hubOffset'],
+            '#Glow animation', 'animTitleGlow', 'animTitleGlowColor', 'animTitleGlowSec'],
     folderTitle: ['#Animation', 'animFolders', 'animFolderClose', 'animToast'],
     folderStrip: ['#Games', 'foldersStripMax', 'foldersStripGap',
                   '#Background', 'foldersStripBgOn', 'foldersStripBg', 'foldersStripBgOpacity', 'foldersStripBgPadding',
-                  '#Folder tile', 'foldersPosition', 'foldersColor', 'foldersAlpha', 'foldersVertical', 'foldersHorizontal', 'foldersBg',
+                  '#Folder tile', 'foldersPosition', 'foldersColor', 'foldersAlpha', 'foldersVertical', 'foldersHorizontal', 'foldersBg', 'foldersNoSound',
                   '#Animation', 'animFolders', 'animFolderClose', 'animToast', '#Options menu', 'folderMenu'],
     optionsMenu: ['#Look', 'menuNoDim', 'menuBgColor', 'menuBgOpacity', 'menuCorners', 'menuItemCorners',
                   '#Items', 'menuOffline', 'menuHideIds', 'folderMenu', 'favMenu'],
@@ -7313,8 +7314,7 @@
       ['Buttons (Play, …)', ['hideButtons', 'hideMore', 'buttonsX', 'buttonsY', 'hideMediaButtons',
                              'buttonBgColor', 'buttonTextColor', 'buttonBgFocusColor', 'buttonTextFocusColor']],
       ['Hide sections', ['hideFriends', 'hideTrophies', 'hideActivities', 'hideNews', 'hideRecommendations', 'hideTournaments',
-                         'hideCommunity', 'hideHubStore', 'hideAbout', 'hideHints'], 'cols2 hideall'],
-      ['Library', ['hubOffset', 'hideRowInLibrary', 'libraryHideGames', 'libraryPeekDown']]
+                         'hideCommunity', 'hideHubStore', 'hideAbout', 'hideHints'], 'cols2 hideall']
     ],
     /* Settings & Trophies page (no Own look: each part is off with its
        own background at None) */
@@ -7371,7 +7371,6 @@
      end of that section) */
   var MOVE = {
     animationSpeed: 'animations',
-    hubOffset: 'game hub', hideRowInLibrary: 'game hub', libraryPeekDown: 'game hub', libraryHideGames: 'game hub',
     /* in each icon's window (Top icons) */
     hideSearch: 'top icons', hideSettings: 'top icons', hideProfile: 'top icons'
   };
@@ -7388,7 +7387,7 @@
      value that stays as it is */
   /* a switch that also sets other fields to the same value */
   var SYNC = { animFolders: ['animFolderClose'], hideButtons: ['hideMediaButtons'] };
-  var EDITOR_HIDE = /^(bgOverlayOn|bgCleanTry|nameCopyScroll|fixDetails|rowFastRepeat|rowRepeatWindow|favorites|tabsSameWeight|iconsNav|topBarOpacity|fakeTrophiesFast|hideHubIds|hideByTitle|foldersOpenWithX|foldersStripAbove|foldersHideName|foldersNameSize|foldersNameX|foldersNameY|foldersTitle|folderTitleSize|folderTitleColor|foldersRingColor|foldersRingWidth|foldersStripBgCorners|sysOn|sysTrophies|sysBgOn|footerIcon1|footerIcon2|footerIcon3|footerIconFont|footerBgX|footerBgY|footerBgWidth|footerBgHeight|animFolderClose|menuNoDim|folderMenu|menuMove|animationSpeed|animFolders|animToast|animFav|animInfo|animButtons|customTilesOn|customBgOn|tileAnimOn|videoResourceTry|measureScreen|searchDetached|settingsDetached|profileDetached|searchDetachedX|settingsDetachedX|profileDetachedX|hideMediaButtons|buttonsX|buttonsY)$/;
+  var EDITOR_HIDE = /^(bgOverlayOn|bgCleanTry|nameCopyScroll|fixDetails|rowFastRepeat|rowRepeatWindow|favorites|tabsSameWeight|iconsNav|topBarOpacity|fakeTrophiesFast|hideHubIds|hideByTitle|foldersOpenWithX|foldersStripAbove|foldersHideName|foldersNameSize|foldersNameX|foldersNameY|foldersTitle|folderTitleSize|folderTitleColor|foldersRingColor|foldersRingWidth|foldersStripBgCorners|sysOn|sysTrophies|sysBgOn|footerIcon1|footerIcon2|footerIcon3|footerIconFont|footerBgX|footerBgY|footerBgWidth|footerBgHeight|animFolderClose|menuNoDim|folderMenu|menuMove|animationSpeed|animFolders|animToast|animFav|animInfo|animButtons|customTilesOn|customBgOn|tileAnimOn|videoResourceTry|measureScreen|searchDetached|settingsDetached|profileDetached|searchDetachedX|settingsDetachedX|profileDetachedX|hideMediaButtons|buttonsX|buttonsY|hubOffset|hideRowInLibrary|libraryHideGames|libraryPeekDown)$/;
   /* a field that only matters while another one is on: hidden until then
      (c = values().cur). Not applied while searching. */
   var isVideoName = function (n) { return /\.(mp4|m4v)$/i.test(String(n || '')); };
@@ -7853,7 +7852,8 @@
   var FIXED = { foldersOpenWithX: 'true', foldersStripAbove: 'false', foldersHideName: 'true', foldersTitle: 'true',
     menuNoDim: 'false', folderMenu: 'true', menuMove: 'true', animationSpeed: '1', animFolders: 'true', animFolderClose: 'true',
     animToast: 'true', animFav: 'true', animInfo: 'true', animButtons: 'true', customTilesOn: 'true', customBgOn: 'true',
-    tileAnimOn: 'true', videoResourceTry: "''", buttonsX: '0', buttonsY: '0' };
+    tileAnimOn: 'true', videoResourceTry: "''", buttonsX: '0', buttonsY: '0',
+    hubOffset: '0', hideRowInLibrary: 'true', libraryHideGames: 'false', libraryPeekDown: '0' };
   function migrateSys() {
     var c = values().cur, moved = false;
     var put = function (k, v) { if (k in c) setField(k, v); };

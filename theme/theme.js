@@ -18,14 +18,14 @@
     focusX: 0,               /* move only the focused tile, + = right (0) */
     focusY: 0,               /* move only the focused tile, + = down (0) */
     fixDetails: true,        /* keep the details view (arrow down) aligned */
-    hubOffset: 0,            /* hub/library page position: − = lower (down to the bottom of the screen), + = higher (0) */
-    hideRowInLibrary: true,  /* hide the row (tiles + name) at the top while the Game/App Library is open; always on with vertical tiles (false) */
-    libraryPeekDown: 0,      /* px the Game/Apps Library page goes down while only its tile is selected; 0 = off (0) */
-    libraryHideGames: true,  /* keep the Game/App Library page (its games) out of sight until it is opened (false) */
+    hubOffset: 0,            /* not an option any more: always 0 (set after THEME) (0) */
+    hideRowInLibrary: true,  /* not an option any more: always on (set after THEME) (true) */
+    libraryPeekDown: 0,      /* not an option any more: always 0 (set after THEME) (0) */
+    libraryHideGames: false, /* not an option any more: on only when the row is moved or resized (set after THEME) (false) */
     rowSpeed: 1,             /* row slide speed: 1 normal, 0.5 slower, 2 faster (1) */
     rowBounce: false,        /* the row bounces at the end of the slide (false) */
     rowBounceStrength: 0.65, /* bounce strength, 0 to 1 (0.65) */
-    rowMaxGames: 12,         /* games (and folders) in the Games row, 1 to 12; the Store and the Game Library stay (12) */
+    rowMaxGames: 12,         /* games (and folders) in the Games row, 1 to 20; the Store and the Game Library stay; above 12 the row is filled from every installed title (12) */
     rowFastRepeat: true,     /* when pressing several times in a row, the row and animations use the stock speed (true) */
     rowRepeatWindow: 350,    /* ms between presses to count as "in a row"; more = more presses are fast (350) */
     rowX: 0,                 /* move the row horizontally, + = right (0) */
@@ -609,6 +609,7 @@
     foldersVertical: 'grid',    /* folder icon with vertical tiles: 'grid' (2x2 of tall covers), 'stack' (covers stacked) or 'square' (square folder, at the bottom of the tile) ('grid') */
     foldersHorizontal: 'grid',  /* folder picture of the Steam (horizontal) focused tile: 'grid' (4 covers 2:3 in a row), 'icons' (4 square icons in a row), 'stack' (2:3 covers overlapping) or 'square' (square icons, 2 rows) ('grid') */
     foldersBg: 'slices',        /* screen background of a focused folder, made by ZhiThemes from its first 4 games' art: 'slices', 'grid' (mosaic) or 'art' (the first game's art); empty = slices ('slices') */
+    foldersNoSound: false,      /* a selected (closed) folder plays no music; off = the music of its first game, as its game page is that game's (false) */
     foldersStripMax: 0,         /* games shown at a time in an open folder (the rest scroll); 0 = as many as fit (0) */
     foldersHideName: false,     /* hide the name of the highlighted game of an open folder (false) */
     foldersTitle: true,         /* a selected folder shows its name where the game title goes (the folder hides its hub page); with the fake title on, the fake title shows it (true) */
@@ -679,6 +680,13 @@
   THEME.customTilesOn = true; THEME.customBgOn = true; THEME.tileAnimOn = true;
   /* video decoder: Auto (FullHD first) */
   THEME.videoResourceTry = '';
+  /* Game/App Library: the row is always hidden while it is open, the page
+     stays at its stock place and does not peek; its games stay out of sight
+     under the row only when the row was moved or resized (they showed in
+     the wrong place), with the stock row they show as on the PS5 */
+  THEME.hubOffset = 0; THEME.libraryPeekDown = 0; THEME.hideRowInLibrary = true;
+  THEME.libraryHideGames = (Number(THEME.rowX) || 0) !== 0 || (Number(THEME.rowOffsetY) || 0) !== 0 ||
+    (Number(THEME.tileSize) || 106) !== 106 || (Number(THEME.focusSize) || 168) !== 168;
   /* "home", "hub" or "library": ZhiThemes sets it before running this file */
   var APP = globalThis.__themeApp || '?';
   /* debug mode (editor's Logs tab, kept by ZhiThemes in debug.on, not in
@@ -4513,6 +4521,8 @@
       t.bgImagePath = { uri: '/user/app/' + first.id + '/sce_sys/pic0.dds' };
       t.bgMusicPath = null;
     }
+    /* foldersNoSound: the folder tile had its first game's music */
+    if (THEME.foldersNoSound) t.bgMusicPath = null;
     var src = t.iconPath && t.iconPath.uri || '';
     var path = f.icon ? folderIconPath(f.icon)
                       : first.icon;
@@ -4809,17 +4819,97 @@
   }
   /* rowMaxGames = how many games (folder tiles count too) the Games row
      keeps; the system tiles (Game Library at the end) all stay. Only the list
-     with the Game Library and without the Media one (NPXS40139) */
-  var limitLogs = 0;
-  function rowLimit(items) {
+     with the Game Library and without the Media one (NPXS40139). Also at 12:
+     the Home's row takes 14 items at most (Store + 12 + Game Library), and
+     folder tiles put in the place of their games made it longer, so the
+     Game Library fell off the end (3 folders + 12 = 13 icons) */
+  var limitLogs = 0, fillRowLogs = 0;
+  function rowMaxWanted() {
     var max = Math.floor(Number(THEME.rowMaxGames));
-    if (!(max >= 1 && max < 12) || !Array.isArray(items)) return items;
+    return max >= 1 && max <= 20 ? max : 12;
+  }
+  /* the Home's row length: DEFAULT_MAX_TILES (14 = Store + 12 + Game
+     Library) is also the contentLimit of its query; above 12 games the
+     theme makes it rowMaxGames + 2 (moreTiles) */
+  function rowItemsMax() { return Math.max(14, rowMaxWanted() + 2); }
+  /* the row's length the Home really uses is the module's default export,
+     an atom: get(setting 'switcherSize') || 14 (the fetch asks that many
+     and cuts the list there; DEFAULT_MAX_TILES is only a fallback): its
+     read gives at least rowMaxGames + 2 */
+  function moreTiles(exp) {
+    if (APP !== 'home' || !exp || typeof exp !== 'object' || typeof exp.DEFAULT_MAX_TILES !== 'number' ||
+        rowMaxWanted() <= 12) return;
+    var want = rowItemsMax();
+    if (exp.DEFAULT_MAX_TILES !== want) {
+      var was = exp.DEFAULT_MAX_TILES;
+      try { exp.DEFAULT_MAX_TILES = want; } catch (e) {}
+      if (exp.DEFAULT_MAX_TILES === want) done('row tiles ' + was + ' -> ' + want);
+      else log('row: DEFAULT_MAX_TILES not replaceable');
+    }
+    var a = exp['default'];
+    if (!a || typeof a !== 'object' || typeof a.read !== 'function' || a.read.__theme) return;
+    var read = a.read, sizeLogs = 0;
+    var more = function () {
+      var v = read.apply(this, arguments);
+      if (v && typeof v.then === 'function') return v;
+      var n = typeof v === 'number' && v > 0 ? v : 14;
+      if (sizeLogs++ < 3) log('row: switcher size ' + v + ' -> ' + Math.max(n, want));
+      return Math.max(n, want);
+    };
+    more.__theme = true;
+    try { a.read = more; } catch (e) {}
+    if (a.read === more) done('row switcher size ' + want);
+    else log('row: switcher size atom not replaceable');
+  }
+  function gameRow(items) {
+    if (!Array.isArray(items)) return false;
     var game = false, media = false;
     items.forEach(function (r) {
       if (r && r.titleId === 'NPXS40071') game = true;
       if (r && r.titleId === 'NPXS40139') media = true;
     });
+    return game && !media;
+  }
+  /* rowMaxGames above 12: the Home's list (the titles marked for the row)
+     may stop short of it; the next ones of every installed title (same
+     order) fill it, before the system tiles at the end */
+  function rowFill(items) {
+    var max = rowMaxWanted(), all = T.allRecords && T.allRecords.game;
+    if (APP !== 'home' || max <= 12 || !all || !gameRow(items)) return items;
+    var have = {}, count = 0;
+    items.forEach(function (r) {
+      if (!r || typeof r.titleId !== 'string') return;
+      have[r.titleId] = true;
+      if (r.titleId.indexOf('NPXS') !== 0) count++;
+    });
+    if (count >= max) return items;
+    var inside = {}, hidden = T.hideInItems ? removedIds() : {}, now = Date.now();
+    folderList().forEach(function (f) { f.ids.forEach(function (id) { inside[id] = true; }); });
+    var extra = [];
+    all.forEach(function (r) {
+      if (count + extra.length >= max || !r || typeof r.titleId !== 'string' || have[r.titleId] || inside[r.titleId] ||
+          hidden[r.titleId] || r.titleId.indexOf('NPXS') === 0 ||
+          (T.leftRow && T.leftRow[r.titleId] && now - T.leftRow[r.titleId] < 600000)) return;
+      extra.push(r);
+    });
+    if (!extra.length) return items;
+    var end = items.length;
+    while (end > 0 && items[end - 1] && /^NPXS/.test(items[end - 1].titleId)) end--;
+    if (fillRowLogs++ < 6) log('row: ' + count + ' items from the Home, ' + extra.length + ' more from all titles (rowMaxGames ' + max + ')');
+    return items.slice(0, end).concat(extra, items.slice(end));
+  }
+  function rowLimit(items) {
+    var max = rowMaxWanted(), ROW_ITEMS_MAX = rowItemsMax();
+    if (!Array.isArray(items)) return items;
+    var game = false, media = false, sys = 0;
+    items.forEach(function (r) {
+      if (r && r.titleId === 'NPXS40071') game = true;
+      if (r && r.titleId === 'NPXS40139') media = true;
+      if (!r || typeof r.titleId !== 'string' || r.titleId.indexOf('NPXS') === 0) sys++;
+    });
     if (!game || media) return items;
+    /* the system tiles all stay: the games get what is left of the 14 */
+    max = Math.max(1, Math.min(max, ROW_ITEMS_MAX - sys));
     var kept = 0, res = items.filter(function (r) {
       if (!r || typeof r.titleId !== 'string' || r.titleId.indexOf('NPXS') === 0) return true;
       return ++kept <= max;
@@ -4865,7 +4955,7 @@
       try {
         if (res && typeof res === 'object' && Array.isArray(res.items)) {
           notePlayed(res.items);
-          var items = ownBgRecords(rowLimit(folderRecords(hiddenRecords(res.items))));
+          var items = ownBgRecords(rowLimit(rowFill(folderRecords(hiddenRecords(res.items)))));
           if (items !== res.items) {
             var copy = {};
             for (var k in res) copy[k] = res[k];
@@ -4887,7 +4977,7 @@
       var r = original.apply(this, arguments);
       if (!r || typeof r.then !== 'function') return patch(r);
       return r.then(function (res) {
-        if (T.allRecords || !hidesFolderGames(res)) return patch(res);
+        if (T.allRecords || !(hidesFolderGames(res) || (rowMaxWanted() > 12 && gameRow(res && res.items)))) return patch(res);
         /* the row's games that are in folders are replaced with the
            next titles: the first time, every title is asked for now */
         return new Promise(function (ok) {
@@ -12276,10 +12366,50 @@
     if (!T.done['background shade']) done('background shade ' + mat + ' (was ' + (img.basemat || 'none given') + ')');
     return copy;
   }
+  /* foldersNoSound: a selected folder played its first game's music: the
+     Home asks it for the tile (bgMusicPath, from the first game's data) and
+     the game page under the folder (the first game's hub, PostCover) asks
+     it too, both with SceneControl.setSystemBgm({src, type: 'AppSnd0'}).
+     A game of a folder is never in the row itself, so in the Home and in a
+     hub page under the row (not the Game Library) a request for one of them
+     is the folder's: it goes out as null (as for a tile without music) */
+  var folderMuteLogs = 0;
+  function folderOfMusic(bgm) {
+    if (fromLibrary()) return null;
+    var id = hubTitleId();
+    if (!id && bgm && typeof bgm === 'object') {
+      var m = /\/([A-Z]{4}\d{5})\//.exec(String(bgm.src || bgm.uri || ''));
+      id = m ? m[1] : '';
+    }
+    return id ? folderOfGame(id) : null;
+  }
+  function hookFolderMusic(sc) {
+    if ((APP !== 'hub' && APP !== 'home') || !THEME.foldersNoSound || !THEME.folders || !sc ||
+        typeof sc.setSystemBgm !== 'function' || sc.setSystemBgm.__themeFold) return;
+    var original = sc.setSystemBgm;
+    var replaced = function (bgm) {
+      try {
+        var fo = bgm ? folderOfMusic(bgm) : null;
+        if ((T.bgmLogs = (T.bgmLogs || 0) + 1) <= 8) {
+          try { log('folder music: asked ' + JSON.stringify(bgm).slice(0, 160) + (fo ? ' -> ' + fo : '')); } catch (e) {}
+        }
+        if (fo) {
+          if (folderMuteLogs++ < 6) log('folder music: ' + fo + ' (game page ' + (hubTitleId() || '?') + ') plays no music');
+          if (!T.done['folder without music']) done('folder without music');
+          return original.call(this, null);
+        }
+      } catch (e) { log('folder music error: ' + e); }
+      return original.apply(this, arguments);
+    };
+    replaced.__themeFold = true;
+    try { sc.setSystemBgm = replaced; } catch (e) {}
+    if (sc.setSystemBgm !== replaced) log('folder music: setSystemBgm not replaceable');
+  }
   function hookBackground(exp) {
     var sc;
     try { sc = exp.SceneControl; } catch (e) { return; }
     hookMusic(sc);
+    hookFolderMusic(sc);
     if (!sc || typeof sc.setBackground !== 'function' || sc.setBackground.__theme) return;
     var nativeSet = sc.setBackground;
     /* every request goes out with the theme's shade (bgShade) */
@@ -12438,6 +12568,7 @@
       if ('SceneControl' in exp) hookBackground(exp);
       findReact(exp);
       rowConstants(exp);
+      moreTiles(exp);
       verticalConstants(exp);
       shapeTitleConstants(exp);
       topConstants(exp);

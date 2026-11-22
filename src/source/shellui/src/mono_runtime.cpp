@@ -10,6 +10,7 @@
 #include "ipc.hpp" // shellui_log
 #if defined(ZHITHEMES) && ZHITHEMES
 #include "zt_log.hpp"
+long theme_idle_ms(); /* homeui_js_inject.cpp: ms the Home focus has been still, -1 = unknown */
 #endif
 #include <atomic>
 #include <string>
@@ -427,6 +428,29 @@ void shellui_poll_home_reload(void) {
   const long long now = reload_now_ms();
   if (last_reload && now - last_reload < 4000)
     return;
+#if defined(ZHITHEMES) && ZHITHEMES
+  /* the first reload after the injection (started from the Payload
+     Manager, no older module to ask for a still Home): reloading while
+     the controller moves on the Home crashed ShellUI, so it waits until
+     the focus frame has been still for 1.5 s (30 s at most). -1 = no frame
+     hook (PS5 default): no wait */
+  static long long first_wait = 0;
+  static bool told = false;
+  if (!last_reload) {
+    if (!first_wait)
+      first_wait = now;
+    const long idle = theme_idle_ms();
+    if (idle >= 0 && idle < 1500 && now - first_wait < 30000) {
+      if (!told) {
+        told = true;
+        zt_logl('I', "reload: Home moving (%ld ms), first reload waits for a still Home", idle);
+      }
+      return;
+    }
+    if (told)
+      zt_logl('I', "reload: Home still after %lld ms, first reload", now - first_wait);
+  }
+#endif
   last_reload = now;
   if (g_hub_reload_pending.exchange(false, std::memory_order_acq_rel)) {
     LOG_DEBUG("applying NPXS40033 game hub reload on UI thread");

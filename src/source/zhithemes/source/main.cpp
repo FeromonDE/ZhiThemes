@@ -203,7 +203,10 @@ bool replace_running_module() {
   logf("quit -> '%s'", bye.c_str());
   if (bye.rfind("bye", 0) != 0)
     return false;
-  sleep(2); /* the old server closes :4444 after answering */
+  /* the hooks are out when it answers and its thread ends right after;
+     the new module's server retries :4444 until the old one closed it.
+     Short: the Home must still be still when the new module starts */
+  usleep(500 * 1000);
   return true;
 }
 
@@ -1103,11 +1106,9 @@ int main() {
   }
   if (refuse_foreign("start"))
     return 1;
-  if (!replace_running_module()) {
-    notify("ZhiThemes: an older theme (OnionHEN) is active.\n"
-           "Reboot without it, then send ZhiThemes again.");
-    return 1;
-  }
+  /* the waits first, the module swap last: the still-Home check ran 4 s
+     before the injection (quit, helpers closed, 2 s waits) and moving the
+     controller in that gap crashed the new module as it started */
   if (!wait_browser_closed("start"))
     return 0;
   close_browser_helpers();
@@ -1123,6 +1124,11 @@ int main() {
       notify("ZhiThemes: SceShellUI not ready");
       return 1;
     }
+  }
+  if (!replace_running_module()) {
+    notify("ZhiThemes: an older theme (OnionHEN) is active.\n"
+           "Reboot without it, then send ZhiThemes again.");
+    return 1;
   }
   const int loads = inject(shellui);
   if (!loads) {
