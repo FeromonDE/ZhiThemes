@@ -20,6 +20,7 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_mosaic.hpp"
 #include "zt_storage.hpp"
 #include "zt_update.hpp"
+#include "zt_sysicons.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -1140,6 +1141,21 @@ void handle(int fd) {
     if (data.empty())
       return reply(fd, 404, "Not Found", "text/plain", "no access");
     return reply(fd, 200, "OK", "image/png", data);
+  }
+  /* GET /sysicon?name=game: a system icon (IconPS id) from the console's
+     own RCO, for the editor's icon picker */
+  if (method == "GET" && path == "/sysicon") {
+    const std::string name = query_value(query, "name");
+    bool safe = !name.empty() && name.size() < 80;
+    for (char c : name)
+      if (!isalnum((unsigned char)c) && c != '_' && c != '-')
+        safe = false;
+    if (!safe)
+      return reply(fd, 400, "Bad Request", "text/plain", "icon names only");
+    std::string data, type;
+    if (!zt_sysicon(name, data, type))
+      return reply(fd, 404, "Not Found", "text/plain", "no such icon");
+    return reply(fd, 200, "OK", type.c_str(), data);
   }
   /* the system's icon font (controller buttons), to read its glyph codes */
   if (method == "GET" && path == "/system/PS4Icon.ttf") {

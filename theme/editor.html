@@ -101,6 +101,7 @@
              background: rgba(10, 13, 20, .72); backdrop-filter: blur(10px); scrollbar-width: thin; }
   nav#tabs .side-top { display: flex; flex-direction: column; gap: 6px; padding: 0 2px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
   nav#tabs .side-top .advsw { justify-content: center; }
+  nav#tabs .tablist { display: flex; flex-direction: column; gap: 3px; }
   nav#tabs button.tab { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: none;
                         color: var(--muted); padding: 7px 8px; border-radius: 10px; font-weight: 500; }
   nav#tabs button.tab:hover { color: var(--text); background: var(--panel); }
@@ -123,15 +124,16 @@
   #tabhead .th-n { margin: 6px 0 0; font-size: 12px; color: var(--dim); } #tabhead .th-n b { color: var(--accent); font-weight: 600; }
   #tabhead .th-sub { display: flex; gap: 6px; margin-top: 10px; }
   #tabhead .th-sub button.on { border-color: var(--accent); color: var(--accent); }
+  /* tablet: a narrower side bar, still with the names */
+  @media (max-width: 1100px) {
+    :root { --side: 196px; }
+    nav#tabs .tt small { display: none; }
+    nav#tabs .ti { width: 30px; height: 30px; }
+  }
   @media (max-width: 900px) {
-    :root { --side: 62px; }
-    nav#tabs .tt, nav#tabs #search { display: none; }
-    nav#tabs button.tab { justify-content: center; padding: 6px 4px; position: relative; }
-    nav#tabs .count { position: absolute; top: 2px; right: 2px; }
-    nav#tabs .side-top .advsw { padding: 4px 2px; font-size: 10px; gap: 3px; }
-    nav#tabs .advsw .advtxt { display: none; } nav#tabs .advsw::after { content: "Adv"; }
-    .brand h1 span, #fwinfo { display: none; }
+    .brand h1, #fwinfo { display: none; }
     #tabhead .tabpic { width: 128px; height: 72px; }
+    #status { max-width: 200px; }
   }
   main { padding: 18px 20px 40px; max-width: 1280px; margin: 0 auto; }
   main.wide { max-width: none; padding: 12px 16px 16px; }
@@ -171,8 +173,88 @@
   .card .reset:hover { border-color: var(--accent); background: none; }
   .card .hint { color: var(--muted); font-size: 12px; margin-top: 2px; }
   .card .fab { color: var(--dim); white-space: nowrap; }
+  /* the tabs (showSections): each group a panel, each field one line with
+     the name on the left and the control + value on the right; the
+     explanation is the name's tooltip */
+  .section.rows { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 18px 8px; margin-bottom: 14px;
+    max-width: 880px; }
+  .section.rows h2 { font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 650; margin: 0 0 6px; }
+  .section.rows h2::after { display: none; }
+  .section.rows .grid { display: block; }
+  .section.rows .card { display: grid; grid-template-columns: minmax(150px, 36%) minmax(0, 1fr); align-items: center; column-gap: 18px;
+    background: none; border: 0; border-radius: 0; padding: 7px 0; }
+  .section.rows .card + .card { border-top: 1px solid rgba(255, 255, 255, .04); }
+  .section.rows .card.dep-off { display: none; }
+  /* hue: the slider is the colour wheel */
+  .card[data-key=particlesHue] input[type=range] { -webkit-appearance: none; appearance: none; height: 10px; border-radius: 5px;
+    background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+  .card[data-key=particlesHue] input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: #fff; border: 2px solid #0b1220; box-shadow: 0 0 0 1px #fff; }
+  .card[data-key=particlesHue] input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; }
+  .chipset { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chipbtn { font: inherit; font-size: 12px; padding: 3px 11px; border-radius: 12px; border: 1px solid var(--line2);
+    background: transparent; color: var(--muted); cursor: pointer; }
+  .chipbtn.on { background: rgba(47, 208, 230, .16); border-color: var(--accent); color: var(--text); }
+  .section.rows .grid h4.grouphead { margin: 14px 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .8px;
+    text-transform: uppercase; color: var(--accent); opacity: .85; }
+  .section.rows .grid h4.grouphead:first-child { margin-top: 4px; }
+  .section.rows .grid h4.grouphead + .card { border-top: 0; }
+  .section.rows h2 .allsw-txt { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .section.rows h2 .allsw { margin-left: 4px; }
+  .section.rows.cols2 .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 32px; }
+  .section.rows.cols2 .card { grid-template-columns: minmax(0, 1fr) auto; }
+  .section.rows.cols2 .card + .card { border-top: 0; }
+  .section.rows.cols2 .card:has(input[type=range]) { grid-column: 1 / -1; grid-template-columns: minmax(150px, 36%) minmax(0, 1fr); }
+  /* a second switch in the same group starts its own part */
+  .section.rows .card[data-key="playInfoOn"] { border-top: 1px solid var(--line2); margin-top: 8px; padding-top: 12px; }
+  .section.rows .card.adv { border-left: 0; }
+  .section.rows .card .head { min-height: 0; gap: 6px; }
+  .section.rows .card .key { font-weight: 500; color: #c9d1e0; cursor: help; }
+  .section.rows .card.changed .key { color: var(--text); }
+  .section.rows .card.changed .key::before { content: "• "; color: var(--accent); }
+  .section.rows .card .id, .section.rows .card .hint { display: none; }
+  .section.rows .card .ctl { margin-top: 0; min-width: 0; }
+  .section.rows .card .depwarn, .section.rows .card .link { grid-column: 1 / -1; }
+  .section.rows .card .ctl input[type=range] { flex: 1; min-width: 0; }
+  .section.rows .card .ctl input[type=number] { width: 62px; flex: none; text-align: right; background: transparent; border-color: transparent; }
+  .section.rows .card .ctl input[type=number]:hover, .section.rows .card .ctl input[type=number]:focus { border-color: var(--line2); background: var(--bg2); }
+  .section.rows .card .head .advtag { font-size: 9px; padding: 0 5px; }
+  /* the Screen tab's element panel: compact, name above the control */
+  .vpanel .card { background: none; border: 0; border-radius: 0; padding: 8px 0; }
+  .vpanel .card + .card { border-top: 1px solid rgba(255, 255, 255, .05); }
+  .vpanel .card.adv { border-left: 0; }
+  .vpanel .card .hint, .vpanel .card .id { display: none; }
+  .vpanel .card .ctl { margin-top: 5px; }
+  .vpanel .card .key { font-weight: 500; color: #c9d1e0; cursor: help; }
+  .vpanel .card.changed .key { color: var(--text); }
+  .vpanel .card.changed .key::before { content: "• "; color: var(--accent); }
+  .vpanel .card .ctl input[type=range] { flex: 1; min-width: 0; }
+  .vpanel .card .ctl input[type=number] { width: 62px; flex: none; text-align: right; background: transparent; border-color: transparent; }
+  .vpanel .card .head .advtag { font-size: 9px; padding: 0 5px; }
+  /* the icon / box windows: one line per option, like the tabs */
+  .iw .grid { display: block; }
+  .iw .card { display: grid; grid-template-columns: minmax(140px, 36%) minmax(0, 1fr); align-items: center; column-gap: 18px;
+              background: none; border: 0; border-radius: 0; padding: 7px 0; }
+  .iw .card + .card { border-top: 1px solid rgba(255, 255, 255, .05); }
+  .iw .card.dep-off { display: none; }
+  .iw .card.adv { border-left: 0; }
+  .iw .card .hint, .iw .card .id { display: none; }
+  .iw .card .ctl { margin-top: 0; min-width: 0; }
+  .iw .card .key { font-weight: 500; color: #c9d1e0; cursor: help; }
+  .iw .card.changed .key::before { content: "• "; color: var(--accent); }
+  .iw .card .ctl input[type=range] { flex: 1; min-width: 0; }
+  .iw .card .ctl input[type=number] { width: 62px; flex: none; text-align: right; background: transparent; border-color: transparent; }
+  .iw .card .depwarn { grid-column: 1 / -1; }
   /* one colour control for every colour field */
   .colour { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+  .icoprev { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 7px; background: var(--bg2); border: 1px solid var(--line); }
+  .icoprev img { width: 24px; height: 24px; object-fit: contain; }
+  .icogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+  .icocell { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px 7px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; color: var(--muted); cursor: pointer; font: inherit; min-width: 0; }
+  .icocell:hover, .icocell:focus-visible { border-color: var(--accent); color: var(--text); outline: none; }
+  .icocell img { width: 40px; height: 40px; object-fit: contain; }
+  .icocell span { font-size: 10.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .colour .swatch { position: relative; width: 44px; height: 28px; border-radius: 8px; border: 1px solid var(--line2); cursor: pointer; overflow: hidden;
     background: repeating-conic-gradient(#888 0 25%, #ccc 0 50%) 0 0 / 10px 10px; flex: none; }
   .colour .swatch span { position: absolute; inset: 0; }
@@ -196,6 +278,12 @@
   .vpanel h4.sub { margin: 10px 0 5px; color: var(--accent); opacity: .8; }
   .ctl { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
   .ctl select.btn { flex: 1; min-width: 0; }
+  .ctl .unit { margin-left: -4px; font-size: 12px; color: var(--muted, #8a97ad); min-width: 14px; }
+  .section h3.grouphead { display: flex; align-items: center; gap: 10px; margin: 18px 0 8px; font-size: 14px; color: var(--accent); }
+  .card.dep-off { display: none; }
+  .card.dep-dis .ctl { opacity: .4; pointer-events: none; }
+  .card.dep-dis .key { opacity: .5; }
+  .card .depwarn { margin-top: 6px; font-size: 12px; color: var(--warn); }
   .avatar-maker { position: fixed; inset: 0; z-index: 1000; background: #000a; display: flex; align-items: center; justify-content: center; }
   .avatar-maker .am-box { background: #101826; border: 1px solid #2a3a50; border-radius: 14px; padding: 16px 20px; max-width: 760px; }
   .avatar-maker h3 { margin: 0 0 12px; }
@@ -431,7 +519,7 @@
             overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
   .vpanel h3 { margin: 0 0 4px; font-size: 15px; }
   .vpanel h4 { margin: 12px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
-  .vpanel .card { margin-bottom: 6px; background: var(--bg2); }
+  .vpanel .card { margin-bottom: 0; }
   .vpanel .card .id { display: none; }
   .vpanel .list { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 8px; }
   .vpanel .list button { padding: 4px 9px; font-size: 12.5px; }
@@ -454,9 +542,56 @@
   .dist.h span { left: 50%; top: -38px; transform: translateX(-50%); }
   .dist.v span { top: 50%; left: 12px; transform: translateY(-50%); }
   .guide { position: absolute; background: #ff3fa4; z-index: 30; pointer-events: none; } .estimatedTxt { color: var(--warn); }
-  @media (max-width: 760px) {
-    header { padding: 0 10px; gap: 6px; } .brand h1 span, .sep, #btnDownload, label[for=file] { display: none; }
-    #search { width: 130px; } main { padding: 14px 12px 30px; }
+  /* the "more" menu of the header (Install, Download, Reset all): phone only */
+  #moreWrap { position: relative; display: none; }
+  #moreMenu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 190px; z-index: 40; display: none;
+              background: var(--panel); border: 1px solid var(--line2); border-radius: var(--r); padding: 6px;
+              box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+  #moreMenu.open { display: block; }
+  #moreMenu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 9px 10px; }
+  #moreMenu button:hover { background: var(--panel2); }
+  /* phone: header in two lines, the tabs in a strip that scrolls sideways,
+     every option with its name above and the control the whole width */
+  @media (max-width: 700px) {
+    body { padding-left: 0; }
+    .top { margin-left: 0; }
+    header { height: auto; flex-wrap: wrap; padding: 8px 10px 7px; gap: 6px 8px; }
+    header::after { content: ''; order: 5; flex-basis: 100%; height: 0; }
+    header .brand { order: 1; flex: none; margin: 0; }
+    .logo { width: 30px; height: 30px; }
+    .brand h1, #fwinfo, .sep, #themeTitleBox, header .grow, label[for=file], #btnDownload, #btnFactory { display: none; }
+    #themesWrap { order: 2; flex: 1 1 auto; min-width: 0; }
+    #btnThemes { max-width: 100%; width: 100%; text-align: left; }
+    #btnApply { order: 3; }
+    #moreWrap { order: 4; display: block; }
+    #updWrap { order: 10; }
+    #status { order: 11; flex: 1 1 0; min-width: 0; max-width: none; }
+    #reloadCount { order: 12; }
+    #themesPanel { position: fixed; left: 10px; right: 10px; top: 96px; width: auto; max-width: none; }
+    nav#tabs { position: static; width: auto; display: block; padding: 8px 0 6px; overflow: visible;
+               border-right: 0; border-bottom: 1px solid var(--line); }
+    nav#tabs .side-top { flex-direction: row; align-items: center; padding: 0 10px 6px; margin: 0; border-bottom: 0; }
+    nav#tabs .tablist { flex-direction: row; gap: 6px; overflow-x: auto; padding: 0 10px 2px; scrollbar-width: none; }
+    nav#tabs .tablist::-webkit-scrollbar { display: none; }
+    nav#tabs .tablist button.tab { flex: none; }
+    nav#tabs .side-top #search { flex: 1; min-width: 0; }
+    nav#tabs button.tab { width: auto; padding: 5px 10px 5px 5px; gap: 6px; border: 1px solid var(--line);
+                          border-radius: 16px; }
+    nav#tabs button.tab.on { box-shadow: none; border-color: var(--accent); background: rgba(47, 208, 230, .1); }
+    nav#tabs .ti { width: 22px; height: 22px; border: 0; background: none; }
+    nav#tabs .ti svg { width: 16px; height: 16px; }
+    nav#tabs .tt small { display: none; }
+    nav#tabs .tt b { font-size: 13px; }
+    #tabhead { padding: 12px 12px 0; gap: 10px; }
+    #tabhead .tabpic { display: none; }
+    main { padding: 10px 10px 30px; }
+    main.wide { padding: 8px 8px 16px; }
+    .section.rows { padding: 10px 12px 6px; border-radius: 12px; }
+    .section.rows .card { grid-template-columns: minmax(0, 1fr); row-gap: 5px; padding: 8px 0; }
+    .section.rows.cols2 .grid { grid-template-columns: minmax(0, 1fr); }
+    .section.rows.cols2 .card:has(input[type=range]) { grid-template-columns: minmax(0, 1fr); }
+    .iw { padding: 12px; }
+    .iw .card { grid-template-columns: minmax(0, 1fr) !important; }
   }
 </style>
 </head>
@@ -482,6 +617,8 @@
   <button id="btnDownload" title="Save the theme in use as a .ztheme to share: its theme.json (settings, name, author, description) + the wallpaper, video, icons and fonts it shows (not your folders or custom tiles)">Download</button>
   <button id="btnFactory" title="Put every field back to the PS5 stock value and apply">Reset all</button>
   <button id="btnApply" class="primary" title="Save on the console and reload the Home (Ctrl+S)">Apply</button>
+  <div id="moreWrap"><button id="btnMore" title="Install, Download, Reset all" aria-label="More">⋯</button>
+    <div id="moreMenu"><button data-do="install">Install theme…</button><button data-do="download">Download theme</button><button data-do="reset">Reset all</button></div></div>
   <span id="reloadCount" hidden title="Home reloads in this ShellUI since it started" style="align-self:center;font-size:12px;opacity:.75;white-space:nowrap"></span>
 </header>
 </div>
@@ -502,36 +639,64 @@
   /* label and hint shown for each field of var THEME (the stock value comes
      from the "(…)" at the end of its comment in theme.js) */
   var FIELDS_EN = {
+    box3Height: ['Height', ''],
+    box3Width: ['Width', ''],
+    box3Y: ['Y', 'Distance from the top'],
+    box3X: ['X', 'Distance from the left'],
+    box3Corners: ['Corners', ''],
+    box3Opacity: ['Opacity', ''],
+    box3: ['Colour', ''],
+    box3On: ['Box 3', 'A coloured box anywhere on the Home, behind everything'],
+    box2Height: ['Height', ''],
+    box2Width: ['Width', ''],
+    box2Y: ['Y', 'Distance from the top'],
+    box2X: ['X', 'Distance from the left'],
+    box2Corners: ['Corners', ''],
+    box2Opacity: ['Opacity', ''],
+    box2: ['Colour', ''],
+    box2On: ['Box 2', 'A coloured box anywhere on the Home, behind everything'],
+    box1Height: ['Height', ''],
+    box1Width: ['Width', ''],
+    box1Y: ['Y', 'Distance from the top'],
+    box1X: ['X', 'Distance from the left'],
+    box1Corners: ['Corners', ''],
+    box1Opacity: ['Opacity', ''],
+    box1: ['Colour', ''],
+    box1On: ['Box 1', 'A coloured box anywhere on the Home, behind everything'],
+    footerBgPadding: ['Padding', 'Space between the hints and the edge of the background'],
+    sysIconColor: ['Row icons', ''],
+    sysRowColor: ['Row colour', ''],
+    libraryPeekDown: ['Library peek', 'How far the Library page comes down while only its tile is selected; 0 = off'],
     tileSize: ['Tile size', 'Side of the normal tiles, px'],
     focusSize: ['Focused tile size', 'Side of the focused tile, px'],
-    tileVertical: ['Vertical tiles', 'Vertical 2:3 tiles (covers). The sizes above are then the width'],
-    focusShape: ['Focused tile', 'Shape of the focused tile: as the row, vertical 2:3 (square row) or Steam horizontal 92:43. Every focused tile takes it (same height, other width): the game picture of that shape (Pictures below) or its own picture cut; folders get a mosaic of that shape'],
-    tileAnimAll: ['All tiles move', 'Experimental: every tile with an animated picture moves, not only the focused one (one video player each: heavy, can slow the Home)'],
+    tileVertical: ['Tile shape', 'Shape of the tiles in the row: square (PS5) or cover 2:3. With covers the sizes are the width'],
+    focusShape: ['Focused tile shape', 'As the row, cover 2:3 (square row only) or Steam (wide 92:43). Every focused tile takes it (same height, other width): the game picture of that shape (Pictures tab) or its own picture cut; folders get a mosaic of that shape'],
+    tileAnimAll: ['All tiles move', 'Every tile with an animated picture moves, not only the focused one (one video player each: heavy)'],
     videoResourceTry: ['Video decoder', 'Experimental: the decoder type every video asks the PS5 for. Auto = FullHD first; the 4K decoder (UHD) only when FullHD cannot play a big video. Asking UHD while another app holds it makes the PS5 show "Stopping Features"'],
-    tileAnimAllMax: ['Most moving tiles', 'Experimental: at most this many tiles move at once (the focused one always)'],
+    tileAnimAllMax: ['Most at once', 'At most this many tiles move at once (the focused one always)'],
     debugOverlay: ['Debug panel', 'Experimental: a box on the Home with live numbers (ShellUI fps, console RAM/VRAM, ShellUI free memory, mono, CPU use, temperatures, fan, uptime, loads). Move it in the Screen tab'],
-    debugX: ['Debug panel X', 'Distance from the left of the screen'],
-    debugY: ['Debug panel Y', 'Distance from the top of the screen'],
-    debugFontSize: ['Debug text size', 'Text size of the debug panel'],
-    debugColor: ['Debug text colour', 'Colour of the debug panel text'],
-    debugBgOpacity: ['Debug box darkness', 'Darkness of the box behind the numbers (0 = no box)'],
-    debugRow: ['Debug in one line', 'All the numbers in one line instead of one per line'],
-    debugItems: ['Debug items', 'What to show, in this order: fps ram vram shell mono cpu temp fan up loads videos errors'],
+    debugX: ['Panel X', 'Distance from the left of the screen'],
+    debugY: ['Panel Y', 'Distance from the top of the screen'],
+    debugFontSize: ['Text size', ''],
+    debugColor: ['Text colour', ''],
+    debugBgOpacity: ['Box darkness', ''],
+    debugRow: ['One line', 'All the numbers in one line instead of one per line'],
+    debugItems: ['Show', 'What the panel shows'],
     screenDump: ['Screen dump', 'Experimental: copies the code of the apps (bundles) and writes what each screen is made of (React tree) to /data/ZhiThemes/Dumps/<firmware>. For making themes work on other firmwares: turn it on, open the Home, Media, a game page, the Library, Settings and Trophies, then send that folder'],
     tileAnimOn: ['Animated tiles', 'The focused tile plays its animated picture (an MP4 made here from an animated WebP / APNG / video, Pictures below); the other tiles show its first frame'],
     customTilesOn: ['Custom tiles', 'Games show their picture from /data/ZhiThemes/Assets/customtile: <titleId>_1x1_<n>.png for square tiles, <titleId>_2x3_<n>.png for vertical ones'],
     customTileChoice: ['Custom tile per game', 'Picture each game uses per format (ID/2x3:n or ID/1x1:n; ID:n = both; 0 = its own icon), set below or from the tile\'s Options menu; not listed = picture 1'],
     customBgOn: ['Custom backgrounds', 'Games show their background from /data/ZhiThemes/Assets/custombg: <titleId>_16x9_<n>.png (1920×1080)'],
     customBgChoice: ['Custom background per game', 'Background each game uses (ID:n, 0 = its own art), set below; not listed = background 1'],
-    tileCorners: ['Tile corners', 'Corner radius of the tiles'],
-    rowOffsetY: ['Row offset', 'Moves the tile row down'],
+    tileCorners: ['Corners', 'Corner radius of the tiles'],
+    rowOffsetY: ['Row Y', 'Moves the tile row down'],
     focusX: ['Focused tile X', 'Moves only the focused tile, + = right'],
     focusY: ['Focused tile Y', 'Moves only the focused tile, + = down'],
     fixDetails: ['Fix details view', 'Keeps the details view (arrow down) aligned with the row'],
-    hubOffset: ['Hub / library offset', 'Hub and library page: − = lower (down to the bottom of the screen), + = higher'],
-    rowSpeed: ['Row speed', 'Row sliding speed: 1 normal, 0.5 slower, 2 faster'],
-    rowBounce: ['Row bounce', 'The row bounces at the end of the slide'],
-    rowBounceStrength: ['Bounce strength', 'Bounce strength, 0 to 1'],
+    hubOffset: ['Page position', 'Game hub and Library page: − = lower, + = higher'],
+    rowSpeed: ['Row speed', 'Row sliding speed: 1× = normal'],
+    rowBounce: ['Bounce', 'The row bounces at the end of the slide'],
+    rowBounceStrength: ['Bounce strength', ''],
     rowMaxGames: ['Games in the row', 'How many games (folders count too) the Games row shows, 1 to 12; the Store and the Game Library stay'],
     rowFastRepeat: ['Fast on repeat', 'When pressing several times in a row, the row and animations use the stock speed'],
     rowRepeatWindow: ['Repeat window', 'ms between presses to count as "in a row"'],
@@ -539,58 +704,58 @@
     rowGapAfter: ['Gap after focus', 'Extra space between the focused tile and the next ones, px'],
     rowGapBefore: ['Gap before focus', 'Extra space between the focused tile and the previous ones, px'],
     rowTileGap: ['Space between tiles', 'Space between the tiles of the row, px; the PS5 uses 8'],
-    animationSpeed: ['Animation speed', 'Speed of the other Home animations: 1 normal, 0.5 slow, 2 fast'],
+    animationSpeed: ['Speed', 'Speed of the Home animations: 1× = normal'],
 
     tabsX: ['Tabs X', 'Moves horizontally, + = right'],
     tabsY: ['Tabs Y', 'Moves vertically, + = down'],
-    tabsSpacing: ['Tab spacing', 'Space between "Games" and "Media"'],
-    tabsFontSize: ['Tab font size', '0 = stock; rounded to the system size table'],
-    tabsInactiveOpacity: ['Inactive opacity', 'Opacity of the tab that is not selected'],
-    tabsColor: ['Tab colour', 'Text colour; empty = stock'],
-    tabsFontStyle: ['Tab font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
-    tabsIconsOn: ['Icons instead of names', 'Each tab shows an icon, no text. Colour = tab colour, not selected = inactive opacity'],
-    tabsIconSize: ['Tab icon size', 'Size of the tab icons in px'],
+    tabsSpacing: ['Spacing', 'Space between the tabs'],
+    tabsFontSize: ['Text size', '0 = stock; rounded to the system size table'],
+    tabsInactiveOpacity: ['Not selected opacity', 'Opacity of the tabs that are not selected'],
+    tabsColor: ['Colour', 'Text (or icon) colour; empty = stock'],
+    tabsFontStyle: ['Font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
+    tabsIconsOn: ['Icons instead of text', 'Each tab shows an icon, no text. Colour = tab colour, not selected = its opacity'],
+    tabsIconSize: ['Icon size', ''],
     tabsGameIcon: ['Games icon', "System icon name (e.g. 'game') or an uploaded .png"],
     tabsMediaIcon: ['Media icon', "System icon name (e.g. 'music_and_video') or an uploaded .png"],
     tabsRecentIcon: ['Recently played icon', "System icon name (e.g. 'history') or an uploaded .png"],
     tabsFavIcon: ['Favourites icon', "System icon name (e.g. 'favorite') or an uploaded .png"],
     tabsNeverIcon: ['Never played icon', "System icon name (e.g. 'new') or an uploaded .png"],
-    tabsGroup: ['Tabs group', 'Icons and a background glued to the tabs: they follow the text in any language'],
+    tabsGroup: ['Tab group', 'Controller icons (L1 / R1) and a background glued to the tabs: they follow the text in any language'],
     tabsGroupLeft: ['Left icon', "Controller button ('l1'...), system icon or an uploaded .png; empty = none"],
     tabsGroupRight: ['Right icon', "Controller button ('r1'...), system icon or an uploaded .png; empty = none"],
-    tabsGroupIconSize: ['Icon size', 'px'],
+    tabsGroupIconSize: ['Icon size', ''],
     tabsGroupIconGap: ['Icon gap', 'Space between each icon and the tabs'],
     tabsGroupIconColor: ['Icon colour', 'System icons only; empty = stock'],
-    tabsGroupIconOpacity: ['Icon opacity', '0-1'],
-    tabsGroupBgOn: ['Group background', 'Background behind the icons and tabs'],
+    tabsGroupIconOpacity: ['Icon opacity', ''],
+    tabsGroupBgOn: ['Background', 'A background behind the icons and the tabs'],
     tabsGroupBg: ['Background colour', ''],
-    tabsGroupBgOpacity: ['Background opacity', '0-1'],
-    tabsGroupHeight: ['Background height', 'px (centred in the top bar)'],
-    tabsGroupPadding: ['Background padding', 'Space inside the background, left and right'],
-    tabsGroupCorners: ['Background corners', 'Corner radius; half the height = pill'],
-    tabsAlign: ['Tabs alignment', 'Stock, or left / centre / right inside the tabs width (centre grows to both sides). With X 0 and width 1752 centre is the middle of the screen'],
-    tabsWidth: ['Tabs width', 'Width of the box the tabs are aligned in (only with an alignment)'],
-    tabsSameWeight: ['Same weight for all tabs', 'The other tabs as bold as the selected one, so the bar does not move when the tab changes'],
-    tabsPillOn: ['Selected tab panel', 'A panel ("pill") behind the selected tab (Games, Media, ...)'],
-    tabsPillColor: ['Panel colour', ''],
-    tabsPillOpacity: ['Panel opacity', '0-1'],
-    tabsPillCorners: ['Panel corners', 'Corner radius; big = round pill'],
-    tabsPillPadX: ['Panel padding X', 'Space left and right of the name'],
-    tabsPillPadY: ['Panel padding Y', 'Space above and below the name'],
-    tabsPillBorderColor: ['Panel line colour', ''],
-    tabsPillBorderWidth: ['Panel line width', '0 = no line'],
-    tabsPillTextColor: ['Selected tab text colour', 'Empty = stock'],
-    tabRecentOn: ['Recently played tab', 'Tab with the games played lately, newest first (Home reloads)'],
-    tabRecentName: ['Recently played name', 'The tab name'],
-    tabRecentMax: ['Recently played games', 'How many games the tab shows'],
-    tabFavOn: ['Favourites tab', 'Tab with your favourite games: Options menu > Add to favourites'],
-    tabFavName: ['Favourites name', 'The tab name'],
-    tabFavFirst: ['Favourites first', 'The Favourites tab on the left of Games; the Home still starts on Games'],
-    tabNeverOn: ['Never played tab', 'Tab with the games never played'],
-    tabNeverName: ['Never played name', 'The tab name'],
-    favMenu: ['Favourites in Options menu', 'Add to / Remove from favourites in the Options menu of the games'],
+    tabsGroupBgOpacity: ['Background opacity', ''],
+    tabsGroupHeight: ['Height', 'Centred in the top bar'],
+    tabsGroupPadding: ['Padding', 'Space inside the background, left and right'],
+    tabsGroupCorners: ['Corners', 'Half the height = pill'],
+    tabsAlign: ['Alignment', 'Stock, or left / centre / right inside the box width (centre grows to both sides)'],
+    tabsWidth: ['Box width', 'Width of the box the tabs are aligned in; 1752 with Tabs X 0 = the whole bar'],
+    tabsSameWeight: ['Same weight for all', 'The other tabs as bold as the selected one, so the bar does not move when the tab changes'],
+    tabsPillOn: ['Highlight', 'A panel (“pill”) behind the selected tab'],
+    tabsPillColor: ['Highlight colour', ''],
+    tabsPillOpacity: ['Highlight opacity', ''],
+    tabsPillCorners: ['Corners', 'Big = round pill'],
+    tabsPillPadX: ['Padding sides', 'Space left and right of the name'],
+    tabsPillPadY: ['Padding top and bottom', 'Space above and below the name'],
+    tabsPillBorderColor: ['Outline colour', ''],
+    tabsPillBorderWidth: ['Outline', 'A line around the highlight; 0 = none'],
+    tabsPillTextColor: ['Selected text colour', 'Text colour of the selected tab; empty = stock'],
+    tabRecentOn: ['Recently played', 'Tab with the games played lately, newest first (Home reloads)'],
+    tabRecentName: ['Name', 'The tab name'],
+    tabRecentMax: ['Games', 'How many games the tab shows'],
+    tabFavOn: ['Favourites', 'Tab with your favourite games: Options menu > Add to favourites'],
+    tabFavName: ['Name', 'The tab name'],
+    tabFavFirst: ['Left of Games', 'The Favourites tab on the left of Games; the Home still starts on Games'],
+    tabNeverOn: ['Never played', 'Tab with the games never played'],
+    tabNeverName: ['Name', 'The tab name'],
+    favMenu: ['In the Options menu', 'Add to / Remove from favourites in the Options menu of the games'],
     favorites: ['Favourite games', 'Title ids separated by commas (the Options menu writes them)'],
-    playInfoOn: ['Play info', 'Box saying "Never played" or "Last played 3 days ago" for the focused game'],
+    playInfoOn: ['ZhiThemes play info', 'A box drawn by ZhiThemes: “Never played” or “Last played 3 days ago” for the focused game'],
     playInfoX: ['Play info X', 'Distance from the left'],
     playInfoY: ['Play info Y', 'Distance from the top'],
     playInfoFontSize: ['Play info text size', ''],
@@ -599,58 +764,58 @@
     playInfoBgOpacity: ['Play info background opacity', '0 = no background'],
     playInfoCorners: ['Play info corners', ''],
     playInfoNever: ['Never played text', ''],
-    animTabs: ['Tab change animation', 'The row slides in from the side of the new tab, and the tab panel moves to the new tab like a worm'],
-    animTabsMs: ['Tab change duration', 'ms (280)'],
-    animTabsSlide: ['Tab change distance', 'How far the row comes from, px; 0 = only fade'],
+    animTabs: ['Tab animations', 'The row slides in from the side of the new tab, and the tab panel moves to the new tab like a worm'],
+    animTabsMs: ['Duration', ''],
+    animTabsSlide: ['Distance', 'How far the row comes from'],
     animFav: ['Favourites message', '"Added to favourites" / "Removed from favourites" over the tile for 3 s'],
-    animFolders: ['Folder opening animation', 'The folder panel fades in and the games rise in one after the other'],
-    animNames: ['Name change animation', 'Fake title, folder name and the highlighted game in a folder change with an animation'],
-    animNamesStyle: ['Name animation', 'Fade, slide in from the right, or rise from below'],
-    animNamesMs: ['Name animation duration', 'ms (240)'],
-    animInfo: ['Play info / trophies animation', 'Play info and Home trophies fade and rise in when the game changes'],
+    animFolders: ['Folder open / close', 'The folder panel fades in and its games rise in; closing, they drop out and the panel fades away'],
+    animNames: ['Name animations', 'Fake title, folder name and the highlighted game in a folder change with an animation'],
+    animNamesStyle: ['Style', 'Fade, slide in from the right, or rise from below'],
+    animNamesMs: ['Duration', ''],
+    animInfo: ['Play info / trophies', 'Play info and Home trophies fade and rise in when the game changes'],
     animToast: ['Folder messages', '3 s message for folder changes: added to / removed from a folder, moved, sorted, renamed, deleted'],
     animFolderClose: ['Folder closing animation', 'Closing a folder: its games drop out and the panel fades away'],
     animButtons: ['Button bounce', 'Footer, tab group and icon buttons bounce when that button does something: X on a folder, Options, L1 / R1'],
     animTitleGlow: ['Fake title glow', 'The fake title glows now and then (not with the scrolling name)'],
     animTitleGlowColor: ['Glow colour', ''],
-    animTitleGlowSec: ['Glow every', 'Seconds between two glows (6)'],
+    animTitleGlowSec: ['Interval', 'Seconds between two glows'],
     playInfoLast: ['Last played text', 'Shown before "3 days ago", "yesterday"...'],
 
     tileNameX: ['Tile name X', '+ = right'],
     tileNameY: ['Tile name Y', '+ = down'],
-    tileNameScale: ['Tile name scale', 'Enlarges the name (gets blurry; the fake title is better): 1 = normal'],
-    titleMode: ['Game title or fake title', 'Game title = the PS5 name under the row. Fake title = the name drawn by the theme, anywhere on the screen (the PS5 one then shows only in the hub view). Never both'],
-    fakeTitleX: ['Fake title X', 'Distance from the left of the screen'],
+    tileNameScale: ['Scale', 'Enlarges the name (gets blurry; the fake title is better)'],
+    titleMode: ['Title', 'The game name on the game page: the PS5 one, a fake title drawn by the theme anywhere on the Home, or none'],
+    fakeTitleX: ['Title X', 'Distance from the left of the screen'],
     logoOn: ['Game logo', 'Shows the game\'s logo on the Home (pictures in the Logo format below: your PNG or a SteamGridDB logo)'],
-    logoX: ['Logo X', 'Distance of the logo box from the left of the screen'],
-    logoY: ['Logo Y', 'Distance of the logo box from the top of the screen'],
-    logoWidth: ['Logo box width', 'The logo fits inside the box keeping its shape'],
-    logoHeight: ['Logo box height', 'The logo fits inside the box keeping its shape'],
-    logoAlign: ['Logo alignment', 'Left, centre or right inside the box'],
-    logoVAlign: ['Logo vertical alignment', 'Top, centre or bottom inside the box'],
-    logoOpacity: ['Logo opacity', '0-1'],
-    logoHidesTitle: ['Logo replaces the fake title', 'With the fake title on: a game with a logo shows only the logo'],
-    fakeTitleY: ['Fake title Y', 'Distance from the top of the screen'],
-    nameCopyFontSize: ['Fake title size', 'Sharp up to the largest system size (~96); above that it is scaled'],
-    nameCopyColor: ['Fake title colour', 'Empty = white'],
-    nameCopyFontStyle: ['Fake title font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
+    logoX: ['Box X', 'Distance of the logo box from the left of the screen'],
+    logoY: ['Box Y', 'Distance of the logo box from the top of the screen'],
+    logoWidth: ['Box width', 'The logo fits inside the box keeping its shape'],
+    logoHeight: ['Box height', 'The logo fits inside the box keeping its shape'],
+    logoAlign: ['Alignment', 'Left, centre or right inside the box'],
+    logoVAlign: ['Vertical alignment', 'Top, centre or bottom inside the box'],
+    logoOpacity: ['Opacity', ''],
+    logoHidesTitle: ['Replaces the fake title', 'A game with a logo shows only the logo'],
+    fakeTitleY: ['Title Y', 'Distance from the top of the screen'],
+    nameCopyFontSize: ['Size', 'Sharp up to the largest system size (~96); above that it is scaled'],
+    nameCopyColor: ['Colour', 'Empty = white'],
+    nameCopyFontStyle: ['Font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
     hidePS5Icon: ['Hide PS5 symbol', 'Hides the PS5/PS4 symbol next to the tile name (with the tile name hidden too, both come back in the hub view)'],
-    nameCopyAlign: ['Fake title alignment', 'Left, centre or right inside the width'],
-    nameCopyWidth: ['Fake title width', 'Width of the text box, for centring / right alignment'],
-    nameCopyWrap: ['Wrap long name', 'A name wider than the fake title width goes on in more lines instead of "…"'],
+    nameCopyAlign: ['Alignment', 'Left, centre or right inside the width'],
+    nameCopyWidth: ['Width', 'Width of the text box, for centring / right alignment'],
+    nameCopyWrap: ['Long name', 'A name wider than the width: cut with “…”, goes on in more lines, or scrolls sideways'],
     nameCopyScroll: ['Scroll long name', 'A name wider than the fake title width scrolls sideways instead of "…"'],
     nameCopyScrollSpeed: ['Scroll speed', 'px per second'],
-    nameCopyBgOn: ['Name background', 'Background behind the name that follows its length'],
+    nameCopyBgOn: ['Background', 'A background behind the name that follows its length'],
     nameCopyBg: ['Background colour', ''],
-    nameCopyBgOpacity: ['Background opacity', '0-1'],
-    nameCopyBgPadding: ['Background padding', 'Space inside the background, left and right'],
-    nameCopyBgPaddingV: ['Background padding (vertical)', 'Space inside the background, above and below'],
-    nameCopyBgCorners: ['Background corners', 'Corner radius'],
-    tileNameColor: ['Tile name colour', 'Colour of the name and label; empty = stock'],
-    tileNameFontStyle: ['Tile name font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
+    nameCopyBgOpacity: ['Background opacity', ''],
+    nameCopyBgPadding: ['Padding', 'Space inside the background, left and right'],
+    nameCopyBgPaddingV: ['Padding top and bottom', 'Space inside the background, above and below'],
+    nameCopyBgCorners: ['Background corners', ''],
+    tileNameColor: ['Colour', 'Colour of the name and label; empty = stock'],
+    tileNameFontStyle: ['Font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
 
-    iconsX: ['Icons X', 'Moves icons and clock together, + = right'],
-    iconsY: ['Icons Y', 'Moves icons and clock together, + = down'],
+    iconsX: ['Icons and clock X', 'Moves icons and clock together, + = right'],
+    iconsY: ['Icons and clock Y', 'Moves icons and clock together, + = down'],
     iconSize: ['Icon size', 'Size of the top icons; 0 = stock'],
     searchX: ['Search X', 'Search icon, + = right'],
     searchY: ['Search Y', 'Search icon, + = down'],
@@ -693,16 +858,16 @@
     profileDetachedX: ['Detached profile X', 'Distance from the left'],
     profileDetachedY: ['Detached profile Y', 'Distance from the top'],
 
-    clockGap: ['Clock gap', 'Extra space between the icons and the clock'],
+    clockGap: ['Gap to the icons', 'Extra space between the icons and the clock'],
     clockY: ['Clock Y', 'Moves only the clock, + = down'],
-    clockFontSize: ['Clock font size', '0 = stock; rounded to the system size table'],
-    clockColor: ['Clock colour', 'Empty = stock'],
-    clockFontStyle: ['Clock font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
-    ownClock: ['Own clock', 'A clock drawn by the theme (seconds, date, 12/24 h); the stock one is hidden'],
-    ownClockX: ['Own clock X', 'Left of its box, px'],
-    ownClockY: ['Own clock Y', 'Top of its box, px'],
-    ownClockWidth: ['Own clock width', 'Width of its box (the text is aligned inside)'],
-    ownClockAlign: ['Own clock alignment', 'Left, centre or right inside its box'],
+    clockFontSize: ['Text size', '0 = stock; rounded to the system size table'],
+    clockColor: ['Colour', 'Empty = stock'],
+    clockFontStyle: ['Font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
+    ownClock: ['Own clock', 'A clock drawn by the theme (seconds, date, 12/24 h) instead of the PS5 one'],
+    ownClockX: ['Box X', 'Left of its box, px'],
+    ownClockY: ['Box Y', 'Top of its box, px'],
+    ownClockWidth: ['Box width', 'Width of its box (the text is aligned inside)'],
+    ownClockAlign: ['Alignment', 'Left, centre or right inside its box'],
     ownClockFontSize: ['Time size', 'Font size of the time (rounded to the size table)'],
     ownClockColor: ['Time colour', ''],
     ownClockFontStyle: ['Time font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
@@ -717,32 +882,32 @@
 
     titleX: ['Title X', 'Moves the game name / logo, + = right'],
     titleY: ['Title Y', 'Moves the game name / logo, + = down'],
-    titleFontSize: ['Title font size', '0 = stock; rounded to the system size table'],
-    titleColor: ['Title colour', 'Empty = stock'],
-    titleFontStyle: ['Title font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
-    titleAlign: ['Title alignment', 'Game name in the hub: left, centre or right'],
+    titleFontSize: ['Text size', '0 = stock; rounded to the system size table'],
+    titleColor: ['Colour', 'Empty = stock'],
+    titleFontStyle: ['Font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
+    titleAlign: ['Alignment', 'Game name in the hub: left, centre or right'],
     buttonsX: ['Buttons X', 'Moves the buttons (Play, …), + = right'],
     buttonsY: ['Buttons Y', 'Moves the buttons (Play, …), + = down'],
 
     hideFocus: ['Hide focus frame', 'Hides the frame and glow of the focus'],
-    focusThickness: ['Frame thickness', 'Line thickness, grows outwards: 6 = normal, 12 = double; 0 = stock'],
-    focusGap: ['Frame gap', 'Distance from the tile, px; negative = inwards'],
-    focusCorners: ['Frame corners', 'Corner radius of the frame, px; 0 = stock'],
-    focusAnimated: ['Animated glow', 'With a custom colour: keep the shimmer running; off = solid colour'],
-    focusLineColorOn: ['Custom line colour', 'Use your own colour on the frame LINE'],
-    focusLineR: ['Line red', '0–255'],
+    focusThickness: ['Thickness', 'Line thickness, grows outwards: 6 = normal, 12 = double; 0 = stock'],
+    focusGap: ['Gap', 'Distance from the tile, px; negative = inwards'],
+    focusCorners: ['Corners', 'Corner radius of the frame, px; 0 = stock'],
+    focusAnimated: ['Animated glow', 'Keeps the shimmer running with your colours or the rainbow; off = solid colour'],
+    focusLineColorOn: ['Line colour', 'Your own colour on the frame line'],
+    focusLineR: ['Line colour', ''],
     focusLineG: ['Line green', '0–255'],
     focusLineB: ['Line blue', '0–255'],
-    focusLineAlpha: ['Line opacity', '0–1'],
-    focusGlowColorOn: ['Custom glow colour', 'Own colour on the GLOW; off = glow uses the line colour'],
-    focusGlowR: ['Glow red', '0–255'],
+    focusLineAlpha: ['Line opacity', ''],
+    focusGlowColorOn: ['Glow colour', 'Your own colour on the glow; off = the glow uses the line colour'],
+    focusGlowR: ['Glow colour', ''],
     focusGlowG: ['Glow green', '0–255'],
     focusGlowB: ['Glow blue', '0–255'],
-    focusGlowAlpha: ['Glow opacity', '0–1'],
+    focusGlowAlpha: ['Glow opacity', ''],
     hideGlow: ['Hide glow', 'Removes only the glow over the frame; the line stays'],
     focusShimmerSpeed: ['Shimmer speed', '1 normal, 0.5 half, 0 stopped'],
     focusIntensity: ['Frame intensity', 'HDR intensity of the native frame: 1 = normal, up to 4'],
-    focusRainbow: ['Rainbow frame', 'The frame colours go round the colour wheel; the running shimmer animates them'],
+    focusRainbow: ['Rainbow', 'The frame goes round the colour wheel (the line colour is not used; a glow colour of your own stays); the animated glow moves it'],
 
     buttonBgColor: ['Button background', 'Buttons (Play, …); empty = stock'],
     buttonBgFocusColor: ['Selected button background', 'Empty = stock'],
@@ -750,11 +915,11 @@
     buttonTextFocusColor: ['Selected button text', 'Empty = stock'],
     downloadBarColor: ['Download bar', 'Download bar on the tiles; empty = stock'],
     downloadBarBgColor: ['Download bar background', 'Empty = stock'],
-    menuBgColor: ['Menu background', 'Background of the Options menus (every menu of the system); empty = stock'],
-    menuBgOpacity: ['Menu background opacity', 'Only the background, the text stays'],
-    menuCorners: ['Menu corners', 'Round corners of the Options menus, px (every menu of the system); 0 = stock, square'],
-    menuItemCorners: ['Menu item corners', 'Round corners of the background of the selected item, px; 0 = stock'],
-    menuMove: ['Move the Options menu', 'The tiles\' Options menu opens at its own place (Screen tab: "Options menu")'],
+    menuBgColor: ['Background', 'Background of the Options menus (every menu of the system); empty = stock'],
+    menuBgOpacity: ['Background opacity', 'Only the background, the text stays'],
+    menuCorners: ['Corners', 'Round corners of every system menu'],
+    menuItemCorners: ['Item corners', 'Round corners of the selected item'],
+    menuMove: ['Move the tile menu', 'The tiles\' Options menu opens at its own place (Screen tab: "Options menu")'],
     menuX: ['Menu X', 'Move it, + = right'],
     menuY: ['Menu Y', 'Move it, + = down; - = up for a low row'],
     menuNoDim: ['No dark screen', 'The screen does not get darker behind the tiles\' Options menu'],
@@ -762,76 +927,76 @@
     menuHideIds: ['More items to remove', 'Comma separated: update, sync, upload, ip, keep, info, delete, manage, history, move, close'],
     folderMenu: ['Folder options', 'Folder items in the Options menu (folder, game of an open folder, "Add to folder")'],
 
-    hideStore: ['PlayStation Store tile', 'Removes the Store tile from the row'],
-    hideAllApps: ['"All apps" tile', 'Removes the All apps tile (NPXS40056) from Media'],
-    hideGallery: ['Media Gallery tile', 'Removes the Media Gallery tile (NPXS40075) from the row'],
-    libraryHideGames: ['Hide library games', 'The Game/App Library tile no longer shows its games under the row before you open it'],
-    hideRowInLibrary: ['Row in the Library', 'Hides the row (tiles, name) at the top of the Game/App Library; always hidden with vertical tiles'],
-    hideTileName: ['Tile name', 'Text of the small name next to the focused tile (comes back in the hub view); the PS5 symbol has its own switch'],
-    hideTabs: ['Tabs', '"Games / Media"'],
-    hideSearch: ['Search icon', ''],
-    hideIconLabels: ['Names under the icons', 'Hide the name shown under a selected top icon (the user name under the profile)'],
-    hideSettings: ['Settings icon', ''],
-    hideProfile: ['Profile icon', ''],
-    hideClock: ['Clock', ''],
-    hideTitle: ['Game title', 'Game name / logo in the hub'],
-    hideButtons: ['Hub buttons', 'Play, … in the game hub (Home row); always shown in the Game Library'],
-    hideMediaButtons: ['Media buttons', 'Start in the Media / app hub; always shown in the Game Library'],
-    hideMore: ['"…" button', 'Next to Play in the hub'],
-    hideFriends: ['Friends who play', 'Card in the hub'],
-    hideHints: ['Button hints', 'R3 / L3 / △ hints in the hub'],
-    hideTrophies: ['Trophies card', 'In the hub of the Home; the Game Library keeps it'],
-    hideActivities: ['Activities', 'Hub section'],
-    hideNews: ['News', 'Game news in the hub'],
-    hideRecommendations: ['Recommendations', 'In the hub'],
-    hideTournaments: ['Tournaments', 'In the hub'],
-    hideCommunity: ['Community', 'Captures and community content in the hub'],
-    hideHubStore: ['Store items', 'Add-ons, plans and products in the hub'],
-    hideAbout: ['About', '"About" and notices in the hub'],
-    hideHubIds: ['Other hub testIDs', 'Comma separated; \'x*\' = starts with x'],
-    hideByTitle: ['Hub sections by title', 'e.g. \'News, Add-ons\' (titles as shown on the console)'],
+    hideStore: ['Hide PlayStation Store tile', 'Removes the Store tile from the row'],
+    hideAllApps: ['Hide "All apps" tile', 'Removes the All apps tile (NPXS40056) from Media'],
+    hideGallery: ['Hide Media Gallery tile', 'Removes the Media Gallery tile (NPXS40075) from the row'],
+    libraryHideGames: ['Hide Library games until opened', 'The Game/App Library tile no longer shows its games under the row before you open it'],
+    hideRowInLibrary: ['Hide the row in the Library', 'Hides the row (tiles, name) at the top of the Game/App Library; always hidden with vertical tiles'],
+    hideTileName: ['Hide tile name', 'Text of the small name next to the focused tile (comes back in the hub view); the PS5 symbol has its own switch'],
+    hideTabs: ['Hide the tabs', 'Hides “Games / Media” (and the extra tabs)'],
+    hideSearch: ['Hide search icon', ''],
+    hideIconLabels: ['Hide names under icons', 'The name shown under a selected top icon (the user name under the profile)'],
+    hideSettings: ['Hide settings icon', ''],
+    hideProfile: ['Hide profile icon', ''],
+    hideClock: ['Hide the clock', ''],
+    hideTitle: ['Hide game title', 'Game name / logo in the hub'],
+    hideButtons: ['Hide Play game button', 'Play (and the Media start button) on the game page of the Home; it hides "…" too. The Game Library always shows them'],
+    hideMediaButtons: ['Hide Media buttons', 'Start in the Media / app hub; always shown in the Game Library'],
+    hideMore: ['Hide "…" button', 'Next to Play on the game page'],
+    hideFriends: ['Hide friends who play', 'Card in the hub'],
+    hideHints: ['Hide button hints', 'R3 / L3 / △ hints in the hub'],
+    hideTrophies: ['Hide trophies card', 'In the hub of the Home; the Game Library keeps it'],
+    hideActivities: ['Hide activities', 'Hub section'],
+    hideNews: ['Hide news', 'Game news in the hub'],
+    hideRecommendations: ['Hide recommendations', 'In the hub'],
+    hideTournaments: ['Hide tournaments', 'In the hub'],
+    hideCommunity: ['Hide community', 'Captures and community content in the hub'],
+    hideHubStore: ['Hide store items', 'Add-ons, plans and products in the hub'],
+    hideAbout: ['Hide about', '"About" and notices in the hub'],
+    hideHubIds: ['Hide other hub testIDs', 'Comma separated; \'x*\' = starts with x'],
+    hideByTitle: ['Hide hub sections by title', 'e.g. \'News, Add-ons\' (titles as shown on the console)'],
     hideTiles: ['Tiles to remove', 'Comma separated ids (see "row ids" in the log)'],
     foldersIcon: ['Icon of every folder', '.png from Background images; empty = icon of its first game'],
     foldersPosition: ['Folders position', 'Where the folders go in the row, 0 = first'],
-    foldersBg: ['Folder background', 'Screen background of a focused folder, made on the PS5 from the art of its first 4 games (a few seconds the first time); first game = the art of its first game'],
-    foldersHorizontal: ['Folders, Steam focused tile', 'Folder picture when the focused tile is the Steam horizontal one: 4 covers 2:3 in a row, 4 square icons in a row, covers 2:3 overlapping, or square icons (2 rows, up to 7 games)'],
-    foldersVertical: ['Folders with vertical tiles', 'Folder icon when the tiles are vertical: stacked covers, a 2×2 mosaic of tall covers, or a square folder at the bottom of the tile'],
+    foldersBg: ['Background when selected', 'Screen background of a focused folder, made on the PS5 from the art of its first 4 games (a few seconds the first time); first game = the art of its first game'],
+    foldersHorizontal: ['Look with the Steam tile', 'Folder picture when the focused tile is the Steam horizontal one: 4 covers 2:3 in a row, 4 square icons in a row, covers 2:3 overlapping, or square icons (2 rows, up to 7 games)'],
+    foldersVertical: ['Look with cover tiles', 'Folder icon when the tiles are vertical: stacked covers, a 2×2 mosaic of tall covers, or a square folder at the bottom of the tile'],
     sysOn: ['Own look', 'Turn on the look of this tab in Settings and Trophies'],
     sysTrophies: ['Trophies too', 'Use the game row fields below in the Trophies list'],
-    sysTrophyColor: ['Game row colour', 'Background colour of each game row in Trophies'],
-    sysTrophyOpacity: ['Game row opacity', 'Opacity of the game row background; 0 = none'],
-    sysTrophyCorners: ['Game row corners', 'Corner radius of the game rows'],
-    sysTrophyGap: ['Game row gap', 'Space between the game rows (the row gets shorter)'],
-    sysTrophyBorderColor: ['Game row line colour', 'Colour of a thin line around each game row'],
-    sysTrophyBorderWidth: ['Game row line', 'Thickness of that line; 0 = none'],
+    sysTrophyColor: ['Game row colour', ''],
+    sysTrophyOpacity: ['Game row background', 'Background of each game row in Trophies; None = no background'],
+    sysTrophyCorners: ['Game row corners', ''],
+    sysTrophyGap: ['Gap', 'Space between the game rows (the row gets shorter)'],
+    sysTrophyBorderColor: ['Outline colour', ''],
+    sysTrophyBorderWidth: ['Outline', 'A thin line around each game row'],
     sysTrophyNoLine: ['No lines', 'Remove the lines between the games'],
-    sysSideCollapsedWidth: ['Side bar small width', 'Width of the side bar background when the bar shrinks to its icons; 0 = full width'],
+    sysSideCollapsedWidth: ['Small width', 'Width of the side bar background when the bar shrinks to its icons; 0 = full width'],
     sysIconColor: ['Row icons', 'Icons of the rows; system colour (every list); empty = stock'],    sysRowColor: ['Row colour', 'Background colour of each row'],
-    sysRowOpacity: ['Row opacity', 'Opacity of the row background; 0 = no background'],
-    sysRowCorners: ['Row corners', 'Corner radius of the rows'],
-    sysRowGap: ['Row gap', 'Space between the Settings rows, px'],
-    sysRowBorderColor: ['Row line colour', 'Colour of a thin line around each row'],
-    sysRowBorderWidth: ['Row line', 'Thickness of the line around each row; 0 = none'],
+    sysRowOpacity: ['Row background', 'Background behind each row of the Settings lists; None = no background'],
+    sysRowCorners: ['Row corners', ''],
+    sysRowGap: ['Gap', 'Space between the rows'],
+    sysRowBorderColor: ['Outline colour', ''],
+    sysRowBorderWidth: ['Outline', 'A thin line around each row'],
     sysNoSeparators: ['No separators', 'Remove the lines between the rows'],
     sysListX: ['List X', 'Move the Settings list, + = right'],
     sysListY: ['List Y', 'Move the Settings list, + = down'],
-    sysSideColor: ['Side bar colour', 'Background colour of the side bar (Accessibility, Sound...)'],
-    sysSideOpacity: ['Side bar opacity', 'Opacity of the side bar background; 0 = none'],
-    sysSideCorners: ['Side bar corners', 'Corner radius of the side bar background'],
+    sysSideColor: ['Side bar colour', ''],
+    sysSideOpacity: ['Side bar background', 'Background of the side bar (Accessibility, Sound…); None = no background'],
+    sysSideCorners: ['Side bar corners', ''],
     sysListCorners: ['Native row corners', 'Corners of the system rows themselves (and maybe their focus), px; every list of the system; 0 = stock'],
     sysTabCorners: ['Native tab corners', 'Corners of the side bar tabs themselves, px; 0 = stock'],
-    sysSideTextColor: ['Side text (selected)', 'Text of the selected side bar item; system colour (every tab list); empty = stock'],
-    sysSideTextDimColor: ['Side text (others)', 'Text of the other side bar items; system colour; empty = stock'],
-    sysTitleColor: ['Title', 'Page titles (Settings, Accessibility...); system colour, also other texts; empty = stock'],
+    sysSideTextColor: ['Side text selected', 'Text of the selected side bar item; system colour (every tab list); empty = stock'],
+    sysSideTextDimColor: ['Side text others', 'Text of the other side bar items; system colour; empty = stock'],
+    sysTitleColor: ['Page titles', 'Page titles (Settings, Accessibility...); system colour, also other texts; empty = stock'],
     sysTextDimColor: ['Row second text', 'Values and descriptions of the rows; system colour; empty = stock'],
     sysSwitchOnColor: ['Switch on', 'Switch track when on; system colour; empty = stock'],
     sysSwitchOffColor: ['Switch off', 'Switch track when off; system colour; empty = stock'],
     sysSwitchThumbColor: ['Switch knob', 'Switch knob when on; system colour; empty = stock'],
     sysSwitchThumbOffColor: ['Switch knob (off)', 'Switch knob when off; system colour; empty = stock'],
     sysSwitchIconColor: ['Switch tick', 'Tick inside a switch that is on; system colour; empty = stock'],
-    sysSwitchCorners: ['Switch corners', 'Corners of the switch track, px; 0 = stock 16 (2-4 = square switches)'],
-    sysSwitchKnobCorners: ['Knob corners', 'Corners of the switch knob, px; 0 = stock 13'],
-    sysBgWallpaper: ['Use the wallpaper', 'The Home wallpaper (picture or video) behind Settings and Trophies'],
+    sysSwitchCorners: ['Switch corners', ''],
+    sysSwitchKnobCorners: ['Knob corners', ''],
+    sysBgWallpaper: ['Picture behind Settings', 'Behind Settings and Trophies: nothing, the Home wallpaper (picture or video), or a picture / .mp4 of their own'],
     sysBgVideoSound: ['Video sound', 'Video behind Settings and Trophies: play its sound'],
     panelTintOn: ['Tint panels', 'Tint the native panels: Settings and Trophies pages, Users, Family, menus, Control Centre'],
     panelTintColor: ['Panel colour', 'Tint colour'],
@@ -839,39 +1004,39 @@
     panelTintOpacity: ['Panel opacity', '1 = stock, 0.5 = more see-through, up to 2'],
     iconTintOn: ['Icon colour', 'One colour for the system icons (every colour token with "icon")'],
     iconTintColor: ['Icon colour value', ''],
-    shellBgOn: ['System background colour', 'Colour of the native background behind Settings, Trophies and the other system screens (also the Home with no game art): base + glow'],
+    shellBgOn: ['Colour', 'Your colours for the native background behind Settings, Trophies and the other system screens (also the Home with no game art): base + glow'],
     shellBgColor: ['Base colour', 'The dark colour of the whole background'],
     shellBgGlow: ['Glow colour', 'The light that shines in the background'],
-    shellBgGlowIntensity: ['Glow strength', '0-2'],
+    shellBgGlowIntensity: ['Glow strength', '1 = normal, 2 = twice as bright'],
     shellBgRainbow: ['Rainbow glow', 'The glow goes round the colour wheel (the base follows, dark)'],
-    shellBgRainbowSpeed: ['Rainbow speed', '0.1-10'],
+    shellBgRainbowSpeed: ['Rainbow speed', '1 = normal'],
     sysBgOn: ['Own background', 'Your own image behind Settings and Trophies'],
-    sysBg: ['Background image', 'Image (1920×1080 .png/.jpg) or .mp4 video uploaded from here'],
+    sysBg: ['Image or video', 'Image (1920×1080 .png/.jpg) or .mp4 video uploaded from here'],
     foldersOpenWithX: ['Open with X', 'The games only show after X on the folder (X again hides them); off = as soon as the folder is selected'],
     foldersStripAbove: ['Games above the row', 'Show the folder\'s games above the row instead of below'],
     foldersStripX: ['Games X', 'Move the folder\'s games, + = right'],
-    foldersStripMax: ['Games shown', 'How many of the folder\'s games show at a time (the rest scroll); 0 = as many as fit'],
-    foldersRingColor: ['Highlight colour', 'Frame of the highlighted game; empty = the focus frame colour or white'],
-    foldersRingWidth: ['Highlight thickness', 'Thickness of that frame'],
+    foldersStripMax: ['Games shown', 'How many of the folder\'s games show at a time (the rest scroll)'],
+    foldersRingColor: ['Frame colour', 'Frame of the highlighted game; empty = the focus frame colour or white'],
+    foldersRingWidth: ['Frame thickness', ''],
     themeName: ['Theme name', 'Shown when ZhiThemes starts ("Now loading …"); empty = the file name'],
-    foldersHideName: ['Hide game name', 'Hide the name of the highlighted game of an open folder'],
+    foldersHideName: ['Hide its name', 'Hide the name of the highlighted game of an open folder'],
     foldersTitle: ['Folder name as title', 'A selected folder hides its hub page and with it the game title: its name shows there instead (Folder name X/Y, size, colour); with the fake title on, the fake title shows it'],
-    folderTitleX: ['Folder name X', 'Distance from the left of the screen (folder name when the fake title is off)'],
+    folderTitleX: ['Folder name X', 'Where the selected folder\'s name goes (it looks like the game page title)'],
     folderTitleY: ['Folder name Y', 'Distance from the top of the screen'],
-    folderTitleSize: ['Folder name size', 'Font size; above 72 it is scaled'],
-    folderTitleColor: ['Folder name colour', 'Empty = white'],
-    foldersNameSize: ['Game name size', 'Size of the highlighted game name'],
-    foldersNameX: ['Game name X', 'Move it, + = right'],
-    foldersNameY: ['Game name Y', 'Move it, + = down'],
+    folderTitleSize: ['Size', 'Font size; above 72 it is scaled'],
+    folderTitleColor: ['Colour', 'Empty = white'],
+    foldersNameSize: ['Name size', ''],
+    foldersNameX: ['Name X', 'Move it, + = right'],
+    foldersNameY: ['Name Y', 'Move it, + = down'],
     fakeTrophiesFast: ['Fast trophies', 'Ask the hub at once and keep them per game; turn off if the console feels slower'],
-    foldersStripBgOn: ['Games background', 'A background behind an open folder\'s games'],
+    foldersStripBgOn: ['Background', 'A background behind an open folder\'s games'],
     foldersStripBg: ['Background colour', 'Empty = the folder\'s own colour'],
     foldersStripBgOpacity: ['Background opacity', ''],
-    foldersStripBgPadding: ['Background padding', 'Space around the games'],
-    foldersStripBgCorners: ['Background corners', 'Corner radius'],
+    foldersStripBgPadding: ['Padding', 'Space around the games'],
+    foldersStripBgCorners: ['Corners', 'Corner radius'],
     foldersStripY: ['Games Y', 'Move the folder\'s games, + = down'],
-    foldersStripSize: ['Game size', 'Size of each game of the folder'],
-    foldersStripGap: ['Game spacing', 'Space between the folder\'s games'],
+    foldersStripSize: ['Game size', ''],
+    foldersStripGap: ['Game spacing', ''],
     trophiesX: ['Trophies X', '+ = right'],
     trophiesY: ['Trophies Y', '+ = down'],
     trophiesCorners: ['Trophies corners', 'Corner radius; 0 = stock'],
@@ -885,45 +1050,45 @@
     elementFont: ['Element font', '2nd font, for the Home texts whose font style is "Element font"; no restart'],
     fontStyle: ['Global font style', 'Font of ALL texts: bold, italic or the element font'],
 
-    bgDim: ['Dim background', 'Darkens the whole background, 0–1'],
-    bgGradient: ['Bottom gradient', 'Darkens from the bottom up, 0–1'],
-    bgGradientHeight: ['Gradient height', 'px'],
-    bgColor: ['Gradient colour', 'Also used for dimming when the next one is empty'],
-    bgDimColor: ['Dim colour', 'Empty = the gradient colour'],
-    fakeTrophies: ['Fake trophies', 'The focused game trophies drawn by the Home: anywhere, also above the tiles (only to see)'],
-    fakeTrophiesX: ['X', 'Distance from the left'],
-    fakeTrophiesY: ['Y', 'Distance from the top'],
-    fakeTrophiesScale: ['Size', '1 = normal'],
-    fakeTrophiesFontSize: ['Text size', 'px'],
-    fakeTrophiesColor: ['Text colour', ''],
-    fakeTrophiesBg: ['Background', ''],
-    fakeTrophiesBgOpacity: ['Background opacity', '0 = no background'],
-    fakeTrophiesCorners: ['Corners', 'px'],
-    fakeTrophiesProgress: ['Progress', '% and bar'],
+    bgDim: ['Darken', 'Darkens the whole background'],
+    bgGradient: ['Bottom fade', 'Darkens from the bottom up'],
+    bgGradientHeight: ['Fade height', 'How far up the fade goes'],
+    bgColor: ['Fade colour', 'Colour of the bottom fade; the vignette and the top and bottom shade are always black'],
+    bgDimColor: ['Darken colour', 'Empty = the shade colour'],
+    fakeTrophies: ['ZhiThemes trophies', 'A trophies box drawn by ZhiThemes for the focused game, anywhere on the Home (not the PS5\'s own card; only to see)'],
+    fakeTrophiesX: ['Trophies X', 'Distance from the left'],
+    fakeTrophiesY: ['Trophies Y', 'Distance from the top'],
+    fakeTrophiesScale: ['Trophies size', ''],
+    fakeTrophiesFontSize: ['Trophies text size', ''],
+    fakeTrophiesColor: ['Trophies text colour', ''],
+    fakeTrophiesBg: ['Trophies background', ''],
+    fakeTrophiesBgOpacity: ['Trophies background opacity', '0 = no background'],
+    fakeTrophiesCorners: ['Trophies corners', ''],
+    fakeTrophiesProgress: ['Progress bar', '% and bar'],
     fakeTrophiesBarColor: ['Bar colour', ''],
     fakeTrophiesTotals: ['Earned / total', 'Off = only the earned ones'],
-    deco1On: ['Icon 1', 'Only to see, not selectable'],
+    deco1On: ['Icon 1', 'A PS5 icon anywhere on the Home, only to see'],
     deco1Icon: ['Symbol', "Controller button ('l1', 'r1', 'x', 'options'...), system icon name or an uploaded .png"],
     deco1X: ['X', 'Distance from the left'],
     deco1Y: ['Y', 'Distance from the top'],
     deco1Size: ['Size', 'px'],
     deco1Color: ['Colour', 'System icons only; empty = stock'],
     deco1Opacity: ['Opacity', '0-1'],
-    deco2On: ['Icon 2', 'Only to see, not selectable'],
+    deco2On: ['Icon 2', 'A PS5 icon anywhere on the Home, only to see'],
     deco2Icon: ['Symbol', "Controller button ('l1', 'r1', 'x', 'options'...), system icon name or an uploaded .png"],
     deco2X: ['X', 'Distance from the left'],
     deco2Y: ['Y', 'Distance from the top'],
     deco2Size: ['Size', 'px'],
     deco2Color: ['Colour', 'System icons only; empty = stock'],
     deco2Opacity: ['Opacity', '0-1'],
-    deco3On: ['Icon 3', 'Only to see, not selectable'],
+    deco3On: ['Icon 3', 'A PS5 icon anywhere on the Home, only to see'],
     deco3Icon: ['Symbol', "Controller button ('l1', 'r1', 'x', 'options'...), system icon name or an uploaded .png"],
     deco3X: ['X', 'Distance from the left'],
     deco3Y: ['Y', 'Distance from the top'],
     deco3Size: ['Size', 'px'],
     deco3Color: ['Colour', 'System icons only; empty = stock'],
     deco3Opacity: ['Opacity', '0-1'],
-    deco4On: ['Icon 4', 'Only to see, not selectable'],
+    deco4On: ['Icon 4', 'A PS5 icon anywhere on the Home, only to see'],
     deco4Icon: ['Symbol', "Controller button ('l1', 'r1', 'x', 'options'...), system icon name or an uploaded .png"],
     deco4X: ['X', 'Distance from the left'],
     deco4Y: ['Y', 'Distance from the top'],
@@ -937,56 +1102,56 @@
     profileDetached: ['Free position', 'Takes the icon out of the bar: drag it anywhere, also below the tiles'],
     iconsNav: ['Reach with the controller', 'Icons moved out of the top bar: the controller goes to them from the row and between them by where they are'],
     clockX: ['Clock X', '+ = right'],
-    bgGradientCurve: ['Gradient curve', "'linear' or 'smooth' (soft start, no edge at the top)"],
-    bgGradientSteps: ['Gradient steps', 'Strips of the gradient: more = smoother (8 to 128)'],
-    bgOverlayOn: ['Overlay image', 'PNG with transparency over the game art, below the tiles'],
-    bgOverlay: ['Overlay file', 'An uploaded image (same list as the wallpaper)'],
-    bgOverlayOpacity: ['Overlay opacity', '0-1'],
-    bgVignette: ['Vignette', 'Dark corners and sides, 0-1'],
-    bgVignetteSize: ['Vignette size', 'How far it reaches into the screen, px'],
-    bgEdges: ['Dark edges', 'Darken the top and the bottom of the screen, 0-1'],
-    bgEdgesHeight: ['Edge height', 'Height of each edge, px'],
-    bgShade: ['PS5 shade behind the tile', 'The dark shade the PS5 puts over the game art behind the selected tile: PS5 (ellipse), Flat (even) or Off'],
-    particlesOn: ['Particles', 'Glowing particles rising over the background'],
-    particlesCount: ['Particle count', '1-120 (more = more work for the PS5)'],
-    particlesSize: ['Particle size', 'Size of the nearest ones, px (far ones are smaller)'],
-    particlesColor: ['Particle colour', ''],
-    particlesOpacity: ['Particle opacity', 'Brightest opacity, 0-1; with a style 0.7 = as the style was made, lower fainter, higher brighter'],
-    particlesSpeed: ['Particle speed', '1 normal, 0.5 slow, 2 fast'],
-    particlesImage: ['Particle picture', 'An uploaded .png instead of round dots'],
-    particlesStyle: ['Particle style', 'Built-in styles (from AniketosHEN). With a style: count, speed, scale and hue count; size, colour, opacity and picture are for the dots'],
-    particlesScale: ['Particle scale', 'Built-in style: size of its particles, 0.25-3'],
-    particlesHue: ['Particle hue', 'Built-in style: turn its colours round the colour wheel, 0-359 degrees (0 = its own colours)'],
-    bgClean: ['Clean background', 'Only the stock system background (light in the top left corner) everywhere: Home, game pages, folders, games without art. Wins over the wallpaper, own backgrounds and game art'],
+    bgGradientCurve: ['Fade curve', 'Linear, or Smooth (soft start, no edge at the top)'],
+    bgGradientSteps: ['Fade steps', 'Strips of the fade: more = smoother'],
+    bgOverlayOn: ['Overlay', 'Turned on by picking an overlay image'],
+    bgOverlay: ['Overlay', 'A .png with transparency over the game art, below the tiles; None = off'],
+    bgOverlayOpacity: ['Overlay opacity', ''],
+    bgVignette: ['Vignette', 'Dark corners and sides'],
+    bgVignetteSize: ['Vignette size', 'How far it reaches into the screen'],
+    bgEdges: ['Top and bottom shade', 'Darkens the top and the bottom of the screen'],
+    bgEdgesHeight: ['Shade height', 'Height of each shade'],
+    bgShade: ['Behind the selected game', 'The dark shade the PS5 puts over the game art behind the selected tile: PS5 (ellipse), Flat (even) or Off'],
+    particlesOn: ['Particles', 'Particles moving over the background'],
+    particlesCount: ['Count', 'More = more work for the PS5'],
+    particlesSize: ['Size', 'Size of the nearest dots (far ones are smaller)'],
+    particlesColor: ['Colour', 'Colour of the dots'],
+    particlesOpacity: ['Opacity', 'Brightest opacity; with a style, 70% = as the style was made'],
+    particlesSpeed: ['Speed', '1× = normal'],
+    particlesImage: ['Picture', 'An uploaded .png instead of round dots'],
+    particlesStyle: ['Style', 'Dots (your size, colour and picture) or a built-in style (from AniketosHEN)'],
+    particlesScale: ['Scale', 'Size of the style’s particles'],
+    particlesHue: ['Hue', 'Turns the style’s colours round the colour wheel (0° = its own colours)'],
+    bgClean: ['Plain PS5 background', 'Only the stock system background (light in the top left corner) everywhere: Home, game pages, folders, games without art. Wins over the wallpaper, own backgrounds and game art'],
     bgCleanTry: ['Clean background test', 'How the clean background is asked for: 2 empty (best), 3 no picture (basemat None), 1 missing picture (black for a few seconds after a reload), 4 transparent picture (all black)'],
-    wallpaperOn: ['Custom wallpaper','Your image everywhere (Home, hubs, library), or your .mp4 video behind the Home; off = game art'],
-    wallpaper: ['Wallpaper image or video', 'Uploaded from the editor (.png / .jpg, 1920×1080; .mp4 = video behind the Home, H.264 1080p)'],
-    wallpaperVideoSound: ['Video sound', '.mp4 wallpaper: play its sound (the Home music stops)'],
-    wallpaperVideoVolume: ['Video volume', '.mp4 wallpaper: 0-1'],
-    wallpaperVideoFit: ['Video fit', '.mp4 wallpaper that is not 16:9 (e.g. 3440x1440): Centered fills the screen and cuts off what is left over; Stretch stretches it to the screen'],
+    wallpaperOn: ['Wallpaper','Your image everywhere (Home, hubs, library), or your .mp4 video behind the Home; off = game art'],
+    wallpaper: ['Image or video', 'Uploaded from the editor (.png / .jpg, 1920×1080; .mp4 = video behind the Home, H.264 1080p)'],
+    wallpaperVideoSound: ['Video sound', 'Play the video’s sound (the Home music stops)'],
+    wallpaperVideoVolume: ['Volume', 'Video sound volume'],
+    wallpaperVideoFit: ['Video fit', 'For a video that is not 16:9 (e.g. 3440x1440): Centered fills the screen and cuts off what is left over; Stretch stretches it to the screen'],
     homeMusicOn: ['Home music', 'Your music on the Home while the focused tile has no music of its own (system tiles, games without music). The .mp4 wallpaper stays silent'],
     homeMusic: ['Music file', 'Upload .mp3, .wav, .ogg, .m4a…: the editor makes it an MP4 with AAC sound (in real time, keep the tab in front); kept with the theme'],
     homeMusicGames: ['Also over games', 'Your music also instead of the games\' own music (off: a game with its own music plays it)'],
     homeMusicVolume: ['Volume', 'Video player only: 0-1'],
 
-    textShadow: ['Text shadow', 'Shadow of all theme texts, px; each text can override it below'],
-    textShadowColor: ['Text shadow colour', ''],
-    textShadowOpacity: ['Text shadow opacity', '0–1'],
+    textShadow: ['Shadow', 'Shadow of the texts the theme draws (fake title, user name, footer…)'],
+    textShadowColor: ['Shadow colour', ''],
+    textShadowOpacity: ['Shadow opacity', ''],
     nameCopyShadow: ['Fake title shadow', 'px; −1 = use Text shadow, 0 = none'],
     userShadow: ['User name shadow', 'px; −1 = use Text shadow'],
     footerShadow: ['Footer shadow', 'px; −1 = use Text shadow'],
-    tileShadow: ['Tile shadow', 'Blur size in px; 0 = none'],
-    tileShadowX: ['Tile shadow X', '+ = right'],
-    tileShadowY: ['Tile shadow Y', '+ = down'],
-    tileShadowColor: ['Tile shadow colour', ''],
-    tileShadowOpacity: ['Tile shadow opacity', '0–1'],
-    tileReflection: ['Tile reflection', 'Lake reflection under the row: opacity at the top, 0–1; 0 = none'],
-    tileReflectionHeight: ['Reflection height', 'How much of the tile is reflected, 0.1–1'],
+    tileShadow: ['Shadow blur', '0 = no shadow'],
+    tileShadowX: ['Shadow X', '+ = right'],
+    tileShadowY: ['Shadow Y', '+ = down'],
+    tileShadowColor: ['Shadow colour', ''],
+    tileShadowOpacity: ['Shadow opacity', ''],
+    tileReflection: ['Reflection', 'Lake reflection under the row (opacity at the top); 0 = none'],
+    tileReflectionHeight: ['Reflection height', 'How much of the tile is reflected'],
     tileReflectionGap: ['Reflection gap', 'Space between the tile and its reflection, px'],
-    tileReflectionSteps: ['Reflection fade steps', 'Strips of the fade, 2–24: more = smoother'],
-    tileReflectionWaves: ['Reflection ripples', 'Lake ripples: sideways movement in px; 0 = still'],
-    tileReflectionWaveSpeed: ['Ripple speed', 'Seconds per ripple'],
-    tileReflectionFlip: ['Reflection flip', 'How the image is turned upside down (try another if the reflection is not upside down)'],
+    tileReflectionSteps: ['Reflection steps', 'Strips of the fade: more = smoother'],
+    tileReflectionWaves: ['Ripples', 'Sideways movement of the lake, px; 0 = still'],
+    tileReflectionWaveSpeed: ['Ripple time', 'Seconds per ripple'],
+    tileReflectionFlip: ['Upside-down method', 'How the image is turned upside down (try another if the reflection is not upside down)'],
     tileEdgeFade: ['Fade at the edges', 'Tiles fade out as they get near the left or right edge of the screen'],
     tileEdgeFadeLeft: ['Left fade length', 'How far from the left edge the fade starts, px; 0 = no fade on the left'],
     tileEdgeFadeRight: ['Right fade length', 'How far from the right edge the fade starts, px; 0 = no fade on the right'],
@@ -1000,57 +1165,57 @@
     rowWindowStart: ['Walk at the start', 'Tiles the focus walks right before the row starts to slide'],
     rowWindowEnd: ['Walk at the end', 'Tiles the focus walks at the end of the row; 0 = the row slides to the last one'],
 
-    user: ['Show user name', 'Draws the signed-in user name'],
-    userX: ['User X', 'Distance from the left'],
-    userY: ['User Y', 'Distance from the top'],
-    userFontSize: ['User font size', 'px'],
-    userColor: ['User colour', 'Empty = white'],
-    userFontStyle: ['User font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
-    userDot: ['Status dot', 'Online dot next to the name'],
+    user: ['User name', 'Draws the signed-in user name'],
+    userX: ['Name X', 'Distance from the left'],
+    userY: ['Name Y', 'Distance from the top'],
+    userFontSize: ['Size', ''],
+    userColor: ['Colour', 'Empty = white'],
+    userFontStyle: ['Font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
+    userDot: ['Online dot', 'Online dot next to the name'],
     userDotColor: ['Dot colour', 'Colour when online'],
-    userAlign: ['User alignment', 'Left, centre or right inside the width'],
-    userWidth: ['User box width', 'Width from User X'],
-    avatarOn: ['Own avatar', 'Your picture as the profile picture wherever the system shows it; GIF plays animated'],
-    avatar: ['Avatar picture', 'Make it from a picture, GIF, WebP or video: place the circle and zoom; a GIF is sent whole and the PS5 cuts and fits it (256 px, 120 frames)'],
+    userAlign: ['Alignment', 'Left, centre or right inside the width'],
+    userWidth: ['Box width', 'Width from User X'],
+    avatarOn: ['Custom avatar', 'Your picture as the profile picture wherever the system shows it; GIF plays animated'],
+    avatar: ['Picture', 'Make it from a picture, GIF, WebP or video: place the circle and zoom; a GIF is sent whole and the PS5 cuts and fits it (256 px, 120 frames)'],
 
     measureScreen: ['Measure screen', 'The console tells the editor where each element is'],
 
     topBarOpacity: ['Top bar opacity', 'Tabs, icons and clock'],
-    topBarBgOn: ['Top bar background', 'Shows a background behind the top bar'],
-    topBarBg: ['Top bar colour', ''],
-    topBarBgOpacity: ['Top bar bg opacity', '0–1'],
-    topBarBgX: ['Top bar bg X', 'Distance from the left'],
-    topBarBgY: ['Top bar bg Y', 'Distance from the top'],
-    topBarBgWidth: ['Top bar bg width', ''],
-    topBarBgHeight: ['Top bar bg height', ''],
-    topBarBgCorners: ['Top bar bg corners', 'Corner radius'],
-    footer: ['Show footer', 'Button hints at the bottom of the Home'],
-    footerText1: ['Footer text 1', 'Empty = not shown'],
-    footerText2: ['Footer text 2', 'Empty = not shown'],
-    footerText3: ['Footer text 3', 'Empty = not shown'],
+    topBarBgOn: ['Background', 'A background behind the top bar'],
+    topBarBg: ['Colour', ''],
+    topBarBgOpacity: ['Opacity', ''],
+    topBarBgX: ['X', 'Distance from the left'],
+    topBarBgY: ['Y', 'Distance from the top'],
+    topBarBgWidth: ['Width', ''],
+    topBarBgHeight: ['Height', ''],
+    topBarBgCorners: ['Corners', 'Corner radius'],
+    footer: ['Footer', 'Button hints at the bottom of the Home'],
+    footerText1: ['Hint 1', 'Its button and text; empty text = not shown'],
+    footerText2: ['Hint 2', 'Its button and text; empty text = not shown'],
+    footerText3: ['Hint 3', 'Its button and text; empty text = not shown'],
     footerIcon1: ['Footer button 1', 'Controller button before text 1'],
     footerIcon2: ['Footer button 2', 'Controller button before text 2'],
     footerIcon3: ['Footer button 3', 'Controller button before text 3'],
     footerIconFont: ['Symbol font', 'Font for \'U+XXXX\' symbols, e.g. \'PS4Icon\''],
-    footerIconSize: ['Button size', 'Controller buttons, px'],
+    footerIconSize: ['Button size', ''],
     footerIconColor: ['Button colour', 'Empty = PS5 colour'],
-    footerSpacing: ['Footer spacing', 'Space between the texts'],
+    footerSpacing: ['Spacing', 'Space between the hints'],
     footerX: ['Footer X', 'Distance from the left'],
     footerY: ['Footer Y', 'Distance from the top of the screen'],
-    footerFontSize: ['Footer font size', '0 = stock'],
-    footerColor: ['Footer colour', 'Text colour'],
-    footerFontStyle: ['Footer font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
-    footerOpacity: ['Footer opacity', 'Text opacity'],
-    footerAlign: ['Footer alignment', 'Left, centre or right inside the width'],
-    footerWidth: ['Footer width', 'For centring / right alignment'],
-    footerBgOn: ['Footer background', 'Shows a background behind the footer'],
-    footerBg: ['Footer bg colour', ''],
-    footerBgOpacity: ['Footer bg opacity', '0–1'],
+    footerFontSize: ['Text size', ''],
+    footerColor: ['Text colour', 'Text colour'],
+    footerFontStyle: ['Font style', 'Normal = the System font (or the PS5 one); Bold / Italic = the PS5 bold and italic'],
+    footerOpacity: ['Text opacity', ''],
+    footerAlign: ['Alignment', 'Left, centre or right inside the width'],
+    footerWidth: ['Width', 'Width the hints are centred / right aligned in'],
+    footerBgOn: ['Background', 'A background round the hints (it follows them)'],
+    footerBg: ['Background colour', ''],
+    footerBgOpacity: ['Background opacity', ''],
     footerBgX: ['Footer bg X', 'Distance from the left'],
     footerBgY: ['Footer bg Y', 'Distance from the top'],
     footerBgWidth: ['Footer bg width', ''],
     footerBgHeight: ['Footer bg height', ''],
-    footerBgCorners: ['Footer bg corners', 'Corner radius']
+    footerBgCorners: ['Corners', '']
   };
   [1, 2, 3].forEach(function (i) {
     var n = 'Box ' + i;
@@ -1068,11 +1233,11 @@
     general: 'General', row: 'Game row', 'tile name': 'Tile name', tabs: 'Tabs', 'top icons': 'Top icons',
     clock: 'Clock', 'game hub': 'Game hub', 'focus frame': 'Focus frame', 'system colours': 'System colours',
     hide: 'Hide', font: 'Font', background: 'Background', shadows: 'Shadows', user: 'User name',
-    logs: 'Screen tab', bars: 'Bars', 'top bar background': 'Top bar background', footer: 'Footer',
+    logs: 'Screen tab', bars: 'Bars', 'top bar background': 'Top bar', footer: 'Footer',
     boxes: 'Free boxes', folders: 'Folder options', 'options menu': 'Options menu',
     'system screens': 'Settings & Trophies', tiles: 'Custom tiles',
     'own clock': 'Own clock', avatar: 'Avatar', 'native panels': 'Native panels (every system screen)',
-    'system background': 'System background colour', 'extra tabs': 'Extra tabs (Recently played, Favourites, Never played)',
+    'system background': 'Settings & Trophies background', 'extra tabs': 'Extra tabs (Recently played, Favourites, Never played)',
     'play info': 'Play info (Never played / Last played)', animations: 'Animations', logo: 'Game logo',
     experimental: 'Experimental', 'hide row': 'Hide in the row', 'hide top': 'Hide in the top bar',
     'hide hub': 'Hide on the game page', decorations: 'Icons (only to see)', 'fake trophies': 'Fake trophies (drawn by the Home, anywhere)'
@@ -1085,16 +1250,16 @@
     { id: 'background', label: 'Background', desc: 'Wallpaper, video, darken, particles', sections: ['background', 'system background'] },
     { id: 'row', label: 'Games row', desc: 'Tiles, size, frame, names, logo', sections: ['general', 'row', 'focus frame', 'tile name', 'logo', 'hide row'] },
     { id: 'top', label: 'Top bar', desc: 'Tabs, icons, clock, user', sections: ['tabs', 'extra tabs', 'top icons', 'clock', 'own clock', 'user', 'avatar', 'top bar background', 'bars', 'hide top'] },
-    { id: 'hub', label: 'Game page', desc: 'Title, buttons, trophies, sections', sections: ['game hub', 'fake trophies', 'play info', 'hide hub'] },
+    { id: 'hub', label: 'Game page', desc: 'Title, buttons, sections, library', sections: ['game hub', 'hide hub'] },
     { id: 'folders', label: 'Folders', desc: 'Make and organise folders', sections: ['folders'] },
     { id: 'tiles', label: 'Pictures', desc: 'Covers, backgrounds, logos, SteamGridDB', sections: ['tiles'] },
-    { id: 'text', label: 'Text & fonts', desc: 'System font, shadows, colours', sections: ['font', 'shadows', 'system colours'] },
-    { id: 'system', label: 'Settings & Trophies', desc: 'The system screens and menus', sections: ['system screens', 'native panels', 'options menu'] },
-    { id: 'extras', label: 'Extras', desc: 'Footer, boxes, icons, animations', sections: ['footer', 'boxes', 'decorations', 'animations'] },
+    { id: 'system', label: 'Settings & Trophies page', desc: 'The system screens and menus', sections: ['system screens', 'native panels'] },
+    { id: 'extras', label: 'Misc', desc: 'Font, trophies, Options menu, footer, boxes',
+      sections: ['font', 'fake trophies', 'options menu', 'footer', 'boxes', 'decorations', 'animations', 'shadows', 'system colours'] },
     /* Home music: not working on the PS5 yet; the tab shows, greyed out (soon) */
     { id: 'sounds', label: 'Sounds', desc: 'Coming soon', sections: ['sounds'], soon: true },
     { id: 'experimental', label: 'Experimental', desc: 'Things still being tested', sections: ['experimental'] },
-    { id: 'tools', label: 'Tools', desc: 'Logs, code, about', tools: true },
+    { id: 'tools', label: 'Info', desc: 'Logs, code, about', tools: true },
     { id: 'log', label: 'Logs', sections: ['logs'], tool: true },
     { id: 'code', label: 'Code', tool: true },
     { id: 'about', label: 'About', tool: true }
@@ -1179,13 +1344,14 @@
   var ADV = false;
   try { ADV = localStorage.getItem('zt.advanced') === '1'; } catch (e) {}
   /* technical fields: only with Advanced */
-  var ADV_ONLY = /^(bgCleanTry|fixDetails|measureScreen|rowFastRepeat|rowRepeatWindow|fakeTrophiesFast|iconsNav)$/;
+  var ADV_ONLY = /^(screenDump|bgCleanTry|bgDimColor|bgGradientSteps|tileEdgeFadeInset|tileReflectionSteps|tabsSameWeight|tabsY|topBarBgX|topBarBgY|topBarBgWidth|fixDetails|measureScreen|rowFastRepeat|rowRepeatWindow|fakeTrophiesFast|iconsNav)$/;
   /* an advanced field = a technical one (ADV_ONLY) or one that is under
      "More options" in every Visual module it is in. Fields in no module
      (Settings & Trophies, Folders, Tiles...) are basic. */
   var ADV_SET = null;
   function isAdvanced(k) {
     if (ADV_ONLY.test(k)) return true;
+    if (laidOut(k)) return false;
     if (!ADV_SET) {
       var basic = {}, more = {};
       var put = function (keys, b) {
@@ -1347,10 +1513,104 @@
     return m ? m[1] : null;
   }
 
+  /* slider of each field, by name: [min, max, step, unit]. Unit '%' = a
+     0-1 value shown as 0-100 % in the number box. Fields not here use the
+     rules in range(). A value outside min/max still shows (the slider grows). */
+  var RANGES = {
+    bgDim: [0, 1, 0.05, '%'], bgGradient: [0, 1, 0.05, '%'], bgGradientHeight: [0, 1080, 10, 'px'],
+    bgGradientSteps: [8, 128, 1, ''], bgVignette: [0, 1, 0.05, '%'], bgVignetteSize: [40, 540, 10, 'px'],
+    bgEdges: [0, 1, 0.05, '%'], bgEdgesHeight: [40, 540, 10, 'px'], bgOverlayOpacity: [0, 1, 0.05, '%'],
+    particlesCount: [1, 120, 1, ''], particlesSize: [1, 40, 1, 'px'], particlesOpacity: [0, 1, 0.05, '%'],
+    particlesSpeed: [0.1, 5, 0.1, '×'], particlesScale: [0.25, 3, 0.05, '×'], particlesHue: [0, 359, 1, '°'],
+    wallpaperVideoVolume: [0, 1, 0.05, '%'],
+    shellBgGlowIntensity: [0, 2, 0.05, '×'], shellBgRainbowSpeed: [0.1, 10, 0.1, '×'],
+    /* Games row */
+    tileSize: [40, 400, 1, 'px'], focusSize: [60, 500, 1, 'px'], tileCorners: [0, 150, 1, 'px'], rowTileGap: [0, 100, 1, 'px'],
+    rowMaxGames: [1, 12, 1, ''], rowOffsetY: [-100, 800, 1, 'px'], rowGapBefore: [-100, 300, 1, 'px'], rowGapAfter: [-100, 300, 1, 'px'],
+    rowSpeed: [0.25, 3, 0.05, '×'], rowBounceStrength: [0, 1, 0.05, '%'],
+    rowWindowStart: [0, 10, 1, ''], rowWindowEnd: [0, 10, 1, ''],
+    tileEdgeFadeLeft: [0, 1200, 10, 'px'], tileEdgeFadeRight: [0, 1200, 10, 'px'], tileEdgeFadeInset: [-300, 600, 5, 'px'],
+    tileEdgeFadeMin: [0, 1, 0.05, '%'], rowHideLeftMove: [0, 1000, 10, 'px'], rowHideLeftEdge: [0, 600, 5, 'px'],
+    focusThickness: [0, 30, 1, 'px'], focusGap: [-30, 60, 1, 'px'], focusCorners: [0, 100, 1, 'px'],
+    focusLineAlpha: [0, 1, 0.05, '%'], focusGlowAlpha: [0, 1, 0.05, '%'],
+    tileNameScale: [0.5, 3, 0.05, '×'], nameCopyFontSize: [12, 160, 1, 'px'], nameCopyWidth: [100, 1920, 10, 'px'],
+    nameCopyScrollSpeed: [10, 300, 5, 'px/s'], nameCopyBgOpacity: [0, 1, 0.05, '%'], nameCopyBgPadding: [0, 80, 1, 'px'],
+    nameCopyBgPaddingV: [0, 40, 1, 'px'], nameCopyBgCorners: [0, 60, 1, 'px'], logoOpacity: [0, 1, 0.05, '%'],
+    tileShadow: [0, 80, 1, 'px'], tileShadowX: [-60, 60, 1, 'px'], tileShadowY: [-60, 60, 1, 'px'], tileShadowOpacity: [0, 1, 0.05, '%'],
+    tileReflection: [0, 1, 0.05, '%'], tileReflectionHeight: [0.1, 1, 0.05, '%'], tileReflectionGap: [-20, 60, 1, 'px'],
+    tileReflectionSteps: [2, 24, 1, ''], tileReflectionWaves: [0, 20, 0.5, 'px'], tileReflectionWaveSpeed: [0.5, 10, 0.5, 's'],
+    animationSpeed: [0.25, 3, 0.05, '×'], libraryPeekDown: [0, 400, 5, 'px', 'Off'], hubOffset: [-300, 600, 1, 'px'],
+    /* Top bar (5th = what 0 means) */
+    tabsWidth: [200, 1920, 10, 'px'], tabsSpacing: [0, 300, 1, 'px'], tabsFontSize: [0, 96, 1, 'px', 'Stock'],
+    tabsInactiveOpacity: [0, 1, 0.05, '%'], tabsIconSize: [16, 96, 1, 'px'], tabRecentMax: [1, 50, 1, ''],
+    tabsPillOpacity: [0, 1, 0.05, '%'], tabsPillCorners: [0, 60, 1, 'px'], tabsPillPadX: [0, 80, 1, 'px'], tabsPillPadY: [0, 40, 1, 'px'],
+    tabsPillBorderWidth: [0, 8, 1, 'px', 'Off'],
+    tabsGroupIconSize: [16, 96, 1, 'px'], tabsGroupIconGap: [0, 80, 1, 'px'], tabsGroupIconOpacity: [0, 1, 0.05, '%'],
+    tabsGroupBgOpacity: [0, 1, 0.05, '%'], tabsGroupHeight: [24, 144, 1, 'px'], tabsGroupPadding: [0, 80, 1, 'px'], tabsGroupCorners: [0, 72, 1, 'px'],
+    iconSize: [0, 96, 1, 'px', 'Stock'], clockGap: [0, 100, 1, 'px'], clockFontSize: [0, 96, 1, 'px', 'Stock'],
+    ownClockX: [0, 1920, 1, 'px'], ownClockY: [0, 1080, 1, 'px'], ownClockWidth: [100, 600, 10, 'px'], ownClockFontSize: [12, 96, 1, 'px'],
+    ownClockDateFontSize: [10, 72, 1, 'px'], ownClockDateGap: [-20, 40, 1, 'px'],
+    userX: [0, 1920, 1, 'px'], userY: [0, 1080, 1, 'px'], userFontSize: [12, 96, 1, 'px'], userWidth: [100, 800, 10, 'px'],
+    topBarBgOpacity: [0, 1, 0.05, '%'], topBarBgWidth: [0, 1920, 10, 'px'], topBarBgHeight: [0, 300, 1, 'px'], topBarBgCorners: [0, 100, 1, 'px'],
+    searchScale: [0.3, 3, 0.05, '×'], settingsScale: [0.3, 3, 0.05, '×'], profileScale: [0.3, 3, 0.05, '×'],
+    powerBtnScale: [0.3, 3, 0.05, '×'], trophyBtnScale: [0.3, 3, 0.05, '×'],
+    powerBtnOpacity: [0, 1, 0.05, '%'], trophyBtnOpacity: [0, 1, 0.05, '%'], padInfoOpacity: [0, 1, 0.05, '%'],
+    /* Settings & Trophies page */
+    sysRowOpacity: [0, 1, 0.05, '%', 'None'], sysSideOpacity: [0, 1, 0.05, '%', 'None'], sysTrophyOpacity: [0, 1, 0.05, '%', 'None'],
+    sysRowCorners: [0, 49, 1, 'px'], sysSideCorners: [0, 60, 1, 'px'], sysTrophyCorners: [0, 73, 1, 'px'],
+    sysRowBorderWidth: [0, 8, 1, 'px', 'Off'], sysTrophyBorderWidth: [0, 8, 1, 'px', 'Off'],
+    sysRowGap: [0, 40, 1, 'px'], sysTrophyGap: [0, 40, 1, 'px'], sysSideCollapsedWidth: [0, 388, 1, 'px', 'Full'],
+    sysSwitchCorners: [0, 16, 1, 'px', 'Stock'], sysSwitchKnobCorners: [0, 13, 1, 'px', 'Stock'],
+    menuBgOpacity: [0, 1, 0.05, '%'], menuCorners: [0, 40, 1, 'px', 'Stock'], menuItemCorners: [0, 40, 1, 'px', 'Stock'],
+    /* Experimental */
+    tileAnimAllMax: [1, 12, 1, ''], debugFontSize: [12, 48, 1, 'px'], debugBgOpacity: [0, 1, 0.05, '%', 'No box'],
+    debugX: [0, 1920, 1, 'px'], debugY: [0, 1080, 1, 'px'],
+    /* Misc */
+    deco4Size: [16, 160, 1, 'px'], deco4Opacity: [0, 1, 0.05, '%'], deco4X: [0, 1920, 1, 'px'], deco4Y: [0, 1080, 1, 'px'],
+    deco3Size: [16, 160, 1, 'px'], deco3Opacity: [0, 1, 0.05, '%'], deco3X: [0, 1920, 1, 'px'], deco3Y: [0, 1080, 1, 'px'],
+    deco2Size: [16, 160, 1, 'px'], deco2Opacity: [0, 1, 0.05, '%'], deco2X: [0, 1920, 1, 'px'], deco2Y: [0, 1080, 1, 'px'],
+    deco1Size: [16, 160, 1, 'px'], deco1Opacity: [0, 1, 0.05, '%'], deco1X: [0, 1920, 1, 'px'], deco1Y: [0, 1080, 1, 'px'],
+    box3Opacity: [0, 1, 0.05, '%'], box3Corners: [0, 100, 1, 'px'], box3X: [0, 1920, 1, 'px'], box3Y: [0, 1080, 1, 'px'],
+    box3Width: [0, 1920, 1, 'px'], box3Height: [0, 1080, 1, 'px'],
+    box2Opacity: [0, 1, 0.05, '%'], box2Corners: [0, 100, 1, 'px'], box2X: [0, 1920, 1, 'px'], box2Y: [0, 1080, 1, 'px'],
+    box2Width: [0, 1920, 1, 'px'], box2Height: [0, 1080, 1, 'px'],
+    box1Opacity: [0, 1, 0.05, '%'], box1Corners: [0, 100, 1, 'px'], box1X: [0, 1920, 1, 'px'], box1Y: [0, 1080, 1, 'px'],
+    box1Width: [0, 1920, 1, 'px'], box1Height: [0, 1080, 1, 'px'],
+    footerFontSize: [0, 60, 1, 'px', 'Stock'], footerOpacity: [0, 1, 0.05, '%'], footerIconSize: [16, 80, 1, 'px'],
+    footerSpacing: [0, 200, 1, 'px'], footerWidth: [200, 1920, 10, 'px'], footerX: [0, 1920, 1, 'px'], footerY: [0, 1080, 1, 'px'],
+    footerBgOpacity: [0, 1, 0.05, '%'], footerBgPadding: [0, 60, 1, 'px'], footerBgCorners: [0, 60, 1, 'px'],
+    animTabsMs: [100, 600, 10, 'ms'], animTabsSlide: [0, 200, 1, 'px', 'Fade only'], animNamesMs: [100, 600, 10, 'ms'],
+    animTitleGlowSec: [2, 30, 1, 's'],
+    /* Text & fonts */
+    textShadow: [0, 20, 1, 'px', 'Off'], textShadowOpacity: [0, 1, 0.05, '%'],
+    /* Folders */
+    foldersStripMax: [0, 12, 1, '', 'All that fit'], foldersStripSize: [40, 240, 1, 'px'], foldersStripGap: [0, 60, 1, 'px'],
+    foldersRingWidth: [0, 12, 1, 'px', 'None'], foldersNameSize: [12, 108, 1, 'px'], foldersStripBgOpacity: [0, 1, 0.05, '%'],
+    foldersStripBgPadding: [0, 60, 1, 'px'], foldersStripBgCorners: [0, 60, 1, 'px'], folderTitleSize: [12, 144, 1, 'px'],
+    folderTitleX: [0, 1920, 1, 'px'], folderTitleY: [0, 1080, 1, 'px'],
+    /* Game page */
+    titleFontSize: [0, 96, 1, 'px', 'Stock'], fakeTrophiesScale: [0.5, 3, 0.05, '×'], fakeTrophiesFontSize: [10, 60, 1, 'px'],
+    fakeTrophiesBgOpacity: [0, 1, 0.05, '%', 'None'], fakeTrophiesCorners: [0, 60, 1, 'px'], fakeTrophiesX: [0, 1920, 1, 'px'],
+    fakeTrophiesY: [0, 1080, 1, 'px'], playInfoFontSize: [10, 60, 1, 'px'], playInfoBgOpacity: [0, 1, 0.05, '%', 'None'],
+    playInfoCorners: [0, 60, 1, 'px'], playInfoX: [0, 1920, 1, 'px'], playInfoY: [0, 1080, 1, 'px'],
+    padInfoSize: [0, 96, 1, 'px', 'As icons'], padInfoFontSize: [10, 48, 1, 'px'], topBarOpacity: [0, 1, 0.05, '%']
+  };
+  /* the largest value of a field that depends on another one (corners: a
+     circle at most, half of the side) */
+  var DYNMAX = {
+    tileCorners: function (c) { return Math.round((num(c.tileSize) || 106) / 2); },
+    focusCorners: function (c) { return Math.round((num(c.focusSize) || 168) / 2); },
+    tabsGroupCorners: function (c) { return Math.round((num(c.tabsGroupHeight) || 72) / 2); },
+    box1Corners: function (c) { return Math.round(Math.min(num(c.box1Width), num(c.box1Height)) / 2); },
+    box2Corners: function (c) { return Math.round(Math.min(num(c.box2Width), num(c.box2Height)) / 2); },
+    box3Corners: function (c) { return Math.round(Math.min(num(c.box3Width), num(c.box3Height)) / 2); }
+  };
+  function unitOf(key) { return RANGES[key] ? RANGES[key][3] : ''; }
   /* slider range, by field name */
   function range(key, v) {
     var r;
-    if (key === 'footerX' || key === 'logoX') r = [0, 1920, 1];
+    if (RANGES[key]) r = RANGES[key];
+    else if (key === 'footerX' || key === 'logoX') r = [0, 1920, 1];
     else if (key === 'footerY' || key === 'logoY') r = [0, 1080, 1];
     else if (key === 'logoWidth') r = [40, 1920, 1];
     else if (key === 'logoHeight') r = [20, 1080, 1];
@@ -1434,7 +1694,7 @@
   /* fields taken out of the editor (theme.js still reads them for old
      themes); one with a value of its own still shows, marked "old", so it
      can be set back */
-  var RETIRED = /^(homeMusicPlayer|tabsCenter|tabsAnchor|panelTintOn|panelTintColor|panelTintStrength|panelTintOpacity|iconTintOn|iconTintColor|focusIntensity|focusShimmerSpeed|trophiesX|trophiesY|trophiesCorners|trophiesOpacity|systemFontBold|systemFontItalic|systemFontBoldItalic|systemFontMissing|elementFont|fontStyle)$/;
+  var RETIRED = /^(sysListCorners|sysTabCorners|sysSwitchThumbOffColor|sysSwitchIconColor|menuHideIds|textShadow|textShadowColor|textShadowOpacity|bgDim|bgDimColor|hideTiles|downloadBarColor|downloadBarBgColor|nameCopyShadow|userShadow|footerShadow|homeMusicPlayer|tabsCenter|tabsAnchor|panelTintOn|panelTintColor|panelTintStrength|panelTintOpacity|iconTintOn|iconTintColor|focusIntensity|focusShimmerSpeed|trophiesX|trophiesY|trophiesCorners|trophiesOpacity|systemFontBold|systemFontItalic|systemFontBoldItalic|systemFontMissing|elementFont|fontStyle)$/;
   function retiredNow(f) { return RETIRED.test(f.key) && f.value === factoryOf(f.hint); }
   var COLOUR_KEY = /Color$|^(topBarBg|footerBg|box\d|tabsGroupBg|nameCopyBg|playInfoBg|fakeTrophiesBg|shellBgGlow|foldersStripBg)$/;
   var RGB_KEY = /^focus(Line|Glow)R$/, RGB_FOLDED = /^focus(Line|Glow)[GB]$/;
@@ -1524,16 +1784,18 @@
                    '<div class="hint"></div><div class="ctl"></div>';
     el.querySelector('.key').textContent = labelOf(f.key);
     el.querySelector('.id').textContent = f.key;
-    el.querySelector('.key').title = f.key;
     el.dataset.key = f.key;
     var hint = hintOf(f);
+    /* the name's tooltip: the explanation, the default and the field id
+       (the line view of the tabs shows no hint under the name) */
+    el.querySelector('.key').title = (hint ? hint + '\n' : '') + (fab !== null ? 'Default: ' + showValue(fab) + '\n' : '') + f.key;
     el.querySelector('.hint').innerHTML = html(hint) + (fab !== null ? (hint ? ' · ' : '') + '<span class="fab">default ' + html(showValue(fab)) + '</span>' : '') +
       (RETIRED.test(f.key) ? ' · <b>old field</b>: ↺ removes it' : '');
     /* an advanced field says so at the start of its description */
     if (isAdvanced(f.key)) {
       el.classList.add('adv');
-      el.querySelector('.hint').insertAdjacentHTML('afterbegin',
-        '<span class="advtag" title="Advanced field: shown with Advanced on, or under More options">Advanced</span> ');
+      el.querySelector('.key').insertAdjacentHTML('afterend',
+        '<span class="advtag" title="Advanced field: shown with Advanced on, or under More options">Advanced</span>');
     }
     var reset = el.querySelector('.reset');
     if (fab === null) reset.remove();
@@ -1551,13 +1813,67 @@
       if (fab !== null) el.classList.toggle('changed', v !== fab);
     };
 
-    if (f.value === 'true' || f.value === 'false') {
+    if (f.key === 'debugItems') {
+      var DBG = ['fps', 'ram', 'vram', 'shell', 'mono', 'cpu', 'temp', 'fan', 'up', 'loads', 'videos', 'errors'];
+      var dnow = f.value.slice(1, -1).split(/[\s,]+/).filter(Boolean);
+      var dbox = document.createElement('div');
+      dbox.className = 'chipset';
+      DBG.forEach(function (it) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chipbtn' + (dnow.indexOf(it) >= 0 ? ' on' : '');
+        b.textContent = it;
+        b.onclick = function () {
+          b.classList.toggle('on');
+          var v = jsString(DBG.filter(function (x) {
+            var c2 = dbox.querySelector('[data-i="' + x + '"]');
+            return c2 && c2.classList.contains('on');
+          }).join(' '));
+          setField(f.key, v); mark(v);
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        b.dataset.i = it;
+        dbox.appendChild(b);
+      });
+      ctl.appendChild(dbox);
+    } else if (f.key === 'tileVertical' || f.key === 'nameCopyWrap' || f.key === 'sysBgWallpaper') {
+      /* on/off fields shown as a list: the tile shape, and the long fake
+         title (nameCopyWrap + nameCopyScroll in one list; one at a time) */
+      var lsel = document.createElement('select');
+      lsel.className = 'btn';
+      if (f.key === 'sysBgWallpaper') {
+        /* None / the Home wallpaper / its own picture (sysBgOn + sysBg) */
+        options(lsel, [['', 'None'], ['wp', 'The Home wallpaper'], ['own', 'Own image / video']]);
+        lsel.value = f.value === 'true' ? 'wp' : foldField('sysBgOn') === 'true' ? 'own' : '';
+        lsel.onchange = function () {
+          var w = lsel.value === 'wp' ? 'true' : 'false';
+          setField('sysBgWallpaper', w); setField('sysBgOn', lsel.value === 'own' ? 'true' : 'false'); mark(w);
+        };
+      } else if (f.key === 'tileVertical') {
+        options(lsel, [['false', 'Square 1:1 (PS5)'], ['true', 'Cover 2:3']]);
+        lsel.value = f.value;
+        lsel.onchange = function () { setField(f.key, lsel.value); mark(lsel.value); };
+      } else {
+        options(lsel, [['', 'Cut with “…”'], ['wrap', 'More lines'], ['scroll', 'Scroll sideways']]);
+        lsel.value = f.value === 'true' ? 'wrap' : foldField('nameCopyScroll') === 'true' ? 'scroll' : '';
+        lsel.onchange = function () {
+          var w = lsel.value === 'wrap' ? 'true' : 'false';
+          setField('nameCopyWrap', w); setField('nameCopyScroll', lsel.value === 'scroll' ? 'true' : 'false'); mark(w);
+        };
+      }
+      ctl.appendChild(lsel);
+    } else if (f.value === 'true' || f.value === 'false') {
       var sw = document.createElement('label');
       sw.className = 'switch';
       sw.innerHTML = '<input type="checkbox"><span></span>';
       var cb = sw.querySelector('input');
       cb.checked = f.value === 'true';
-      cb.onchange = function () { var v = cb.checked ? 'true' : 'false'; setField(f.key, v); mark(v); };
+      cb.onchange = function () {
+        var v = cb.checked ? 'true' : 'false';
+        setField(f.key, v); mark(v);
+        /* one switch for two fields (folder open + close) */
+        (SYNC[f.key] || []).forEach(function (k) { setField(k, v); });
+      };
       ctl.appendChild(sw);
     } else if (/FontStyle$|^fontStyle$/.test(f.key)) {
       /* the system font only has bold and italic; 'element font' = elementFont */
@@ -1585,8 +1901,43 @@
         dl.innerHTML = SYSTEM_ICONS.split(',').map(function (n) { return '<option value="' + n + '">'; }).join('');
         document.body.appendChild(dl);
       }
-      itx.onchange = function () { setField(f.key, jsString(itx.value.trim())); mark(jsString(itx.value.trim())); };
+      /* the picture of the icon now (system icon from the PS5, or the uploaded .png) */
+      var iprev = null;
+      if (f.key !== 'particlesImage') {
+        iprev = document.createElement('span');
+        iprev.className = 'icoprev';
+        ctl.appendChild(iprev);
+      }
+      var showIcon = function () {
+        if (!iprev) return;
+        var src = iconPreviewSrc(f.key, itx.value.trim());
+        iprev.innerHTML = src ? '<img alt="" src="' + html(src) + '">' : '';
+        iprev.title = itx.value.trim() || 'Stock';
+        var im = iprev.querySelector('img');
+        if (im) im.onerror = function () { iprev.innerHTML = ''; };
+      };
+      itx.onchange = function () { setField(f.key, jsString(itx.value.trim())); mark(jsString(itx.value.trim())); showIcon(); };
       ctl.appendChild(itx);
+      /* with the picture and Pick… the name box is not needed (the name is
+         the picture's tooltip); particlesImage keeps it (uploaded files only) */
+      if (iprev) itx.style.display = 'none';
+      if (iprev) {
+        var ipick = document.createElement('button');
+        ipick.className = 'btn';
+        ipick.textContent = 'Pick…';
+        ipick.title = 'See the PS5 system icons and pick one';
+        ipick.onclick = function () {
+          iconPicker(function (name) {
+            /* the tab group icons take controller buttons ('l1') or 'id:<icon>' */
+            var v = /^tabsGroup(Left|Right)$/.test(f.key) ? 'id:' + name : name;
+            itx.value = v;
+            setField(f.key, jsString(v)); mark(jsString(v)); showIcon();
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+        };
+        ctl.appendChild(ipick);
+      }
+      showIcon();
       var isel = document.createElement('select');
       isel.className = 'btn';
       options(isel, [['', 'Your images…']]);
@@ -1600,7 +1951,7 @@
       isel.onchange = function () {
         if (!isel.value) return;
         itx.value = isel.value;
-        setField(f.key, jsString(isel.value)); mark(jsString(isel.value));
+        setField(f.key, jsString(isel.value)); mark(jsString(isel.value)); showIcon();
       };
       ctl.appendChild(isel);
       var isend = document.createElement('button');
@@ -1711,6 +2062,8 @@
       var bsel = document.createElement('select');
       bsel.className = 'btn';
       var bnow = f.value.slice(1, -1);
+      /* the overlay is on when an image is picked (bgOverlayOn is not shown) */
+      if (f.key === 'bgOverlay' && foldField('bgOverlayOn') !== 'true') bnow = '';
       options(bsel, [['', 'None']].concat(bnow ? [[bnow, bnow]] : []));
       request('GET', '/backgrounds?kind=wallpapers').then(function (t) {
         JSON.parse(t).forEach(function (name) {
@@ -1722,7 +2075,11 @@
         bsel.value = bnow;
       }).catch(function () {});
       bsel.value = bnow;
-      bsel.onchange = function () { setField(f.key, jsString(bsel.value)); mark(jsString(bsel.value)); };
+      bsel.onchange = function () {
+        setField(f.key, jsString(bsel.value)); mark(jsString(bsel.value));
+        if (f.key === 'bgOverlay') setField('bgOverlayOn', bsel.value ? 'true' : 'false');
+        if (f.key === 'wallpaper' && bsel.value && foldField('wallpaperOn') !== 'true') setField('wallpaperOn', 'true');
+      };
       ctl.appendChild(bsel);
       var bsend = document.createElement('button');
       bsend.className = 'btn';
@@ -1768,8 +2125,8 @@
         ? [['grid', 'Covers in a row'], ['icons', 'Square icons in a row'], ['stack', 'Covers overlapping'], ['square', 'Square icons (2 rows)']]
         : f.key === 'focusShape'
         ? (foldField('tileVertical') === 'true'
-           ? [['', 'As the row (vertical 2:3)'], ['steam', 'Steam horizontal 92:43']]
-           : [['', 'As the row (square 1:1)'], ['vertical', 'Vertical 2:3'], ['steam', 'Steam horizontal 92:43']])
+           ? [['', 'As the row (cover 2:3)'], ['steam', 'Steam (wide 92:43)']]
+           : [['', 'As the row (square 1:1)'], ['vertical', 'Cover 2:3'], ['steam', 'Steam (wide 92:43)']])
         : f.key === 'tileReflectionFlip'
         ? [['scaleY', 'scaleY'], ['rotateX', 'rotateX'], ['rotate', 'rotate + scaleX']]
         : f.key === 'logoVAlign'
@@ -1890,23 +2247,74 @@
       txt.oninput = function () { setField(f.key, jsString(txt.value)); mark(jsString(txt.value)); };
       ctl.appendChild(txt);
     } else {
-      var v = Number(f.value), r = range(f.key, v);
+      var v = Number(f.value), r = range(f.key, v), unit = unitOf(f.key), pct = unit === '%';
       var slider = document.createElement('input');
       var num = document.createElement('input');
+      /* '%': the slider and the theme keep 0-1, the number box shows 0-100 */
+      var toBox = function (x) { return pct ? Math.round(Number(x) * 1000) / 10 : Number(x); };
+      var fromBox = function (x) { return pct ? Math.round(Number(x) * 10) / 1000 : Number(x); };
       slider.type = 'range'; slider.min = r[0]; slider.max = r[1]; slider.step = r[2]; slider.value = v;
-      num.type = 'number'; num.step = r[2]; num.value = v;
+      if (DYNMAX[f.key]) { slider.max = Math.max(1, DYNMAX[f.key](values().cur)); num.max = slider.max; }
+      num.type = 'number'; num.step = pct ? Math.round(r[2] * 100) : r[2]; num.value = toBox(v);
       var put = function (val) {
         if (val === '' || isNaN(Number(val))) return;
         var s = String(Number(val));
         setField(f.key, s); mark(s);
       };
-      slider.oninput = function () { num.value = slider.value; put(slider.value); };
+      slider.oninput = function () { num.value = toBox(slider.value); put(slider.value); };
       num.oninput = function () {
-        if (Number(num.value) < Number(slider.min)) slider.min = num.value;
-        if (Number(num.value) > Number(slider.max)) slider.max = num.value;
-        slider.value = num.value; put(num.value);
+        if (num.value === '' || isNaN(Number(num.value))) return;
+        var x = fromBox(num.value);
+        if (x < Number(slider.min)) slider.min = x;
+        if (x > Number(slider.max)) slider.max = x;
+        slider.value = x; put(x);
       };
       ctl.appendChild(slider); ctl.appendChild(num);
+      /* RANGES[k][4]: what 0 means (e.g. 'Stock'), shown instead of the unit */
+      var zeroTxt = RANGES[f.key] && RANGES[f.key][4];
+      if (unit || zeroTxt) {
+        var us = document.createElement('span');
+        us.className = 'unit';
+        var showUnit = function () { us.textContent = zeroTxt && Number(slider.value) === 0 ? zeroTxt : unit; };
+        showUnit();
+        slider.addEventListener('input', showUnit);
+        num.addEventListener('input', showUnit);
+        ctl.appendChild(us);
+      }
+    }
+    /* footer hint: the controller button (footerIconN) before the text */
+    var fm = /^footerText(\d)$/.exec(f.key);
+    if (fm) {
+      var bkey = 'footerIcon' + fm[1], fprev = document.createElement('span');
+      fprev.className = 'icoprev';
+      var showBtn = function () {
+        var v = foldField(bkey), src = iconPreviewSrc(bkey, v);
+        fprev.title = v || 'No button';
+        fprev.innerHTML = src ? '<img alt="" src="' + html(src) + '">' : '';
+        var im = fprev.querySelector('img');
+        if (im) im.onerror = function () { fprev.innerHTML = ''; };
+      };
+      var fpick = document.createElement('button');
+      fpick.className = 'btn';
+      fpick.textContent = 'Pick…';
+      fpick.title = 'The button before this hint (a PS5 icon)';
+      fpick.onclick = function () {
+        iconPicker(function (name) {
+          var m = /^controller_key_(.+)$/.exec(name), short = null;
+          if (m) Object.keys(PAD_BUTTONS).forEach(function (k) { if (!short && PAD_BUTTONS[k] === m[1]) short = k; });
+          setField(bkey, jsString(short || 'id:' + name)); showBtn();
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      };
+      var fnone = document.createElement('button');
+      fnone.className = 'btn';
+      fnone.textContent = '✕';
+      fnone.title = 'No button';
+      fnone.onclick = function () { setField(bkey, "''"); showBtn(); el.dispatchEvent(new Event('change', { bubbles: true })); };
+      ctl.insertBefore(fnone, ctl.firstChild);
+      ctl.insertBefore(fpick, ctl.firstChild);
+      ctl.insertBefore(fprev, ctl.firstChild);
+      showBtn();
     }
     return el;
   }
@@ -1922,28 +2330,57 @@
       keys: ['padInfoOn', 'padInfoIcon', 'padInfoSize', 'padInfoOpacity', 'padInfoColor', 'padInfoBattery', 'padInfoFontSize',
              'padInfoLowColor', 'padInfoX', 'padInfoY'] },
     { id: 'search', name: 'Search', hide: 'hideSearch', sym: 'searchIcon',
-      keys: ['hideSearch', 'searchIcon', 'searchScale', 'searchX', 'searchY', 'searchDetached', 'searchDetachedX', 'searchDetachedY'] },
+      keys: ['hideSearch', 'searchIcon', 'searchScale', 'searchX', 'searchY'] },
     { id: 'settings', name: 'Settings', hide: 'hideSettings', sym: 'settingsIcon',
-      keys: ['hideSettings', 'settingsIcon', 'settingsScale', 'settingsX', 'settingsY', 'settingsDetached', 'settingsDetachedX', 'settingsDetachedY'] },
+      keys: ['hideSettings', 'settingsIcon', 'settingsScale', 'settingsX', 'settingsY'] },
     { id: 'profile', name: 'Profile', hide: 'hideProfile',
-      keys: ['hideProfile', 'profileScale', 'profileX', 'profileY', 'profileDetached', 'profileDetachedX', 'profileDetachedY'] }
+      keys: ['hideProfile', 'profileScale', 'profileX', 'profileY'] }
   ];
+  var BOX_GROUPS = [1, 2, 3].map(function (i) {
+    var b = 'box' + i;
+    return { id: b, name: 'Box ' + i, on: b + 'On', swatch: b,
+             keys: [b + 'On', b, b + 'Opacity', b + 'Corners', b + 'X', b + 'Y', b + 'Width', b + 'Height'] };
+  });
+  var DECO_GROUPS = [1, 2, 3, 4].map(function (i) {
+    var d = 'deco' + i;
+    return { id: d, name: 'Icon ' + i, on: d + 'On', sym: d + 'Icon', sysPic: true,
+             keys: [d + 'On', d + 'Icon', d + 'Size', d + 'Color', d + 'Opacity', d + 'X', d + 'Y'] };
+  });
+  /* the stock icon of each top bar button (its IconPS id) */
+  var ICON_STOCK = { search: 'search', settings: 'settings', powerBtn: 'power', trophyBtn: 'trophies', padInfo: 'ps5_wireless_controller' };
   /* the small picture on each icon button: the uploaded .png, or a drawing */
   function iconPreview(gr, vals) {
+    if (gr.swatch) {
+      var sc = textValue(vals[gr.swatch]) || '#000000', so = vals[gr.swatch + 'Opacity'];
+      return '<span style="display:block;width:30px;height:24px;border-radius:6px;border:1px solid var(--line2);background:' +
+             html(sc) + ';opacity:' + (so === '' || so == null ? 1 : Math.max(0.25, num(so))) + '"></span>';
+    }
     var v = gr.sym ? textValue(vals[gr.sym]) : '';
+    if (!gr.sysPic && ICON_STOCK[gr.id] && !/\.(png|jpe?g)$/i.test(v)) {
+      var sp = iconPreviewSrc(gr.sym, v || ICON_STOCK[gr.id]);
+      var draw = BAR_ICONS[gr.id] || ICONS[gr.id] || '';
+      /* the PS5's picture; the drawing if this PS5 does not send it */
+      if (sp) return '<img alt="" src="' + html(sp) + '" onerror="this.outerHTML=this.dataset.f" data-f="' +
+        html('<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">' + draw + '</svg>') + '">';
+    }
+    if (gr.sysPic && v && !/\.(png|jpe?g)$/i.test(v)) {
+      var ps = iconPreviewSrc(gr.sym, v);
+      if (ps) return '<img alt="" src="' + html(ps) + '" onerror="this.remove()">';
+    }
     if (/\.(png|jpe?g)$/i.test(v))
       return '<img alt="" src="/asset?kind=icons&name=' + encodeURIComponent(v) + '">';
     var p = BAR_ICONS[gr.id] || ICONS[gr.id] || '';
     return '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
   }
-  function iconStrip(sec, fields, list) {
+  function iconStrip(sec, fields, list, grs, restTitle) {
+    grs = grs || ICON_GROUPS;
     var vals = values().cur, byKey = {}, used = {}, shown = 0;
     /* every field of the theme (also the Advanced ones and the hide* of
        "hide top"): the window shows all of an icon's fields */
     groups(source).forEach(function (g) { g.fields.forEach(function (f) { if (!retiredNow(f)) byKey[f.key] = f; }); });
     var row = document.createElement('div');
     row.className = 'iconstrip';
-    ICON_GROUPS.forEach(function (gr) {
+    grs.forEach(function (gr) {
       gr.keys.forEach(function (k) { used[k] = true; });
       var b = document.createElement('button');
       b.type = 'button';
@@ -1961,14 +2398,14 @@
     if (rest.length) {
       var h = document.createElement('h3');
       h.className = 'subhead';
-      h.textContent = 'All top icons';
+      h.textContent = restTitle || 'All top icons';
       sec.appendChild(h);
       var grid = document.createElement('div');
       grid.className = 'grid';
       rest.forEach(function (f) { grid.appendChild(card(f)); shown++; });
       sec.appendChild(grid);
     }
-    return shown + ICON_GROUPS.length;
+    return shown + grs.length;
   }
   function iconWindow(gr, byKey) {
     var old = document.getElementById('iconwin');
@@ -1995,33 +2432,121 @@
     document.addEventListener('keydown', esc);
     document.body.appendChild(bg);
   }
+  /* ---- system icon picker: the PS5 gives each icon from its own RCO
+     (GET /sysicon?name=), nothing of it is in the editor ---- */
+  var PAD_BUTTONS = { x: 'face_cross', cross: 'face_cross', circle: 'face_circle', square: 'face_square', triangle: 'face_triangle',
+                      r1: 'r1', r2: 'r2', r3: 'r3', l1: 'l1', l2: 'l2', l3: 'l3', options: 'options', create: 'create', ps: 'ps',
+                      touchpad: 'touchpad', up: 'arrow_up', down: 'arrow_down', left: 'arrow_left', right: 'arrow_right' };
+  /* the picture of an icon field's value: uploaded .png, controller button
+     ('l1', tab group), 'id:<icon>' or a system icon name */
+  function iconPreviewSrc(key, v) {
+    if (!v) return '';
+    if (/\.(png|jpe?g)$/i.test(v)) return '/asset?kind=icons&name=' + encodeURIComponent(v);
+    var k = v.toLowerCase();
+    if (k.indexOf('id:') === 0) k = k.slice(3);
+    else if (/^tabsGroup(Left|Right)$|^deco\dIcon$|^footerIcon\d$/.test(key) && PAD_BUTTONS[k]) k = 'controller_key_' + PAD_BUTTONS[k];
+    return /^[a-z0-9_-]+$/.test(k) ? '/sysicon?name=' + encodeURIComponent(k) : '';
+  }
+  function iconPicker(onPick) {
+    var old = document.getElementById('icopick');
+    if (old) old.remove();
+    var bg = document.createElement('div');
+    bg.id = 'icopick';
+    bg.className = 'iw-back';
+    bg.innerHTML = '<div class="iw" role="dialog" aria-modal="true"><div class="iw-head"><h3>PS5 icons</h3>' +
+                   '<input type="search" class="fold-search" placeholder="Search icons…" style="flex:1;max-width:320px">' +
+                   '<button type="button" class="iw-close" title="Close">✕</button></div>' +
+                   '<p class="tip ip-msg" style="margin:0 0 10px">From this PS5. Click one to use it.</p><div class="icogrid"></div></div>';
+    var grid = bg.querySelector('.icogrid'), search = bg.querySelector('input'), msg = bg.querySelector('.ip-msg');
+    var names = SYSTEM_ICONS.split(','), failed = 0, loaded = 0;
+    names.forEach(function (n) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'icocell';
+      b.dataset.n = n;
+      b.title = n;
+      b.innerHTML = '<img alt="" loading="lazy" src="/sysicon?name=' + encodeURIComponent(n) + '"><span></span>';
+      b.querySelector('span').textContent = n;
+      var im = b.querySelector('img');
+      im.onload = function () { loaded++; };
+      /* not on this PS5 (or an ELF without /sysicon): the cell goes */
+      im.onerror = function () {
+        b.remove();
+        if (++failed >= 12 && !loaded) msg.textContent = 'This PS5 does not send its icons (it needs a newer ZhiThemes ELF). Type a name instead.';
+      };
+      b.onclick = function () { close(); onPick(n); };
+      grid.appendChild(b);
+    });
+    search.oninput = function () {
+      var q = search.value.trim().toLowerCase();
+      grid.querySelectorAll('.icocell').forEach(function (c) { c.style.display = !q || c.dataset.n.indexOf(q) >= 0 ? '' : 'none'; });
+    };
+    var esc;
+    var close = function () { bg.remove(); document.removeEventListener('keydown', esc); };
+    esc = function (e) { if (e.key === 'Escape') close(); };
+    bg.querySelector('.iw-close').onclick = close;
+    bg.onclick = function (e) { if (e.target === bg) close(); };
+    document.addEventListener('keydown', esc);
+    document.body.appendChild(bg);
+    search.focus();
+  }
   /* one tab = several theme.js sections, each with its own title */
   function showSections(list, filter) {
     view.innerHTML = '';
     var q = (filter || '').trim().toLowerCase(), shown = 0;
     list.forEach(function (g) {
       var fields = g.fields.filter(function (f) {
+        if (f.head) return !q;
         if (RGB_FOLDED.test(f.key) || f.key === 'avatarCrop') return false;
         return !q ||(f.key + ' ' + labelOf(f.key) + ' ' + hintOf(f)).toLowerCase().indexOf(q) >= 0;
       });
       if (!fields.length) return;
       var sec = document.createElement('section');
-      sec.className = 'section';
+      sec.className = 'section rows' + (g.cls ? ' ' + g.cls : '');
       sec.innerHTML = '<h2></h2>';
       sec.querySelector('h2').textContent = SECTION_EN[g.name] || g.name;
+      /* 'hideall' group: a switch in the title turns every switch of the
+         group on or off (on when all are on) */
+      if (/\bhideall\b/.test(g.cls || '') && !q) {
+        var bools = fields.filter(function (f) { return f.value === 'true' || f.value === 'false'; });
+        var allSw = document.createElement('label');
+        allSw.className = 'switch allsw';
+        allSw.title = 'Hide all of them (off = show all)';
+        allSw.innerHTML = '<input type="checkbox"><span></span>';
+        var allCb = allSw.querySelector('input');
+        allCb.checked = bools.length > 0 && bools.every(function (f) { return f.value === 'true'; });
+        allCb.onchange = function () {
+          var v = allCb.checked ? 'true' : 'false';
+          bools.forEach(function (f) { setField(f.key, v); });
+          renderTabs();
+        };
+        var h2 = sec.querySelector('h2');
+        h2.insertAdjacentHTML('beforeend', '<small class="allsw-txt">Hide all</small>');
+        h2.appendChild(allSw);
+      }
       /* the top icons: a row of icons, each opens its own options */
       if (g.name === 'top icons' && !q) {
         shown += iconStrip(sec, fields, list);
         view.appendChild(sec);
         return;
       }
+      /* free boxes and icons: a button each, it opens its own options */
+      if ((g.name === 'boxes' || g.name === 'decorations') && !q) {
+        shown += iconStrip(sec, fields, list, g.name === 'boxes' ? BOX_GROUPS : DECO_GROUPS, 'Other');
+        view.appendChild(sec);
+        return;
+      }
       var grid = document.createElement('div');
       grid.className = 'grid';
-      fields.forEach(function (f) { grid.appendChild(card(f)); shown++; });
+      fields.forEach(function (f) {
+        if (f.head) { var hh = document.createElement('h4'); hh.className = 'grouphead'; hh.textContent = f.head; grid.appendChild(hh); return; }
+        grid.appendChild(card(f)); shown++;
+      });
       sec.appendChild(grid);
       view.appendChild(sec);
     });
     if (!shown) view.innerHTML = '<p class="empty">' + (q ? 'No field matches “' + html(filter) + '”.' : 'No fields here.') + '</p>';
+    applyDepends();
   }
   /* ---- Visual: Settings and Trophies pages ----
      A drawing of the Settings list, a Settings page with a side bar, or the
@@ -2119,9 +2644,10 @@
     var screen = document.getElementById('sysscreen');
     if (!screen) return;
     var c = values().cur, tr = V.page === 'trophy', side = !tr && V.sysSub === 'side';
-    var on = !!c.sysOn && (!tr || c.sysTrophies !== false);
+    /* the old Own look switch is always on now (themes are converted at load) */
+    var on = true;
     var info = document.getElementById('sysinfo');
-    if (info) info.textContent = on ? '● own look on · ≈ stock positions' : 'own look off: stock look (turn on "Own look")';
+    if (info) info.textContent = '≈ stock positions';
     var hex = function (k, d) { return on && /^#[0-9a-f]{6}$/i.test(c[k] || '') ? c[k] : d; };
     /* "Use the wallpaper" = the Home wallpaper (picture or video) */
     var useWall = (c.sysBgWallpaper === true || c.sysBgWallpaper === 'true') && wallpaperOf(c);
@@ -2919,7 +3445,6 @@
       var pick = pics.filter(function (p) { return p.n === n; })[0];
       if (pick && kFiles(k).indexOf(pick.file.replace(/\.(png|jpe?g)$/i, '.mp4')) >= 0) setField('tileAnimOn', 'true');
     }
-    if (n && k === 'lg' && foldField('logoOn') !== 'true') setField('logoOn', 'true');
     kWrite(k, c);
     status(id + ' ' + CT_FMT[k].label.toLowerCase() + ': ' + (n ? 'picture ' + n : k === 'lg' ? 'no logo' : kKind(k).own) + ' — press Apply to send it to the PS5');
     drawTiles();
@@ -2973,7 +3498,7 @@
     ctShownFmt = fmt;
     view.insertAdjacentHTML('beforeend', '<section class="section"><h2>Pictures</h2>' +
       '<p class="tip">Each game can have pictures in four formats: <b>square 1:1</b> and <b>vertical 2:3</b> (the row: now ' +
-      (fmt === '2x3' ? 'vertical' : 'square') + '), <b>Steam 92:43</b> (the focused tile, with "Focused tile" on Steam) and ' +
+      (fmt === '2x3' ? 'vertical' : 'square') + ', see "Tile shape" in Games row), <b>Steam 92:43</b> (the focused tile, with "Focused tile shape" on Steam) and ' +
       '<b>background 16:9</b>, plus its <b>logo</b> (transparent PNG, shown on the Home with "Game logo" on). Click a game, pick a format, then the picture it uses, or search SteamGridDB, click a picture ' +
       'and Download. Pictures go to the PS5 at once; press <b>Apply</b> to send the choices and reload the Home.</p>' +
       '<div class="row"><span class="fold-seg" id="ctspace"><button data-s="game">Games</button>' +
@@ -4243,11 +4768,16 @@
     box.appendChild(h);
     if (k === 'st' && focusKind() !== 'st') {
       var tip = document.createElement('p'); tip.className = 'tip';
-      tip.textContent = 'Shown on the focused tile with "Focused tile" set to Steam horizontal (Tiles settings above).';
+      tip.textContent = 'Shown on the focused tile with "Focused tile shape" set to Steam (Games row › Tiles).';
       box.appendChild(tip);
     } else if (k === 'lg') {
       var tl = document.createElement('p'); tl.className = 'tip';
-      tl.textContent = (foldField('logoOn') === 'true' ? 'Shown on the Home' : 'Shown on the Home with "Game logo" on (Games row tab or Screen tab)') +
+      if (foldField('logoOn') !== 'true') {
+        var lw = document.createElement('p'); lw.className = 'depwarn';
+        lw.textContent = '⚠ Game logos are off: they are not shown on the Home. Turn on "Game logo" in Games row › Logo.';
+        box.appendChild(lw);
+      }
+      tl.textContent = (foldField('logoOn') === 'true' ? 'Shown on the Home' : 'Shown on the Home with "Game logo" on') +
         ' at the logo box (drag it in the Screen tab). Transparent margins are cut on download / upload. Logos are still pictures (an animated one gives its first frame: the PS5 has no video with transparency). ' +
         (foldField('logoHidesTitle') === 'false' ? '' : 'A game with a logo hides its fake title.');
       box.appendChild(tl);
@@ -5219,12 +5749,9 @@
       'tabsGroupIconColor', 'tabsGroupIconOpacity', 'tabsGroupBgOn', 'tabsGroupBg', 'tabsGroupBgOpacity',
       'tabsGroupHeight', 'tabsGroupPadding', 'tabsGroupCorners', 'tabsPillOn', 'tabsPillColor', 'tabsPillOpacity',
       'tabsPillCorners', 'tabsPillPadX', 'tabsPillPadY', 'tabsPillBorderColor', 'tabsPillBorderWidth', 'tabsPillTextColor'] },
-    { id: 'playInfo', name: 'Play info', app: 'home', toggle: 'playInfoOn',
+    { id: 'playInfo', name: 'ZhiThemes play info', app: 'home', toggle: 'playInfoOn',
       mx: 'playInfoX', my: 'playInfoY',
       extra: ['playInfoFontSize', 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners', 'playInfoNever', 'playInfoLast'] },
-    { id: 'footerBgEl', name: 'Footer background', app: 'home', toggle: 'footerBgOn', behind: true, boxKey: 'footerBg',
-      mx: 'footerBgX', my: 'footerBgY', growW: 'footerBgWidth', growH: 'footerBgHeight',
-      extra: ['footerBg', 'footerBgOpacity', 'footerBgCorners', 'footerBgWidth', 'footerBgHeight'] },
     { id: 'box1', name: 'Box 1', app: 'home', toggle: 'box1On', behind: true, boxKey: 'box1',
       mx: 'box1X', my: 'box1Y', growW: 'box1Width', growH: 'box1Height',
       extra: ['box1', 'box1Opacity', 'box1Corners', 'box1Width', 'box1Height'] },
@@ -5305,7 +5832,7 @@
       dx: [['titleX', 1, 't']], dy: [['titleY', 1, 't'], ['rowOffsetY', 1], ['focusSize', 1]], mx: 'titleX', my: 'titleY',
       extra: ['titleMode', 'titleFontSize', 'titleFontStyle', 'titleAlign', 'titleColor'] },
     { id: 'folderTitle', name: 'Folder name', app: 'home', toggle: 'folders', vanishes: true,
-      mx: 'folderTitleX', my: 'folderTitleY', extra: ['foldersTitle', 'folderTitleSize', 'folderTitleColor'] },
+      mx: 'folderTitleX', my: 'folderTitleY', extra: [] },
     { id: 'deco1', name: 'Icon 1', app: 'home', toggle: 'deco1On', deco: 'deco1',
       mx: 'deco1X', my: 'deco1Y', grow: 'deco1Size', extra: ['deco1Icon', 'deco1Size', 'deco1Color', 'deco1Opacity'] },
     { id: 'deco2', name: 'Icon 2', app: 'home', toggle: 'deco2On', deco: 'deco2',
@@ -5314,24 +5841,24 @@
       mx: 'deco3X', my: 'deco3Y', grow: 'deco3Size', extra: ['deco3Icon', 'deco3Size', 'deco3Color', 'deco3Opacity'] },
     { id: 'deco4', name: 'Icon 4', app: 'home', toggle: 'deco4On', deco: 'deco4',
       mx: 'deco4X', my: 'deco4Y', grow: 'deco4Size', extra: ['deco4Icon', 'deco4Size', 'deco4Color', 'deco4Opacity'] },
-    { id: 'folderStrip', name: 'Open folder games', app: 'home', toggle: 'folders',
+    /* shown even without a folder, so it is not forgotten */
+    { id: 'folderStrip', name: 'Open folder games', app: 'home',
       mx: 'foldersStripX', my: 'foldersStripY', grow: 'foldersStripSize',
-      extra: ['foldersStripMax', 'foldersStripGap', 'foldersStripAbove', 'foldersOpenWithX', 'foldersRingColor', 'foldersRingWidth',
-              'foldersStripBgOn', 'foldersStripBg', 'foldersStripBgOpacity', 'foldersStripBgPadding', 'foldersStripBgCorners'] },
-    { id: 'folderName', name: 'Open folder game name', app: 'home', toggle: 'folders', hideKey: 'foldersHideName',
-      mx: 'foldersNameX', my: 'foldersNameY', extra: ['foldersNameSize', 'foldersHideName', 'foldersTitle'] },
-    { id: 'optionsMenu', name: 'Options menu', app: 'home', toggle: 'menuMove',
-      mx: 'menuX', my: 'menuY', extra: ['menuMove', 'menuNoDim', 'menuBgColor', 'menuBgOpacity', 'menuCorners', 'menuItemCorners', 'menuOffline'] },
-    { id: 'homeTrophies', name: 'Fake trophies', app: 'home', toggle: 'fakeTrophies',
+      extra: ['foldersStripMax', 'foldersStripGap', 'foldersStripBgOn', 'foldersStripBg', 'foldersStripBgOpacity', 'foldersStripBgPadding'] },
+    /* always on the Screen tab (the tile menu always opens at menuX/Y) */
+    { id: 'optionsMenu', name: 'Options menu', app: 'home',
+      mx: 'menuX', my: 'menuY', extra: ['menuBgColor', 'menuBgOpacity', 'menuCorners', 'menuItemCorners', 'menuOffline'] },
+    { id: 'homeTrophies', name: 'ZhiThemes trophies', app: 'home', toggle: 'fakeTrophies',
       mx: 'fakeTrophiesX', my: 'fakeTrophiesY',
       extra: ['fakeTrophiesScale', 'fakeTrophiesFontSize', 'fakeTrophiesColor', 'fakeTrophiesBg', 'fakeTrophiesBgOpacity',
               'fakeTrophiesCorners', 'fakeTrophiesFast', 'fakeTrophiesProgress', 'fakeTrophiesBarColor', 'fakeTrophiesTotals', 'hideTrophies'] },
     { id: 'trophies', name: 'Trophies', app: 'hub', vanishes: true, guess: [132, 996, 530, 140],
       dx: [['trophiesX', 1, 't']], dy: [['trophiesY', 1, 't'], ['rowOffsetY', 1], ['focusSize', 1]],
       hideKey: 'hideTrophies', extra: [] },
+    /* not movable (moving the buttons broke the hub) */
     { id: 'buttons', name: 'Buttons (Play, …)', app: 'hub', guess: [172, 845, 422, 73],
-      dx: [['buttonsX', 1, 't']], dy: [['buttonsY', 1, 't'], ['rowOffsetY', 1], ['focusSize', 1]], mx: 'buttonsX', my: 'buttonsY',
-      hideKey: 'hideButtons', extra: ['hideMediaButtons', 'hideMore', 'hideHints', 'buttonBgColor', 'buttonBgFocusColor', 'buttonTextColor', 'buttonTextFocusColor'] },
+      dy: [['rowOffsetY', 1], ['focusSize', 1]],
+      hideKey: 'hideButtons', extra: ['hideMore', 'buttonBgColor', 'buttonBgFocusColor', 'buttonTextColor', 'buttonTextFocusColor'] },
     { id: 'friends', name: 'Friends who play', app: 'hub', vanishes: true, guess: [693, 996, 530, 140],
       dy: [['rowOffsetY', 1], ['focusSize', 1]], hideKey: 'hideFriends',
       extra: ['hideActivities', 'hideNews',
@@ -5408,14 +5935,15 @@
                 'nameCopyScroll', 'nameCopyScrollSpeed', 'nameCopyColor', 'nameCopyShadow',
                 '#Background', 'nameCopyBgOn', 'nameCopyBg', 'nameCopyBgOpacity', 'nameCopyBgPadding', 'nameCopyBgPaddingV', 'nameCopyBgCorners',
                 '#Animation', 'animNames', 'animNamesStyle', 'animNamesMs'],
-    footer: ['#Texts', 'footerText1', 'footerIcon1', 'footerText2', 'footerIcon2', 'footerText3', 'footerIcon3',
-             '#Controller buttons', 'footerIconSize', 'footerIconColor', 'footerIconFont',
-             '#Look', 'footerFontSize', 'footerFontStyle', 'footerColor', 'footerOpacity', 'footerShadow', 'footerSpacing', 'footerAlign', 'footerWidth'],
+    footer: ['#Hints', 'footerText1', 'footerText2', 'footerText3',
+             '#Look', 'footerFontSize', 'footerColor', 'footerOpacity', 'footerFontStyle', 'footerIconSize', 'footerIconColor',
+             'footerSpacing', 'footerAlign', 'footerWidth', '#Background', 'footerBgOn', 'footerBg', 'footerBgOpacity',
+             'footerBgPadding', 'footerBgCorners'],
     title: ['#Show', 'titleMode', '#Look', 'titleFontSize', 'titleFontStyle', 'titleAlign', 'titleColor', 'textShadow', 'textShadowColor',
             '#Glow animation', 'animTitleGlow', 'animTitleGlowColor', 'animTitleGlowSec', '#Page', 'hubOffset'],
-    folderTitle: ['foldersTitle', 'folderTitleSize', 'folderTitleColor', '#Animation', 'animFolders', 'animFolderClose', 'animToast'],
-    folderStrip: ['#Games', 'foldersStripMax', 'foldersStripGap', 'foldersStripAbove', 'foldersOpenWithX', 'foldersRingColor', 'foldersRingWidth',
-                  '#Background', 'foldersStripBgOn', 'foldersStripBg', 'foldersStripBgOpacity', 'foldersStripBgPadding', 'foldersStripBgCorners',
+    folderTitle: ['#Animation', 'animFolders', 'animFolderClose', 'animToast'],
+    folderStrip: ['#Games', 'foldersStripMax', 'foldersStripGap',
+                  '#Background', 'foldersStripBgOn', 'foldersStripBg', 'foldersStripBgOpacity', 'foldersStripBgPadding',
                   '#Folder tile', 'foldersPosition', 'foldersColor', 'foldersAlpha', 'foldersVertical', 'foldersHorizontal', 'foldersBg',
                   '#Animation', 'animFolders', 'animFolderClose', 'animToast', '#Options menu', 'folderMenu'],
     optionsMenu: ['#Look', 'menuNoDim', 'menuBgColor', 'menuBgOpacity', 'menuCorners', 'menuItemCorners',
@@ -5424,11 +5952,11 @@
               '#Colours', 'buttonBgColor', 'buttonBgFocusColor', 'buttonTextColor', 'buttonTextFocusColor', '#Animation', 'animButtons']
   };
   var VIRT = [
-    { id: 'scrBackground', name: 'Background', keys: ['#Clean', 'bgClean', 'bgCleanTry', '#Wallpaper', 'wallpaperOn', 'wallpaper', 'wallpaperVideoSound', 'wallpaperVideoVolume', 'wallpaperVideoFit', 'customBgOn',
-      '#Darken', 'bgShade', 'bgDim', 'bgDimColor', 'bgColor', 'bgGradient', 'bgGradientHeight', 'bgGradientCurve', 'bgGradientSteps',
-      'bgVignette', 'bgVignetteSize', 'bgEdges', 'bgEdgesHeight', '#Overlay picture', 'bgOverlayOn', 'bgOverlay', 'bgOverlayOpacity'] },
-    { id: 'scrParticles', name: 'Particles', keys: ['particlesOn', 'particlesStyle', 'particlesCount', 'particlesSpeed', 'particlesScale', 'particlesHue', 'particlesOpacity',
-      '#Dots / your picture', 'particlesSize', 'particlesColor', 'particlesImage'] },
+    { id: 'scrBackground', name: 'Background', keys: ['#Wallpaper', 'bgClean', 'shellBgOn', 'shellBgColor', 'shellBgGlow', 'shellBgGlowIntensity', 'shellBgRainbow', 'shellBgRainbowSpeed', 'wallpaperOn', 'wallpaper', 'wallpaperVideoFit', 'wallpaperVideoSound', 'wallpaperVideoVolume', 'customBgOn',
+      '#Fades', 'bgDim', 'bgDimColor', 'bgGradient', 'bgGradientHeight', 'bgGradientCurve', 'bgGradientSteps',
+      'bgVignette', 'bgVignetteSize', 'bgEdges', 'bgEdgesHeight', 'bgColor', 'bgShade', '#Overlay', 'bgOverlay', 'bgOverlayOpacity'] },
+    { id: 'scrParticles', name: 'Particles', keys: ['particlesOn', 'particlesStyle', 'particlesCount', 'particlesSpeed', 'particlesOpacity',
+      'particlesSize', 'particlesColor', 'particlesImage', 'particlesScale', 'particlesHue'] },
     { id: 'scrFonts', name: 'Fonts', keys: ['systemFont', 'systemFontBold', 'systemFontItalic', 'systemFontBoldItalic', 'systemFontMissing', 'elementFont', 'fontStyle'] },
     { id: 'scrAnimations', name: 'Animations', keys: ['#Speed', 'animationSpeed', 'rowSpeed', 'rowFastRepeat', 'rowRepeatWindow',
       '#Tabs', 'animTabs', 'animTabsMs', 'animTabsSlide', 'animFav', '#Names', 'animNames', 'animNamesStyle', 'animNamesMs',
@@ -6133,15 +6661,19 @@
       var gsz = num(c.foldersStripSize) || 120, ggap = c.foldersStripGap === '' ? 16 : num(c.foldersStripGap);
       var gfx = 172 + num(c.rowX) + num(c.foldersStripX), gfit = Math.max(1, Math.floor((1920 - gfx - 40) / (gsz + ggap)));
       var gn = num(c.foldersStripMax) > 0 ? Math.min(num(c.foldersStripMax), gfit) : Math.min(gfit, 6);
-      var ring = html(c.foldersRingColor || '#fff'), rw = c.foldersRingWidth === '' ? 4 : num(c.foldersRingWidth);
+      /* like theme.js: corners in the tiles' proportion, frame = the focus frame */
+      var ring = c.focusLineColorOn === true || c.focusLineColorOn === 'true'
+        ? 'rgb(' + num(c.focusLineR) + ',' + num(c.focusLineG) + ',' + num(c.focusLineB) + ')' : '#fff';
+      var rw = num(c.focusThickness) > 0 ? Math.max(1, Math.round(num(c.focusThickness) * gsz / (num(c.focusSize) || 168))) : 4;
+      var grad = Math.round(gsz * (num(c.tileCorners) || 16) / (num(c.tileSize) || 106));
       var gpad = c.foldersStripBgPadding === '' ? 16 : num(c.foldersStripBgPadding);
       var gbg = c.foldersStripBgOn === false || c.foldersStripBgOn === 'false' ? '' :
         '<div style="position:absolute;left:' + (-gpad) + 'px;top:' + (-gpad) + 'px;right:' + (-gpad) + 'px;bottom:' + (-gpad) +
-        'px;border-radius:' + (c.foldersStripBgCorners === '' ? 24 : num(c.foldersStripBgCorners)) + 'px;background:' +
+        'px;border-radius:' + (grad + gpad) + 'px;background:' +
         html(c.foldersStripBg || c.foldersColor || '#24345a') + ';opacity:' + (c.foldersStripBgOpacity === '' ? 0.6 : num(c.foldersStripBgOpacity)) + '"></div>';
       s = gbg + '<div style="position:relative;display:flex;gap:' + ggap + 'px;width:100%;height:100%">';
       for (var gi = 0; gi < gn; gi++)
-        s += '<div style="flex:none;width:' + gsz + 'px;height:' + gsz + 'px;border-radius:' + Math.round(gsz * 0.15) +
+        s += '<div style="flex:none;width:' + gsz + 'px;height:' + gsz + 'px;border-radius:' + grad +
              'px;background:rgba(255,255,255,.14);box-sizing:border-box;' + (gi === 0 ? 'outline:' + rw + 'px solid ' + ring + ';' : '') +
              'display:flex;align-items:center;justify-content:center;color:#fff;font-size:' + Math.round(gsz * 0.18) + 'px">' + (gi + 1) + '</div>';
       s += '</div>';
@@ -6301,7 +6833,7 @@
     if (info)
       /* plainer words; the tooltip says what it means */
       info.innerHTML = V.measured ? '<span class="measuredTxt">● Real PS5 positions: ' + measured + ' of ' + total + '</span> · the rest (≈) are guesses'
-                                : '<span class="estimatedTxt">● PS5 not connected</span> · all positions are guesses';
+                                : '<span class="estimatedTxt">● Positions are guesses</span> · turn on Debug mode (Info › Logs) for the real ones';
   }
 
   function fieldKeys(e) {
@@ -6320,7 +6852,7 @@
   var moreOpen = {};
   function moduleCards(p, keys, fields, basic, id) {
     var ok = function (k) {
-      return k.charAt(0) !== '#' && fields[k] && !PANEL_SKIP.test(k) && !RGB_FOLDED.test(k) && !retiredNow(fields[k]) &&
+      return k.charAt(0) !== '#' && fields[k] && !PANEL_SKIP.test(k) && !EDITOR_HIDE.test(k) && !RGB_FOLDED.test(k) && !retiredNow(fields[k]) &&
              (ADV || !ADV_ONLY.test(k));
     };
     var split = !!basic && !ADV, box = p, head = null, n = 0;
@@ -6367,7 +6899,7 @@
     fakeTitle: ['titleMode', 'nameCopyFontSize', 'nameCopyColor', 'nameCopyAlign', 'nameCopyBgOn'],
     footer: ['footerText1', 'footerIcon1', 'footerText2', 'footerIcon2', 'footerText3', 'footerIcon3', 'footerColor'],
     title: ['titleMode', 'titleFontSize', 'titleColor'],
-    folderTitle: ['foldersTitle', 'folderTitleSize', 'folderTitleColor'],
+    folderTitle: [],
     folderStrip: ['foldersStripMax', 'foldersVertical', 'foldersHorizontal', 'foldersBg'],
     optionsMenu: ['menuBgColor', 'menuBgOpacity', 'menuCorners'],
     buttons: ['hideMore', 'buttonBgFocusColor', 'buttonTextFocusColor'],
@@ -6377,8 +6909,14 @@
     box1: ['box1', 'box1Opacity', 'box1Corners'], box2: ['box2', 'box2Opacity', 'box2Corners'], box3: ['box3', 'box3Opacity', 'box3Corners'],
     powerBtn: ['powerBtnIcon'], trophyBtn: ['trophyBtnIcon'], padInfo: ['padInfoIcon', 'padInfoBattery', 'padInfoColor'],
     deco1: ['deco1Icon', 'deco1Color'], deco2: ['deco2Icon', 'deco2Color'], deco3: ['deco3Icon', 'deco3Color'], deco4: ['deco4Icon', 'deco4Color'],
-    scrBackground: ['bgClean', 'wallpaperOn', 'wallpaper', 'bgDim', 'bgGradient', 'bgColor'],
-    scrParticles: ['particlesOn', 'particlesStyle', 'particlesCount'],
+    /* the fields that only matter with another one on hide by themselves
+       (DEPENDS), so nearly all are basic; Advanced only adds the technical ones */
+    scrBackground: ['wallpaperOn', 'wallpaper', 'wallpaperVideoFit', 'wallpaperVideoSound', 'wallpaperVideoVolume', 'bgClean',
+                    'shellBgOn', 'shellBgColor', 'shellBgGlow', 'shellBgGlowIntensity', 'shellBgRainbow', 'shellBgRainbowSpeed',
+                    'bgGradient', 'bgGradientHeight', 'bgGradientCurve', 'bgVignette', 'bgVignetteSize', 'bgEdges', 'bgEdgesHeight',
+                    'bgColor', 'bgShade', 'bgOverlay', 'bgOverlayOpacity'],
+    scrParticles: ['particlesOn', 'particlesStyle', 'particlesCount', 'particlesSpeed', 'particlesOpacity',
+                   'particlesSize', 'particlesColor', 'particlesImage', 'particlesScale', 'particlesHue'],
     scrFonts: ['systemFont'],
     scrAnimations: ['animationSpeed', 'animTabs', 'animNames', 'animFolders', 'animButtons']
   };
@@ -6396,6 +6934,7 @@
       p.innerHTML = '<h3></h3><p class="tip">Whole screen: not one element</p>';
       p.querySelector('h3').textContent = vm.name;
       moduleCards(p, vm.keys, v.fields, BASIC[vm.id] || null, vm.id);
+      applyDepends();
       var vback = document.createElement('button');
       vback.textContent = '← All elements';
       vback.className = 'back';
@@ -6407,9 +6946,9 @@
       p.innerHTML = '<h3>Elements</h3><p class="tip">Click an element on the screen or pick it here. Drag to move it; ' +
                     'the handle on the focused tile changes its size. Elements snap to the edges and centres of the others.</p>';
       var GROUPS = [['Top bar', ['tabs', 'search', 'settings', 'profile', 'powerBtn', 'trophyBtn', 'padInfo', 'clock', 'ownClock', 'user', 'topBarBgEl']],
-                    ['Game row', ['row', 'focusTile', 'tileName', 'fakeTitle', 'logo', 'folderTitle', 'folderStrip', 'folderName', 'optionsMenu']],
+                    ['Game row', ['row', 'focusTile', 'tileName', 'fakeTitle', 'logo', 'folderTitle', 'folderStrip', 'optionsMenu']],
                     ['Game hub', ['title', 'buttons', 'trophies', 'homeTrophies', 'playInfo', 'friends']],
-                    ['Footer & boxes', ['footer', 'footerBgEl', 'box1', 'box2', 'box3']],
+                    ['Footer & boxes', ['footer', 'box1', 'box2', 'box3']],
                     ['Icons only to see', ['deco1', 'deco2', 'deco3', 'deco4']],
                     ['Whole screen', VIRT.map(function (m) { return m.id; })],
                     ['Experimental', ['debugPanel']]];
@@ -6461,6 +7000,7 @@
       p.appendChild(row);
     }
     moduleCards(p, fieldKeys(e), v.fields, basicOf(e), e.id);
+    applyDepends();
     var back = document.createElement('button');
     back.textContent = '← All elements';
     back.className = 'back';
@@ -6638,7 +7178,7 @@
       '<div class="group"><details class="menu" id="vlayersmenu"><summary class="btn">Layers</summary><div class="pop" id="vlayers"></div></details>' +
       '<label class="btn" for="bgfile" title="A PS5 screenshot (1920x1080) as the background">Screenshot…</label>' +
       '<input type="file" id="bgfile" accept="image/*"><button id="vbgclear" title="Remove the background image">Clear</button></div>' +
-      '<span class="info" id="vinfo" title="The PS5 tells the editor where each element really is on its screen (Measure / measureScreen). Elements marked ≈ were not on the PS5 screen (turned off, in another page, or not seen yet), so the editor draws them where it thinks they are."></span></div>' +
+      '<span class="info" id="vinfo" title="The PS5 tells the editor where each element really is on its screen (with Debug mode on: Info > Logs). Elements marked ≈ were not on the PS5 screen (turned off, in another page, or not seen yet), so the editor draws them where it thinks they are."></span></div>' +
       '<div class="vwrap"><div class="stagebox"><div class="stage" id="vstage"><div id="vscreen" class="screen"></div></div></div>' +
       '<div class="vpanel" id="vpanel"></div></div>';
     bindPages();
@@ -6649,7 +7189,7 @@
     /* optional layers: switched on/off here; off ones are not drawn */
     var layers = document.getElementById('vlayers');
     [['topBarBgOn', 'Top bar background'], ['ownClock', 'Own clock'], ['user', 'User name'], ['__fake', 'Fake title'], ['logoOn', 'Game logo'],
-     ['footer', 'Footer'], ['footerBgOn', 'Footer background'], ['box1On', 'Box 1'], ['box2On', 'Box 2'],
+     ['footer', 'Footer'], ['box1On', 'Box 1'], ['box2On', 'Box 2'],
      ['box3On', 'Box 3'], ['fakeTrophies', 'Fake trophies'], ['playInfoOn', 'Play info'], ['deco1On', 'Icon 1'], ['deco2On', 'Icon 2'],
      ['deco3On', 'Icon 3'], ['deco4On', 'Icon 4'], ['powerBtnOn', 'Power button'], ['trophyBtnOn', 'Trophies button'],
      ['padInfoOn', 'Controller']].forEach(function (l) {
@@ -6712,11 +7252,401 @@
   /* the "bars" section of theme.js holds three things: split by field prefix */
   /* name fields from before titleMode (read once, converted by migrateTitles) */
   var OLD_TITLE_KEYS = /^(nameCopy|nameCopyX|nameCopyY|hideOriginalName|homeTitle|homeTitleX|homeTitleY|homeTitleFontSize|homeTitleColor|hideTitle)$/;
+  /* a theme.js section shown as several titled groups, in this order
+     (fields of the section not listed go to the last group) */
+  var LAYOUT = {
+    background: [
+      ['Wallpaper', ['bgClean', 'bgCleanTry', 'wallpaperOn', 'wallpaper', 'wallpaperVideoFit', 'wallpaperVideoSound', 'wallpaperVideoVolume']],
+      ['Settings & Trophies background', ['shellBgOn', 'shellBgColor', 'shellBgGlow', 'shellBgGlowIntensity', 'shellBgRainbow',
+                                     'shellBgRainbowSpeed', 'sysBgWallpaper', 'sysBg', 'sysBgVideoSound', 'sysBgOn']],
+      ['Fades', ['bgDim', 'bgDimColor', 'bgGradient', 'bgGradientHeight', 'bgGradientCurve', 'bgGradientSteps',
+                 'bgVignette', 'bgVignetteSize', 'bgEdges', 'bgEdgesHeight', 'bgColor', 'bgShade']],
+      ['Overlay', ['bgOverlayOn', 'bgOverlay', 'bgOverlayOpacity']],
+      ['Particles', ['particlesOn', 'particlesStyle', 'particlesCount', 'particlesSpeed', 'particlesOpacity',
+                     'particlesSize', 'particlesColor', 'particlesImage', 'particlesScale', 'particlesHue']]
+    ],
+    /* Games row: also the tile shape (from Pictures), the tile name, focus
+       frame, logo, tile shadow / reflection (from Text & fonts) and the
+       row's hide switches */
+    row: [
+      ['Tiles', ['tileSize', 'focusSize', 'tileCorners', 'rowTileGap', 'rowMaxGames', 'tileVertical', 'focusShape',
+                 'downloadBarColor', 'downloadBarBgColor']],
+      ['Position', ['rowX', 'rowOffsetY', 'focusX', 'focusY', 'rowGapBefore', 'rowGapAfter']],
+      ['Movement', ['rowSpeed', 'rowBounce', 'rowBounceStrength', 'rowWindow', 'rowWindowStart', 'rowWindowEnd']],
+      ['Edges', ['tileEdgeFade', 'tileEdgeFadeLeft', 'tileEdgeFadeRight', 'tileEdgeFadeMin', 'tileEdgeFadeFocused', 'tileEdgeFadeInset',
+                 'rowHideLeft', 'rowHideLeftMove', 'rowHideLeftEdge']],
+      ['Focus frame', ['hideFocus', 'focusThickness', 'focusGap', 'focusCorners', 'focusRainbow', 'focusLineColorOn', 'focusLineR',
+                       'focusLineG', 'focusLineB', 'focusLineAlpha', 'hideGlow', 'focusGlowColorOn', 'focusGlowR', 'focusGlowG',
+                       'focusGlowB', 'focusGlowAlpha', 'focusAnimated', 'focusShimmerSpeed', 'focusIntensity']],
+      ['Tile name', ['hideTileName', 'hidePS5Icon', 'tileNameColor', 'tileNameFontStyle', 'tileNameScale', 'tileNameX', 'tileNameY']],
+      ['Logo', ['logoOn', 'logoX', 'logoY', 'logoWidth', 'logoHeight', 'logoAlign', 'logoVAlign', 'logoOpacity', 'logoHidesTitle']],
+      ['Shadow and reflection', ['tileShadow', 'tileShadowX', 'tileShadowY', 'tileShadowColor', 'tileShadowOpacity', 'tileReflection',
+                                 'tileReflectionHeight', 'tileReflectionGap', 'tileReflectionWaves', 'tileReflectionWaveSpeed',
+                                 'tileReflectionFlip', 'tileReflectionSteps']],
+      ['Hide in the row', ['hideStore', 'hideGallery', 'hideAllApps']]
+    ],
+    /* Top bar (the top icons keep their own section: icon buttons) */
+    tabs: [
+      ['Tabs', ['hideTabs', 'tabsFontSize', 'tabsColor', 'tabsFontStyle', 'tabsInactiveOpacity', 'tabsSpacing', 'tabsSameWeight',
+                'tabsAlign', 'tabsWidth', 'tabsX', 'tabsY', 'tabsIconsOn', 'tabsIconSize', 'tabsGameIcon', 'tabsMediaIcon',
+                'tabsRecentIcon', 'tabsFavIcon', 'tabsNeverIcon']],
+      ['Extra tabs', ['tabRecentOn', 'tabRecentName', 'tabRecentMax', 'tabFavOn', 'tabFavName', 'tabFavFirst', 'favMenu',
+                      'tabNeverOn', 'tabNeverName']],
+      ['Selected tab', ['tabsPillOn', 'tabsPillColor', 'tabsPillOpacity', 'tabsPillCorners', 'tabsPillPadX', 'tabsPillPadY',
+                        'tabsPillBorderWidth', 'tabsPillBorderColor', 'tabsPillTextColor']],
+      ['Tab group', ['tabsGroup', 'tabsGroupLeft', 'tabsGroupRight', 'tabsGroupIconSize', 'tabsGroupIconGap', 'tabsGroupIconColor',
+                     'tabsGroupIconOpacity', 'tabsGroupBgOn', 'tabsGroupBg', 'tabsGroupBgOpacity', 'tabsGroupHeight',
+                     'tabsGroupPadding', 'tabsGroupCorners']]
+    ],
+    clock: [
+      ['Clock', ['ownClock', 'hideClock', 'clockFontSize', 'clockColor', 'clockFontStyle', 'clockGap', 'clockX', 'clockY',
+                 'ownClockX', 'ownClockY', 'ownClockWidth', 'ownClockAlign', 'ownClockFontSize', 'ownClockColor', 'ownClockFontStyle',
+                 'ownClock24h', 'ownClockSeconds', 'ownClockDate', 'ownClockDateFormat', 'ownClockLang', 'ownClockDateFontSize',
+                 'ownClockDateColor', 'ownClockDateGap']]
+    ],
+    /* Game page (3rd item = a class for the group: cols2 = two columns) */
+    'game hub': [
+      ['Title', ['titleMode', 'titleFontSize', 'titleColor', 'titleFontStyle', 'titleAlign', 'titleX', 'titleY',
+                 'fakeTitleX', 'fakeTitleY', 'nameCopyFontSize', 'nameCopyColor', 'nameCopyFontStyle', 'nameCopyAlign', 'nameCopyWidth',
+                 'nameCopyWrap', 'nameCopyScroll', 'nameCopyScrollSpeed', 'nameCopyBgOn', 'nameCopyBg', 'nameCopyBgOpacity',
+                 'nameCopyBgPadding', 'nameCopyBgPaddingV', 'nameCopyBgCorners']],
+      ['Buttons (Play, …)', ['hideButtons', 'hideMore', 'buttonsX', 'buttonsY', 'hideMediaButtons',
+                             'buttonBgColor', 'buttonTextColor', 'buttonBgFocusColor', 'buttonTextFocusColor']],
+      ['Hide sections', ['hideFriends', 'hideTrophies', 'hideActivities', 'hideNews', 'hideRecommendations', 'hideTournaments',
+                         'hideCommunity', 'hideHubStore', 'hideAbout', 'hideHints'], 'cols2 hideall'],
+      ['Library', ['hubOffset', 'hideRowInLibrary', 'libraryHideGames', 'libraryPeekDown']]
+    ],
+    /* Settings & Trophies page (no Own look: each part is off with its
+       own background at None) */
+    'system screens': [
+      ['Rows', ['sysRowOpacity', 'sysRowColor', 'sysRowCorners', 'sysRowBorderWidth', 'sysRowBorderColor', 'sysRowGap',
+                'sysNoSeparators', 'sysListX', 'sysListY']],
+      ['Side bar', ['sysSideOpacity', 'sysSideColor', 'sysSideCorners', 'sysSideCollapsedWidth']],
+      ['Trophies list', ['sysTrophyOpacity', 'sysTrophyColor', 'sysTrophyCorners', 'sysTrophyBorderWidth', 'sysTrophyBorderColor',
+                         'sysTrophyGap', 'sysTrophyNoLine']],
+      ['System colours', ['sysTitleColor', 'sysIconColor', 'sysTextDimColor', 'sysSideTextColor', 'sysSideTextDimColor',
+                          'sysSwitchOnColor', 'sysSwitchOffColor', 'sysSwitchThumbColor', 'sysSwitchCorners',
+                          'sysSwitchKnobCorners', 'sysOn', 'sysTrophies'], 'cols2']
+    ],
+    'options menu': [
+      ['Options menu', ['menuBgColor', 'menuBgOpacity', 'menuCorners', 'menuItemCorners', 'menuNoDim', 'menuOffline', 'folderMenu',
+                        'menuMove', 'menuX', 'menuY']]
+    ],
+    animations: [
+      ['Animations', ['#Tabs', 'animTabs', 'animTabsMs', 'animTabsSlide',
+                      '#Names', 'animNames', 'animNamesStyle', 'animNamesMs', 'animTitleGlow', 'animTitleGlowColor', 'animTitleGlowSec',
+                      'animFolders', 'animFolderClose', 'animToast', 'animFav', 'animInfo', 'animButtons', 'animationSpeed']]
+    ],
+    experimental: [
+      ['Animated tiles', ['tileAnimAll', 'tileAnimAllMax']],
+      ['Debug panel', ['debugOverlay', 'debugItems', 'debugRow', 'debugFontSize', 'debugColor', 'debugBgOpacity', 'debugX', 'debugY']],
+      ['For developers', ['screenDump']]
+    ],
+    /* Text & fonts */
+    shadows: [
+      ['Text shadow', ['textShadow', 'textShadowColor', 'textShadowOpacity', 'nameCopyShadow', 'userShadow', 'footerShadow']]
+    ],
+    /* Folders (the folder manager above keeps folders, foldersIcon,
+       foldersPosition, foldersColor, foldersAlpha) */
+    folders: [
+      ['Folder', ['foldersVertical', 'foldersHorizontal', 'foldersBg', 'folderTitleX', 'folderTitleY']],
+      ['Open folder', ['foldersStripMax', 'foldersStripSize', 'foldersStripGap', 'foldersStripX', 'foldersStripY',
+                       'foldersStripBgOn', 'foldersStripBg', 'foldersStripBgOpacity', 'foldersStripBgPadding',
+                       'folders', 'foldersIcon', 'foldersPosition', 'foldersColor', 'foldersAlpha']]
+    ],
+    /* Extras: trophies and play info drawn by ZhiThemes on the Home */
+    'fake trophies': [
+      ['Game info on the Home', ['fakeTrophies', 'fakeTrophiesScale', 'fakeTrophiesFontSize', 'fakeTrophiesColor', 'fakeTrophiesBg',
+                                 'fakeTrophiesBgOpacity', 'fakeTrophiesCorners', 'fakeTrophiesTotals', 'fakeTrophiesProgress',
+                                 'fakeTrophiesBarColor', 'fakeTrophiesX', 'fakeTrophiesY', 'playInfoOn', 'playInfoFontSize',
+                                 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners', 'playInfoNever',
+                                 'playInfoLast', 'playInfoX', 'playInfoY']]
+    ],
+    user: [
+      ['User name and avatar', ['user', 'userFontSize', 'userColor', 'userFontStyle', 'userAlign', 'userWidth', 'userX', 'userY',
+                                'userDot', 'userDotColor', 'avatarOn', 'avatar', 'avatarCrop']]
+    ]
+  };
+  /* a field shown in another section than its theme.js one (added at the
+     end of that section) */
+  var MOVE = {
+    animationSpeed: 'animations',
+    hubOffset: 'game hub', hideRowInLibrary: 'game hub', libraryPeekDown: 'game hub', libraryHideGames: 'game hub',
+    /* in each icon's window (Top icons) */
+    hideSearch: 'top icons', hideSettings: 'top icons', hideProfile: 'top icons'
+  };
+  /* is a field placed by LAYOUT (or MOVE)? then it is basic (DEPENDS hides
+     what does not apply); only ADV_ONLY needs Advanced */
+  function laidOut(k) {
+    if (MOVE[k]) return true;
+    /* footer, free boxes and icons: own order / buttons, all basic */
+    if (/^(footer|box[123]|deco[1-4])/.test(k)) return true;
+    return Object.keys(LAYOUT).some(function (s) { return LAYOUT[s].some(function (p) { return p[1].indexOf(k) >= 0; }); });
+  }
+  /* fields the editor no longer shows: set by another control (bgOverlayOn:
+     picking an overlay image; nameCopyScroll: the Long name list) or a test
+     value that stays as it is */
+  /* a switch that also sets other fields to the same value */
+  var SYNC = { animFolders: ['animFolderClose'], hideButtons: ['hideMediaButtons'] };
+  var EDITOR_HIDE = /^(bgOverlayOn|bgCleanTry|nameCopyScroll|fixDetails|rowFastRepeat|rowRepeatWindow|favorites|tabsSameWeight|iconsNav|topBarOpacity|fakeTrophiesFast|hideHubIds|hideByTitle|foldersOpenWithX|foldersStripAbove|foldersHideName|foldersNameSize|foldersNameX|foldersNameY|foldersTitle|folderTitleSize|folderTitleColor|foldersRingColor|foldersRingWidth|foldersStripBgCorners|sysOn|sysTrophies|sysBgOn|footerIcon1|footerIcon2|footerIcon3|footerIconFont|footerBgX|footerBgY|footerBgWidth|footerBgHeight|animFolderClose|menuNoDim|folderMenu|menuMove|animationSpeed|animFolders|animToast|animFav|animInfo|animButtons|customTilesOn|customBgOn|tileAnimOn|videoResourceTry|measureScreen|searchDetached|settingsDetached|profileDetached|searchDetachedX|settingsDetachedX|profileDetachedX|hideMediaButtons|buttonsX|buttonsY)$/;
+  /* a field that only matters while another one is on: hidden until then
+     (c = values().cur). Not applied while searching. */
+  var isVideoName = function (n) { return /\.(mp4|m4v)$/i.test(String(n || '')); };
+  var DEPENDS = {
+    wallpaper: function (c) { return c.wallpaperOn; },
+    wallpaperVideoFit: function (c) { return c.wallpaperOn && isVideoName(c.wallpaper); },
+    wallpaperVideoSound: function (c) { return c.wallpaperOn && isVideoName(c.wallpaper); },
+    wallpaperVideoVolume: function (c) { return c.wallpaperOn && isVideoName(c.wallpaper) && c.wallpaperVideoSound; },
+    bgDimColor: function (c) { return c.bgDim > 0; },
+    bgGradientHeight: function (c) { return c.bgGradient > 0; },
+    bgGradientCurve: function (c) { return c.bgGradient > 0; },
+    bgGradientSteps: function (c) { return c.bgGradient > 0; },
+    bgColor: function (c) { return c.bgGradient > 0 || c.bgDim > 0; },
+    bgVignetteSize: function (c) { return c.bgVignette > 0; },
+    bgEdgesHeight: function (c) { return c.bgEdges > 0; },
+    bgOverlayOpacity: function (c) { return c.bgOverlayOn && !!c.bgOverlay; },
+    particlesStyle: function (c) { return c.particlesOn; },
+    particlesCount: function (c) { return c.particlesOn; },
+    particlesSpeed: function (c) { return c.particlesOn; },
+    particlesOpacity: function (c) { return c.particlesOn; },
+    particlesSize: function (c) { return c.particlesOn && !c.particlesStyle; },
+    particlesColor: function (c) { return c.particlesOn && !c.particlesStyle; },
+    particlesImage: function (c) { return c.particlesOn && !c.particlesStyle; },
+    particlesScale: function (c) { return c.particlesOn && !!c.particlesStyle; },
+    particlesHue: function (c) { return c.particlesOn && !!c.particlesStyle; },
+    shellBgColor: function (c) { return c.shellBgOn; },
+    shellBgGlow: function (c) { return c.shellBgOn; },
+    shellBgGlowIntensity: function (c) { return c.shellBgOn; },
+    shellBgRainbow: function (c) { return c.shellBgOn; },
+    shellBgRainbowSpeed: function (c) { return c.shellBgOn && c.shellBgRainbow; },
+    /* Games row */
+    rowBounceStrength: function (c) { return c.rowBounce; },
+    rowWindowStart: function (c) { return c.rowWindow; },
+    rowWindowEnd: function (c) { return c.rowWindow; },
+    tileEdgeFadeLeft: function (c) { return c.tileEdgeFade; },
+    tileEdgeFadeRight: function (c) { return c.tileEdgeFade; },
+    tileEdgeFadeMin: function (c) { return c.tileEdgeFade; },
+    tileEdgeFadeFocused: function (c) { return c.tileEdgeFade; },
+    tileEdgeFadeInset: function (c) { return c.tileEdgeFade; },
+    rowHideLeftMove: function (c) { return c.rowHideLeft; },
+    rowHideLeftEdge: function (c) { return c.rowHideLeft; },
+    focusThickness: function (c) { return !c.hideFocus; },
+    focusGap: function (c) { return !c.hideFocus; },
+    focusCorners: function (c) { return !c.hideFocus; },
+    focusRainbow: function (c) { return !c.hideFocus; },
+    focusLineColorOn: function (c) { return !c.hideFocus && !c.focusRainbow; },
+    focusLineR: function (c) { return !c.hideFocus && !c.focusRainbow && c.focusLineColorOn; },
+    focusLineAlpha: function (c) { return !c.hideFocus && !c.focusRainbow && c.focusLineColorOn; },
+    hideGlow: function (c) { return !c.hideFocus; },
+    focusGlowColorOn: function (c) { return !c.hideFocus && !c.hideGlow; },
+    focusGlowR: function (c) { return !c.hideFocus && !c.hideGlow && c.focusGlowColorOn; },
+    focusGlowAlpha: function (c) { return !c.hideFocus && !c.hideGlow && c.focusGlowColorOn; },
+    focusAnimated: function (c) { return !c.hideFocus && (c.focusLineColorOn || c.focusGlowColorOn || c.focusRainbow); },
+    /* the name: the fields of the title kind picked (game = the PS5 name,
+       fake = drawn by the theme, none = no name) */
+    fakeTitleX: function (c) { return c.__fake; },
+    fakeTitleY: function (c) { return c.__fake; },
+    nameCopyFontSize: function (c) { return c.__fake; },
+    nameCopyColor: function (c) { return c.__fake; },
+    nameCopyFontStyle: function (c) { return c.__fake; },
+    nameCopyAlign: function (c) { return c.__fake; },
+    nameCopyWidth: function (c) { return c.__fake; },
+    nameCopyWrap: function (c) { return c.__fake; },
+    nameCopyScrollSpeed: function (c) { return c.__fake && c.nameCopyScroll && !c.nameCopyWrap; },
+    nameCopyBgOn: function (c) { return c.__fake; },
+    nameCopyBg: function (c) { return c.__fake && c.nameCopyBgOn; },
+    nameCopyBgOpacity: function (c) { return c.__fake && c.nameCopyBgOn; },
+    nameCopyBgPadding: function (c) { return c.__fake && c.nameCopyBgOn; },
+    nameCopyBgPaddingV: function (c) { return c.__fake && c.nameCopyBgOn; },
+    nameCopyBgCorners: function (c) { return c.__fake && c.nameCopyBgOn; },
+    logoX: function (c) { return c.logoOn; },
+    logoY: function (c) { return c.logoOn; },
+    logoWidth: function (c) { return c.logoOn; },
+    logoHeight: function (c) { return c.logoOn; },
+    logoAlign: function (c) { return c.logoOn; },
+    logoVAlign: function (c) { return c.logoOn; },
+    logoOpacity: function (c) { return c.logoOn; },
+    logoHidesTitle: function (c) { return c.logoOn && c.__fake; },
+    tileShadowX: function (c) { return c.tileShadow > 0; },
+    tileShadowY: function (c) { return c.tileShadow > 0; },
+    tileShadowColor: function (c) { return c.tileShadow > 0; },
+    tileShadowOpacity: function (c) { return c.tileShadow > 0; },
+    tileReflectionHeight: function (c) { return c.tileReflection > 0; },
+    tileReflectionGap: function (c) { return c.tileReflection > 0; },
+    tileReflectionWaves: function (c) { return c.tileReflection > 0; },
+    tileReflectionWaveSpeed: function (c) { return c.tileReflection > 0 && c.tileReflectionWaves > 0; },
+    tileReflectionFlip: function (c) { return c.tileReflection > 0; },
+    tileReflectionSteps: function (c) { return c.tileReflection > 0; }
+  };
+  /* several fields with the same condition */
+  function dependAll(keys, fn) { keys.forEach(function (k) { DEPENDS[k] = fn; }); }
+  /* Top bar: tabs (everything goes with Hide the tabs) */
+  var tabsShown = function (c) { return !c.hideTabs; };
+  dependAll(['tabsColor', 'tabsInactiveOpacity', 'tabsSpacing', 'tabsAlign', 'tabsX', 'tabsY', 'tabsIconsOn',
+             'tabRecentOn', 'tabFavOn', 'tabNeverOn', 'tabsPillOn', 'tabsPillTextColor', 'tabsGroup'], tabsShown);
+  dependAll(['tabsFontSize', 'tabsFontStyle', 'tabsSameWeight'], function (c) { return !c.hideTabs && !c.tabsIconsOn; });
+  dependAll(['tabsWidth'], function (c) { return !c.hideTabs && !!c.tabsAlign; });
+  dependAll(['tabsIconSize', 'tabsGameIcon', 'tabsMediaIcon'], function (c) { return !c.hideTabs && c.tabsIconsOn; });
+  DEPENDS.tabsRecentIcon = function (c) { return !c.hideTabs && c.tabsIconsOn && c.tabRecentOn; };
+  DEPENDS.tabsFavIcon = function (c) { return !c.hideTabs && c.tabsIconsOn && c.tabFavOn; };
+  DEPENDS.tabsNeverIcon = function (c) { return !c.hideTabs && c.tabsIconsOn && c.tabNeverOn; };
+  dependAll(['tabRecentName', 'tabRecentMax'], function (c) { return !c.hideTabs && c.tabRecentOn; });
+  dependAll(['tabFavName', 'tabFavFirst', 'favMenu'], function (c) { return !c.hideTabs && c.tabFavOn; });
+  dependAll(['tabNeverName'], function (c) { return !c.hideTabs && c.tabNeverOn; });
+  dependAll(['tabsPillColor', 'tabsPillOpacity', 'tabsPillCorners', 'tabsPillPadX', 'tabsPillPadY', 'tabsPillBorderWidth'],
+            function (c) { return !c.hideTabs && c.tabsPillOn; });
+  DEPENDS.tabsPillBorderColor = function (c) { return !c.hideTabs && c.tabsPillOn && c.tabsPillBorderWidth > 0; };
+  dependAll(['tabsGroupLeft', 'tabsGroupRight', 'tabsGroupIconSize', 'tabsGroupIconGap', 'tabsGroupIconColor', 'tabsGroupIconOpacity',
+             'tabsGroupBgOn'], function (c) { return !c.hideTabs && c.tabsGroup; });
+  dependAll(['tabsGroupBg', 'tabsGroupBgOpacity', 'tabsGroupHeight', 'tabsGroupPadding', 'tabsGroupCorners'],
+            function (c) { return !c.hideTabs && c.tabsGroup && c.tabsGroupBgOn; });
+  /* Settings & Trophies page: each part by its own background / line */
+  dependAll(['sysRowColor', 'sysRowCorners'], function (c) { return c.sysRowOpacity > 0; });
+  DEPENDS.sysRowBorderColor = function (c) { return c.sysRowBorderWidth > 0; };
+  dependAll(['sysSideColor', 'sysSideCorners', 'sysSideCollapsedWidth'], function (c) { return c.sysSideOpacity > 0; });
+  dependAll(['sysTrophyColor', 'sysTrophyCorners'], function (c) { return c.sysTrophyOpacity > 0; });
+  DEPENDS.sysTrophyBorderColor = function (c) { return c.sysTrophyBorderWidth > 0; };
+  DEPENDS.sysBg = function (c) { return c.sysBgOn && !c.sysBgWallpaper; };
+  DEPENDS.sysBgVideoSound = function (c) {
+    return c.sysBgWallpaper ? c.wallpaperOn && isVideoName(c.wallpaper) : c.sysBgOn && isVideoName(c.sysBg);
+  };
+  /* Experimental */
+  DEPENDS.tileAnimAllMax = function (c) { return c.tileAnimAll; };
+  dependAll(['debugItems', 'debugRow', 'debugFontSize', 'debugColor', 'debugBgOpacity', 'debugX', 'debugY'],
+            function (c) { return c.debugOverlay; });
+  /* Misc: footer, animations */
+  dependAll(['footerText1', 'footerText2', 'footerText3', 'footerFontSize', 'footerColor', 'footerOpacity', 'footerFontStyle',
+             'footerIconSize', 'footerIconColor', 'footerSpacing', 'footerAlign', 'footerX', 'footerY', 'footerBgOn'],
+            function (c) { return c.footer; });
+  DEPENDS.footerWidth = function (c) { return c.footer && !!c.footerAlign && c.footerAlign !== 'left'; };
+  dependAll(['footerBg', 'footerBgOpacity', 'footerBgPadding', 'footerBgCorners'], function (c) { return c.footer && c.footerBgOn; });
+  dependAll(['animTabsMs', 'animTabsSlide'], function (c) { return c.animTabs; });
+  dependAll(['animNamesStyle', 'animNamesMs'], function (c) { return c.animNames; });
+  dependAll(['animTitleGlowColor', 'animTitleGlowSec'], function (c) { return c.animTitleGlow; });
+  /* Text & fonts */
+  dependAll(['textShadowColor', 'textShadowOpacity'], function (c) { return c.textShadow > 0; });
+  /* Folders: the folder look for the tile shape in use */
+  DEPENDS.foldersVertical = function (c) { return c.tileVertical === true; };
+  DEPENDS.foldersHorizontal = function (c) { return c.focusShape === 'steam'; };
+  dependAll(['foldersStripBg', 'foldersStripBgOpacity', 'foldersStripBgPadding', 'foldersStripBgCorners'],
+            function (c) { return c.foldersStripBgOn; });
+  /* Game page: the title is hidden by Games row › Name › None */
+  /* the PS5's game title or the fake one (never both): the fields of the one in use */
+  dependAll(['titleFontSize', 'titleColor', 'titleFontStyle', 'titleAlign', 'titleX', 'titleY'],
+            function (c) { return c.__mode === 'game'; });
+  /* the Play game button hidden hides "…" too */
+  dependAll(['hideMore'], function (c) { return !c.hideButtons; });
+  dependAll(['fakeTrophiesScale', 'fakeTrophiesFontSize', 'fakeTrophiesColor', 'fakeTrophiesBg', 'fakeTrophiesBgOpacity',
+             'fakeTrophiesCorners', 'fakeTrophiesTotals', 'fakeTrophiesProgress', 'fakeTrophiesX', 'fakeTrophiesY'],
+            function (c) { return c.fakeTrophies; });
+  DEPENDS.fakeTrophiesBarColor = function (c) { return c.fakeTrophies && c.fakeTrophiesProgress; };
+  dependAll(['playInfoFontSize', 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners', 'playInfoNever',
+             'playInfoLast', 'playInfoX', 'playInfoY'], function (c) { return c.playInfoOn; });
+  /* clock: the PS5 one, or the theme's own one */
+  DEPENDS.hideClock = function (c) { return !c.ownClock; };
+  dependAll(['clockFontSize', 'clockColor', 'clockFontStyle', 'clockGap', 'clockX', 'clockY'],
+            function (c) { return !c.ownClock && !c.hideClock; });
+  dependAll(['ownClockX', 'ownClockY', 'ownClockWidth', 'ownClockAlign', 'ownClockFontSize', 'ownClockColor', 'ownClockFontStyle',
+             'ownClock24h', 'ownClockSeconds', 'ownClockDate'], function (c) { return c.ownClock; });
+  dependAll(['ownClockDateFormat', 'ownClockLang', 'ownClockDateFontSize', 'ownClockDateColor', 'ownClockDateGap'],
+            function (c) { return c.ownClock && c.ownClockDate; });
+  /* user name, avatar, top bar background */
+  dependAll(['userFontSize', 'userColor', 'userFontStyle', 'userAlign', 'userWidth', 'userX', 'userY', 'userDot'],
+            function (c) { return c.user; });
+  DEPENDS.userDotColor = function (c) { return c.user && c.userDot; };
+  DEPENDS.avatar = function (c) { return c.avatarOn; };
+  dependAll(['topBarBg', 'topBarBgOpacity', 'topBarBgX', 'topBarBgY', 'topBarBgWidth', 'topBarBgHeight', 'topBarBgCorners'],
+            function (c) { return c.topBarBgOn; });
+  /* a field that shows but cannot be used while another one is on: greyed
+     out with the reason (also while searching) */
+  /* the reason shows once (on the first field); ' ' = greyed, no text */
+  var plainWins = function (c) { return c.bgClean ? 'Cannot be on with Plain PS5 background (that one wins): turn it off to use the wallpaper' : ''; };
+  var plainWinsQuiet = function (c) { return c.bgClean ? ' ' : ''; };
+  var DISABLED = {
+    wallpaperOn: plainWins, wallpaper: plainWinsQuiet, wallpaperVideoFit: plainWinsQuiet,
+    wallpaperVideoSound: plainWinsQuiet, wallpaperVideoVolume: plainWinsQuiet
+  };
+  function applyDepends() {
+    var c = values().cur;
+    document.querySelectorAll('.card[data-key]').forEach(function (el) {
+      var x = DISABLED[el.dataset.key], why = x ? x(c) : '';
+      if (!x) return;
+      el.classList.toggle('dep-dis', !!why);
+      var w = el.querySelector('.depwarn');
+      var txt = String(why).trim();
+      if (txt && !w) { w = document.createElement('div'); w.className = 'depwarn'; el.appendChild(w); }
+      if (w) { w.textContent = txt ? '⚠ ' + txt : ''; w.style.display = txt ? '' : 'none'; }
+    });
+    /* corners: the slider ends where the shape is a circle (follows the size) */
+    Object.keys(DYNMAX).forEach(function (k) {
+      document.querySelectorAll('.card[data-key="' + k + '"]').forEach(function (el) {
+        var mx = Math.max(1, DYNMAX[k](c));
+        el.querySelectorAll('input[type=range], input[type=number]').forEach(function (i) { i.max = mx; });
+      });
+    });
+    if (query) { document.querySelectorAll('.card.dep-off').forEach(function (el) { el.classList.remove('dep-off'); }); return; }
+    document.querySelectorAll('.card[data-key]').forEach(function (el) {
+      var d = DEPENDS[el.dataset.key];
+      if (d) el.classList.toggle('dep-off', !d(c));
+    });
+    /* a group with all its fields hidden goes too (its title as well) */
+    document.querySelectorAll('#view section.section').forEach(function (s) {
+      var all = s.querySelectorAll('.card'), off = s.querySelectorAll('.card.dep-off');
+      s.style.display = all.length && all.length === off.length && !s.querySelector('.iconstrip') ? 'none' : '';
+    });
+  }
+  var depTimer = 0;
+  ['input', 'change'].forEach(function (ev) {
+    document.addEventListener(ev, function () {
+      clearTimeout(depTimer);
+      depTimer = setTimeout(applyDepends, 0);
+    });
+  });
   function tabGroups() {
     var out = [];
-    groups(source).forEach(function (g) {
+    /* a field listed in another section's LAYOUT moves there (e.g. the
+       system background colours sit under Wallpaper) */
+    var claim = {}, gs = groups(source);
+    Object.keys(LAYOUT).forEach(function (s) { LAYOUT[s].forEach(function (p) { p[1].forEach(function (k) { claim[k] = s; }); }); });
+    Object.keys(MOVE).forEach(function (k) { claim[k] = MOVE[k]; });
+    var moved = {};
+    gs = gs.map(function (g) {
+      return { name: g.name, fields: g.fields.filter(function (f) {
+        var to = claim[f.key];
+        if (!to || to === g.name) return true;
+        (moved[to] = moved[to] || []).push(f);
+        return false;
+      }) };
+    });
+    gs.forEach(function (g) { if (moved[g.name]) g.fields = g.fields.concat(moved[g.name]); });
+    gs.forEach(function (g) {
       /* the old detached icons (*Detached*): icons move anywhere with X/Y now */
-      g = { name: g.name, fields: g.fields.filter(function (f) { return f.key !== 'themeName' && !/Detached/.test(f.key) && !OLD_TITLE_KEYS.test(f.key) && !retiredNow(f) && (ADV || !isAdvanced(f.key)); }) };
+      g = { name: g.name, fields: g.fields.filter(function (f) { return f.key !== 'themeName' && !/Detached/.test(f.key) && !OLD_TITLE_KEYS.test(f.key) && !EDITOR_HIDE.test(f.key) && !retiredNow(f) && (ADV || !isAdvanced(f.key)); }) };
+      if (LAYOUT[g.name]) {
+        var lay = LAYOUT[g.name], parts = lay.map(function (p) { return { name: p[0], from: g.name, cls: p[2] || '', fields: [] }; });
+        var pos = {};
+        lay.forEach(function (p, i) { p[1].forEach(function (k, j) { pos[k] = [i, j]; }); });
+        g.fields.forEach(function (f) { parts[pos[f.key] ? pos[f.key][0] : parts.length - 1].fields.push(f); });
+        parts.forEach(function (p, i) {
+          p.fields.sort(function (a, b) { return (pos[a.key] ? pos[a.key][1] : 999) - (pos[b.key] ? pos[b.key][1] : 999); });
+          if (!p.fields.length) return;
+          /* headings ('#Title') go before the first field that follows them */
+          var heads = [], withHeads = [];
+          lay[i][1].forEach(function (k) { if (k.charAt(0) === '#') heads.push(k.slice(1)); else heads.push({ key: k }); });
+          var pending = null;
+          heads.forEach(function (h) {
+            if (typeof h === 'string') { pending = h; return; }
+            var f = p.fields.filter(function (x) { return x.key === h.key; })[0];
+            if (!f) return;
+            if (pending) { withHeads.push({ key: '#' + pending, head: pending, value: '', hint: '' }); pending = null; }
+            withHeads.push(f);
+          });
+          p.fields.forEach(function (f) { if (withHeads.indexOf(f) < 0) withHeads.push(f); });
+          p.fields = withHeads;
+          out.push(p);
+        });
+        return;
+      }
       if (g.name === 'hide') {
         /* each hide field goes to the tab of what it hides */
         var hp = { 'hide row': [], 'hide top': [], 'hide hub': [] };
@@ -6730,7 +7660,14 @@
       if (g.name !== 'bars') { out.push(g); return; }
       var parts = { 'top bar background': [], footer: [], boxes: [], bars: [] };
       g.fields.forEach(function (f) {
-        parts[/^topBarBg/.test(f.key) ? 'top bar background' : /^footer/.test(f.key) ? 'footer' : /^box\d/.test(f.key) ? 'boxes' : 'bars'].push(f);
+        parts[/^topBar(Bg|Opacity)/.test(f.key) ? 'top bar background' : /^footer/.test(f.key) ? 'footer' : /^box\d/.test(f.key) ? 'boxes' : 'bars'].push(f);
+      });
+      var FOOT = ['footer', 'footerText1', 'footerText2', 'footerText3', 'footerFontSize', 'footerColor', 'footerOpacity',
+                  'footerFontStyle', 'footerIconSize', 'footerIconColor', 'footerSpacing', 'footerAlign', 'footerWidth', 'footerX',
+                  'footerY', 'footerBgOn', 'footerBg', 'footerBgOpacity', 'footerBgPadding', 'footerBgCorners'];
+      parts.footer.sort(function (a, b) {
+        var ia = FOOT.indexOf(a.key), ib = FOOT.indexOf(b.key);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
       });
       Object.keys(parts).forEach(function (n) { if (parts[n].length) out.push({ name: n, fields: parts[n] }); });
     });
@@ -6771,16 +7708,18 @@
     showThemeTitle();
     var all = tabGroups(), used = {};
     var list = TABS.map(function (t) {
-      var gs = (t.sections || []).map(function (n) {
+      /* a section split by LAYOUT brings all its groups (g.from) */
+      var gs = [];
+      (t.sections || []).forEach(function (n) {
         used[n] = true;
-        return all.filter(function (g) { return g.name === n; })[0];
-      }).filter(Boolean);
+        all.forEach(function (g) { if (g.name === n || g.from === n) gs.push(g); });
+      });
       return { id: t.id, label: t.label, desc: t.desc || '', groups: gs, plain: !t.sections, hidden: t.hidden, tool: t.tool, tools: t.tools, soon: t.soon };
     });
     /* a tab that is not ready: not opened, its fields not in the search */
     list.forEach(function (t) { if (t.soon) t.groups.forEach(function (g) { all = all.filter(function (x) { return x !== g; }); }); });
     if (list.some(function (t) { return t.soon && t.id === current; })) current = '';
-    var rest = all.filter(function (g) { return !used[g.name]; });
+    var rest = all.filter(function (g) { return g.fields.length && !used[g.name] && !used[g.from]; });
     if (rest.length) list.splice(list.length - 4, 0, { id: 'more', label: 'More', desc: 'Other fields', groups: rest });
     list = list.filter(function (t) { return !t.hidden && (t.plain || t.id === 'log' || t.groups.length); });
     if (current === 'tools') current = toolLast;
@@ -6802,6 +7741,9 @@
     top.appendChild(search);
     if (adv) top.appendChild(adv);
     tabsEl.appendChild(top);
+    var tabList = document.createElement('div');
+    tabList.className = 'tablist';
+    tabsEl.appendChild(tabList);
     list.forEach(function (t) {
       if (t.tool) return;
       var b = document.createElement('button');
@@ -6822,12 +7764,15 @@
         b.disabled = true; b.style.opacity = '0.4'; b.style.cursor = 'default';
         b.title = t.label + ': coming soon';
         var cnt = b.querySelector('.count'); if (cnt) cnt.remove();
-        tabsEl.appendChild(b);
+        tabList.appendChild(b);
         return;
       }
       b.onclick = function () { current = t.tools ? toolLast : t.id; query = ''; renderTabs(); };
-      tabsEl.appendChild(b);
+      tabList.appendChild(b);
     });
+    /* phone strip: the tab in use stays in sight */
+    var onTab = tabList.querySelector('button.tab.on');
+    if (onTab && tabList.scrollWidth > tabList.clientWidth) tabList.scrollLeft = Math.max(0, onTab.offsetLeft - 40);
     foldCount();
     if (query) { view.classList.remove('wide'); tabHead(null); showSections(all, query); return; }
     var tab = list.filter(function (t) { return t.id === current; })[0];
@@ -6900,10 +7845,42 @@
     ['nameCopy', 'hideOriginalName', 'homeTitle', 'hideTitle'].forEach(function (k) { setField(k, 'false'); });
     return true;
   }
+  /* a theme with the old Own look (sysOn) or Trophies too (sysTrophies)
+     off: its Settings / Trophies values become neutral and the switch
+     on (theme.js does the same for themes not opened here) */
+  /* options taken out of the editor with a fixed value (theme.js sets the
+     same at start): the page holds them like that too */
+  var FIXED = { foldersOpenWithX: 'true', foldersStripAbove: 'false', foldersHideName: 'true', foldersTitle: 'true',
+    menuNoDim: 'false', folderMenu: 'true', menuMove: 'true', animationSpeed: '1', animFolders: 'true', animFolderClose: 'true',
+    animToast: 'true', animFav: 'true', animInfo: 'true', animButtons: 'true', customTilesOn: 'true', customBgOn: 'true',
+    tileAnimOn: 'true', videoResourceTry: "''", buttonsX: '0', buttonsY: '0' };
+  function migrateSys() {
+    var c = values().cur, moved = false;
+    var put = function (k, v) { if (k in c) setField(k, v); };
+    var fields = values().fields;
+    Object.keys(FIXED).forEach(function (k) { if (fields[k] && fields[k].value !== FIXED[k]) { setField(k, FIXED[k]); moved = true; } });
+    if (c.sysOn === false) {
+      ['sysRowOpacity', 'sysRowBorderWidth', 'sysRowGap', 'sysListX', 'sysListY', 'sysSideOpacity'].forEach(function (k) { put(k, '0'); });
+      ['sysNoSeparators', 'sysBgOn', 'sysBgWallpaper'].forEach(function (k) { put(k, 'false'); });
+      put('sysOn', 'true');
+      if (c.sysTrophies !== false) put('sysTrophies', 'false');
+      moved = true;
+    }
+    c = values().cur;
+    if (c.sysTrophies === false) {
+      ['sysTrophyOpacity', 'sysTrophyBorderWidth', 'sysTrophyGap'].forEach(function (k) { put(k, '0'); });
+      put('sysTrophyNoLine', 'false');
+      put('sysTrophies', 'true');
+      moved = true;
+    }
+    return moved;
+  }
   function load() {
     status('loading…');
     return request('GET', '/theme.js').then(function (t) {
-      source = t; loaded = t; atLoad = t;
+      source = t; loaded = t;
+      migrateSys();
+      atLoad = source;
       renderTabs();
       status('loaded', 'ok');
       if (!foldGames) fetchGames().catch(function () {});
@@ -7018,6 +7995,20 @@
 
   document.getElementById('btnApply').onclick = apply;
   document.getElementById('btnFactory').onclick = resetFactory;
+  /* phone: Install / Download / Reset all in the ⋯ menu (they press the same buttons) */
+  (function () {
+    var more = document.getElementById('moreMenu');
+    document.getElementById('btnMore').onclick = function (e) { e.stopPropagation(); more.classList.toggle('open'); };
+    document.addEventListener('click', function (e) { if (!more.contains(e.target)) more.classList.remove('open'); });
+    more.querySelectorAll('button').forEach(function (b) {
+      b.onclick = function () {
+        more.classList.remove('open');
+        if (b.dataset.do === 'install') document.getElementById('file').click();
+        else if (b.dataset.do === 'download') document.getElementById('btnDownload').click();
+        else document.getElementById('btnFactory').click();
+      };
+    });
+  })();
   /* The ZhiThemes logo (THEME/logo.png, 160 px WebP), kept once here: the page
      is one file served by the PS5, so the header, the browser tab icon and
      the About tab all take it from this string. */

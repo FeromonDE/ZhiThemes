@@ -33,6 +33,8 @@ state = {'theme': THEME, 'log': ['js: hooks RunScript=1 ConsoleLog=1 name_field=
          'files': {'wallpapers': {}, 'icons': {}, 'fonts': {}, 'avatars': {}}, 'debug': False, 'sys': False,
          'saved': {}}
 CUSTOM = os.environ.get('ZT_CUSTOMTILE', '')
+# ZT_SYSICONS=<folder>: system icons as <name>.svg / .png (GET /sysicon)
+SYSICONS = os.environ.get('ZT_SYSICONS', '')
 # game backgrounds next to it (<customtile>_bg)
 CUSTOMBG = CUSTOM + '_bg' if CUSTOM else ''
 if CUSTOMBG and not os.path.isdir(CUSTOMBG):
@@ -349,6 +351,15 @@ class H(http.server.BaseHTTPRequestHandler):
         q = dict(urllib.parse.parse_qsl(u.query))
         if u.path == '/reloads':
             return self._send(200, str(state.get('reloads', 1)), 'text/plain')
+        if u.path == '/sysicon':  # the PS5 reads it from its own RCO; here a folder of <name>.svg/.png
+            n = q.get('name', '')
+            if SYSICONS and re.match(r'^[A-Za-z0-9_-]+$', n):
+                for ext, typ in (('.svg', 'image/svg+xml'), ('.png', 'image/png')):
+                    fp = os.path.join(SYSICONS, n + ext)
+                    if os.path.isfile(fp):
+                        with open(fp, 'rb') as fh:
+                            return self._bytes(fh.read(), typ)
+            return self._send(404, 'no such icon')
         if u.path == '/injectdelay':
             return self._send(200, '{"seconds":%d}' % state.get('inject', 15), 'application/json')
         if u.path == '/themes':

@@ -411,7 +411,7 @@
     avatar: '',                 /* that picture, made with the editor's avatar maker or any file of Assets/avatars; a big GIF is fitted on the PS5 (256 px, 120 frames) and shown still meanwhile ('') */
     avatarCrop: '',             /* the square of a GIF chosen in the avatar maker, 'x,y,side' in its pixels; the PS5 cuts it out ('' = the middle) ('') */
     /* --- logs --- */
-    measureScreen: true,        /* the console tells the editor where each element is, for the Visual tab (true) */
+    measureScreen: false,       /* the console tells the editor where each element is (set by debug mode, not the theme) (false) */
     /* --- bars --- */
     topBarOpacity: 1,           /* opacity of the tabs, icons and clock (1) */
     topBarBgOn: false,          /* show a background behind the top bar (false) */
@@ -449,6 +449,7 @@
     footerBgWidth: 600,         /* footer background: width (600) */
     footerBgHeight: 80,         /* footer background: height (80) */
     footerBgCorners: 40,        /* footer background: corner radius (40) */
+    footerBgPadding: 16,        /* footer background: space around the hints, px (it follows the footer) (16) */
     /* free background boxes (behind descriptions, names...) */
     box1On: false,              /* box 1 (false) */
     box1: '#000000',            /* box 1: colour ('#000000') */
@@ -507,22 +508,22 @@
     deco4Opacity: 1,          /* icon 4: opacity, 0-1 (1) */
     /* --- system screens --- */
     /* Settings and Trophies (their own apps): rows as rounded "pills" over your own background */
-    sysOn: false,               /* turn on the look below in Settings and Trophies (false) */
+    sysOn: true,                /* old switch for the look below (the editor no longer has it: each part has its own off) (true) */
     sysTrophies: true,          /* also in the Trophies list, with its own fields below (true) */
     sysTrophyColor: '#ffffff',  /* Trophies list: background colour of each game row ('#ffffff') */
-    sysTrophyOpacity: 0.08,     /* opacity of that background, 0-1; 0 = none (0.08) */
+    sysTrophyOpacity: 0,        /* opacity of that background, 0-1; 0 = none (0) */
     sysTrophyCorners: 16,       /* corner radius of the game rows (16) */
-    sysTrophyGap: 8,            /* space between the game rows, px (the row gets shorter) (8) */
+    sysTrophyGap: 0,            /* space between the game rows, px (the row gets shorter) (0) */
     sysTrophyBorderColor: '#ffffff', /* colour of a thin line around each game row ('#ffffff') */
     sysTrophyBorderWidth: 0,    /* thickness of that line; 0 = none (0) */
-    sysTrophyNoLine: true,      /* remove the lines between the games (the list separators) (true) */
+    sysTrophyNoLine: false,     /* remove the lines between the games (the list separators) (false) */
     sysRowColor: '#ffffff',     /* background colour of each row ('#ffffff') */
-    sysRowOpacity: 0.08,        /* opacity of that background, 0-1; 0 = no background (0.08) */
+    sysRowOpacity: 0,           /* opacity of that background, 0-1; 0 = no background (0) */
     sysRowCorners: 24,          /* corner radius of the rows (24) */
     sysRowGap: 0,               /* space between the Settings rows, px (0) */
     sysRowBorderColor: '#ffffff', /* colour of a thin line around each row ('#ffffff') */
     sysRowBorderWidth: 0,       /* thickness of that line; 0 = none (0) */
-    sysNoSeparators: true,      /* remove the lines between the rows (true) */
+    sysNoSeparators: false,     /* remove the lines between the rows (false) */
     sysListX: 0,                /* move the Settings list, + = right (0) */
     sysListY: 0,                /* move the Settings list, + = down (0) */
     sysSideColor: '#ffffff',    /* side bar of the Settings pages (Accessibility...): background colour ('#ffffff') */
@@ -640,6 +641,44 @@
   /* favourites are console wide (ZhiThemes keeps them in favorites.txt, not
      in the theme): the same list whatever theme is in use */
   if (typeof globalThis.__ztFavorites === 'string') THEME.favorites = globalThis.__ztFavorites;
+  /* Settings / Trophies without the old Own look switch: a theme that had
+     it off shows nothing of its own there (as before) */
+  if (THEME.sysOn === false) {
+    THEME.sysRowOpacity = 0; THEME.sysRowBorderWidth = 0; THEME.sysRowGap = 0; THEME.sysNoSeparators = false;
+    THEME.sysListX = 0; THEME.sysListY = 0; THEME.sysSideOpacity = 0; THEME.sysBgOn = false; THEME.sysBgWallpaper = false;
+    THEME.sysTrophies = false;
+  }
+  if (THEME.sysTrophies === false) {
+    THEME.sysTrophyOpacity = 0; THEME.sysTrophyBorderWidth = 0; THEME.sysTrophyGap = 0; THEME.sysTrophyNoLine = false;
+  }
+  THEME.sysOn = true;
+  THEME.sysTrophies = true;
+  /* folder options the editor no longer has: always their default (an
+     older theme may still carry another value) */
+  THEME.foldersOpenWithX = true;
+  THEME.foldersStripAbove = false;
+  THEME.foldersHideName = true;
+  THEME.foldersTitle = true;
+  /* Options menu options the editor no longer has: the screen stays dark
+     behind it, folder items on, the tile menu at its own place (menuX/Y,
+     0 = where the focused tile is) */
+  THEME.menuNoDim = false;
+  THEME.folderMenu = true;
+  THEME.menuMove = true;
+  /* the game page buttons: no own place (moving them broke the hub), one
+     switch for the game and the Media buttons */
+  THEME.buttonsX = 0; THEME.buttonsY = 0;
+  THEME.hideMediaButtons = !!THEME.hideButtons;
+  /* the Home animations at their normal speed (no longer in the editor) */
+  THEME.animationSpeed = 1;
+  /* folder, message, play info and button animations: always on */
+  THEME.animFolders = true; THEME.animFolderClose = true; THEME.animToast = true;
+  THEME.animFav = true; THEME.animInfo = true; THEME.animButtons = true;
+  /* own pictures (custom tile, background, animated): used when a game has
+     them, else its stock picture; the Options menu switches back */
+  THEME.customTilesOn = true; THEME.customBgOn = true; THEME.tileAnimOn = true;
+  /* video decoder: Auto (FullHD first) */
+  THEME.videoResourceTry = '';
   /* "home", "hub" or "library": ZhiThemes sets it before running this file */
   var APP = globalThis.__themeApp || '?';
   /* debug mode (editor's Logs tab, kept by ZhiThemes in debug.on, not in
@@ -655,6 +694,9 @@
     THEME.debugOverlay = true;
     THEME.screenDump = true;
   }
+  /* where each element is, for the editor's Screen tab: only with debug
+     mode on (the diagnostic build always) */
+  if (!globalThis.__ztDiag) THEME.measureScreen = DEBUG.on;
   /* Settings and Trophies: only the "system screens" fields */
   var SYS_APP = APP === 'settings' || APP === 'trophy';
 
@@ -3597,7 +3639,9 @@
   /* every section of the game hub hidden: nothing there takes the focus, and
      going down only showed an empty page; the PS5 itself blocked the
      down key from the row in that case */
-  var HUB_PARTS = ['hideButtons', 'hideTrophies', 'hideFriends', 'hideActivities', 'hideNews',
+  /* (the Play / "…" buttons do not count: with only them the hub page was
+     still empty below, a blank screen) */
+  var HUB_PARTS = ['hideTrophies', 'hideFriends', 'hideActivities', 'hideNews',
                    'hideRecommendations', 'hideTournaments', 'hideCommunity', 'hideHubStore', 'hideAbout'];
   function hubEmpty() {
     for (var i = 0; i < HUB_PARTS.length; i++) if (!THEME[HUB_PARTS[i]]) return false;
@@ -6419,7 +6463,10 @@
     if (id) { folderEntry(id); folderAwayWatch(); }
     T.folderOpen = id || '';
     T.stripIdx = 0;
-    pulseButton('x');
+    /* X opened it (the hint pulses); the Options menu renders again right
+       after an open or a close: no Options pulse for that (optionsMenu) */
+    T.folderActAt = Date.now();
+    if (id) pulseButton('x');
     log(id ? 'folder open ' + id : 'folder closed');
     if (id) refreshTitles(200, 'folder open');
     if (id) {
@@ -6565,10 +6612,10 @@
     var on = props.index === (props.sel != null ? props.sel : T.stripIdx);
     var uri = folderGameUri(g);
     var ready = function () { if (props.onReady) props.onReady(g.id); };
-    var corners = Math.round(size * (THEME.tileCorners || 16) / (THEME.tileSize || 106));
-    var ring = THEME.foldersRingColor || (THEME.focusLineColorOn
-      ? 'rgb(' + THEME.focusLineR + ',' + THEME.focusLineG + ',' + THEME.focusLineB + ')' : '#ffffff');
-    var w = THEME.foldersRingWidth >= 0 ? THEME.foldersRingWidth : 4;
+    var corners = folderGameCorners(size);
+    var ring = THEME.focusLineColorOn
+      ? 'rgb(' + THEME.focusLineR + ',' + THEME.focusLineG + ',' + THEME.focusLineB + ')' : '#ffffff';
+    var w = folderRingWidth(size);
     return React.createElement(rn.View, {
       ref: function (r) { T.stripRefs[props.index] = r; }, collapsable: false,
       style: { width: size + 2 * w, height: sizeH + 2 * w, borderRadius: corners + w, padding: w,
@@ -6585,6 +6632,16 @@
           ? React.createElement(AnimTileVideo, { key: animFileFor(uri), file: animFileFor(uri), w: size, h: sizeH, k: 2,
                                                  radius: corners, focused: on })
           : null));
+  }
+  /* an open folder's games look like the row: corners in the same
+     proportion as the tiles, the highlight frame as thick as the focus
+     frame (scaled to the game; 4 px with the stock frame) */
+  function folderGameCorners(size) {
+    return Math.round(size * (THEME.tileCorners || 16) / (THEME.tileSize || 106));
+  }
+  function folderRingWidth(size) {
+    var t = +THEME.focusThickness || 0;
+    return t > 0 ? Math.max(1, Math.round(t * size / (THEME.focusSize || 168))) : 4;
   }
   /* the picture of a game in an open folder: its own tile picture, else its icon */
   function folderGameUri(g) {
@@ -6691,7 +6748,7 @@
     if (gate && gate.readyAt && anim) fresh = Date.now() - gate.readyAt < 300;
     var items = shown.map(function (g, j) {
       var i = first + j;
-      var itemStyle = { marginRight: gap - 2 * (THEME.foldersRingWidth >= 0 ? THEME.foldersRingWidth : 4) };
+      var itemStyle = { marginRight: gap - 2 * folderRingWidth(size) };
       var game = React.createElement(FolderGame, { game: g, index: i, sel: idx, onReady: onReady });
       if (anim)
         return React.createElement(ZtEnter, { key: 'zt-fg-' + g.id, k: animKey, style: itemStyle,
@@ -6712,7 +6769,7 @@
       var w = shown.length * (size + gap) - gap;
       var bgColor = THEME.foldersStripBg || folder.color || THEME.foldersColor || '#24345a';
       var backBox = { position: 'absolute', left: x - pad, top: y - pad, width: w + 2 * pad, height: sizeH + 2 * pad };
-      var backLook = { borderRadius: THEME.foldersStripBgCorners >= 0 ? THEME.foldersStripBgCorners : 24,
+      var backLook = { borderRadius: folderGameCorners(size) + pad,
         backgroundColor: bgColor,
         opacity: THEME.foldersStripBgOpacity >= 0 ? THEME.foldersStripBgOpacity : 0.6 };
       var back = anim
@@ -6782,7 +6839,10 @@
     /* the Power button's own menu stays where it is */
     if (props.__ztPower) return;
     if (!T.done['options menu']) done('options menu (' + Object.keys(props).join(', ') + ')');
-    if (THEME.animButtons && Date.now() - (T.menuPulseAt || 0) > 1500) { T.menuPulseAt = Date.now(); pulseButton('options'); }
+    if (THEME.animButtons && Date.now() - (T.menuPulseAt || 0) > 1500 && Date.now() - (T.folderActAt || 0) > 1500) {
+      T.menuPulseAt = Date.now();
+      pulseButton('options');
+    }
     if (THEME.menuMove) {
       var h = nodeOf(T.menuAnchor && T.menuAnchor.current);
       if (h != null) {
@@ -6966,7 +7026,7 @@
     /* no theme features (diagnostic build with no theme): menu left stock */
     if (PLAIN) return;
     /* the custom tile items too (as the Home's menu) */
-    var tileItems = id && !/^NPXS/.test(id) ? customMenuItems(id) : [];
+    var tileItems = id && !/^NPXS/.test(id) ? customMenuItems(id).concat(bgMenuItems(id)) : [];
     if ((THEME.folderMenu === false && !tileItems.length) || !id || /^NPXS/.test(id) || T.libMenus.has(items)) return;
     var first = null;
     /* (labels are often translated text objects, not strings) */
@@ -7006,6 +7066,7 @@
         log('library menu: ' + e.url);
         try {
           if (e.url.indexOf('zttile:') === 0) customAction(e.url);
+          else if (e.url.indexOf('ztbg:') === 0) bgAction(e.url);
           else folderAction(e.url);
         } catch (err) { log('library menu error: ' + err); }
       } }, 'zt-lib-' + k);
@@ -7947,7 +8008,8 @@
       log('options menu: folder ' + titleId + ' (' + mine.length + ' items)');
       return Promise.resolve(own(mine));
     }
-    var extra = PLAIN ? [] : (folderOn ? gameMenuItems(titleId) : []).concat(customMenuItems(titleId), favMenuItems(titleId));
+    var extra = PLAIN ? [] : (folderOn ? gameMenuItems(titleId) : []).concat(customMenuItems(titleId), bgMenuItems(titleId),
+                                                                             favMenuItems(titleId));
     var hide = PLAIN ? { any: false, ids: {} } : menuHidden();
     var native = getNative();
     if (!top.length && !extra.length && !hide.any) return native;
@@ -8059,6 +8121,10 @@
           }
           if (typeof url === 'string' && url.indexOf('zttile:') === 0) {
             try { customAction(url); } catch (e) { log('custom tile menu error: ' + e); }
+            return undefined;
+          }
+          if (typeof url === 'string' && url.indexOf('ztbg:') === 0) {
+            try { bgAction(url); } catch (e) { log('custom background menu error: ' + e); }
             return undefined;
           }
           if (typeof url === 'string' && url.indexOf('ztthemes:') === 0) {
@@ -8380,6 +8446,16 @@
     /* outer View = the width used for the alignment; inner row = only the
        texts/buttons (that one is measured, so the editor box is the content) */
     var p = { pointerEvents: 'none', style: { flexDirection: 'row', alignItems: 'center' } };
+    /* footer background: round the hints themselves, the hints stay where
+       they were (the padding goes outwards) */
+    var fbg = THEME.footerBgOn && sysColor(THEME.footerBg || '#000000',
+                                          THEME.footerBgOpacity == null ? 0.5 : +THEME.footerBgOpacity);
+    if (fbg) {
+      var fpad = THEME.footerBgPadding >= 0 ? +THEME.footerBgPadding : 16, fpadV = Math.round(fpad * 0.6);
+      p.style = merge(p.style, { backgroundColor: fbg, borderRadius: THEME.footerBgCorners >= 0 ? +THEME.footerBgCorners : 40,
+                                 paddingHorizontal: fpad, paddingVertical: fpadV,
+                                 marginHorizontal: -fpad, marginVertical: -fpadV });
+    }
     if (THEME.measureScreen) withMeasure('footer', p);
     return React.createElement(rn.View, {
       key: 'theme-footer', pointerEvents: 'none',
@@ -9428,8 +9504,10 @@
     var f = T.folderSel && T.folders[T.folderSel];
     if (!f || !f.name || stripShown()) return null;
     var old = oldTitles();
-    var px = (old ? THEME.homeTitleFontSize : THEME.folderTitleSize) || 72, base = fontSize(Math.min(px, 72)) || 0;
-    var text = { color: (old ? THEME.homeTitleColor : THEME.folderTitleColor) || '#ffffff' };
+    /* the folder name looks like the game page title (Game page > Title) */
+    var px = (old ? THEME.homeTitleFontSize : THEME.titleFontSize) || 72, base = fontSize(Math.min(px, 72)) || 0;
+    var text = { color: (old ? THEME.homeTitleColor : THEME.titleColor) || '#ffffff' };
+    if (!old && THEME.titleFontStyle) merge(text, fontStyle(THEME.titleFontStyle));
     if (base) text.fontSize = base;
     var box = { position: 'absolute', left: old ? THEME.homeTitleX : THEME.folderTitleX,
                 top: old ? THEME.homeTitleY : THEME.folderTitleY, width: 1600 };
@@ -10118,7 +10196,7 @@
     /* background boxes (field prefix), bottom first: box 3, box 2, box 1,
        then the footer and the top bar backgrounds always over the free boxes */
     var boxes = [];
-    ['box3', 'box2', 'box1', 'footerBg', 'topBarBg'].forEach(function (k) {
+    ['box3', 'box2', 'box1', 'topBarBg'].forEach(function (k) {
       if (!THEME[k + 'On'] || !THEME[k] || (k === 'footerBg' && !THEME.footer)) return;
       boxes.push(React.createElement(rn.View, {
         key: 'theme-' + k, pointerEvents: 'none',
@@ -10546,9 +10624,10 @@
   function sysBoxStyle(pre) {
     var st = {}, bg = sysNum(THEME[pre + 'Opacity']) > 0 && sysColor(THEME[pre + 'Color'], sysNum(THEME[pre + 'Opacity']));
     if (bg) st.backgroundColor = bg;
-    if (sysNum(THEME[pre + 'Corners']) > 0) st.borderRadius = sysNum(THEME[pre + 'Corners']);
     var line = sysNum(THEME[pre + 'BorderWidth']) > 0 && sysColor(THEME[pre + 'BorderColor']);
     if (line) { st.borderWidth = sysNum(THEME[pre + 'BorderWidth']); st.borderColor = line; }
+    /* corners only on something drawn (the stock row keeps its own shape) */
+    if ((bg || line) && sysNum(THEME[pre + 'Corners']) > 0) st.borderRadius = sysNum(THEME[pre + 'Corners']);
     return st;
   }
   /* the file behind Settings and Trophies: their own (sysBg) or,
@@ -11271,6 +11350,16 @@
             }
           }
         }
+        /* every hub section hidden: Play / "…" can take the focus, but down
+           from them stays there (the hub below is an empty page) */
+        if (APP === 'hub' && hubEmpty() && !fromLibrary() && T.ctaStyles.length && props.style &&
+            T.ctaStyles.some(function (cs) { return hasStyle(props.style, cs); })) {
+          props.onDownKeyDown = function (e) {
+            take(e);
+            if (!T.done['empty hub: down stays on Play']) done('empty hub: down stays on Play');
+            return false;
+          };
+        }
         if (THEME.hideButtons || THEME.hideMediaButtons) {
           if (hubButtons(props)) return null;
           if (startLike(props)) seeButton('start', props, type);
@@ -11858,6 +11947,39 @@
       return true;
     });
     if (ids.length) try { console.log('THEME-TROPHY-ASK ' + ids.join(',')); } catch (e) {}
+  }
+  /* Options menu of a game with backgrounds of its own: next background
+     (n of N) and the game's own art, or "Use custom background" */
+  function bgMenuItems(id) {
+    var key = customKey(id);
+    if (!key || THEME.customBgOn === false) return [];
+    var pics = bgPics(key);
+    if (!pics.length) return [];
+    var c = bgChoice(key);
+    if (c === 0) return [menuItem('zt-bg-on', 'Use custom background', 'ztbg:set?' + key + ',' + pics[0].n)];
+    var i = 0, items = [];
+    pics.forEach(function (q, k) { if (q.n === c) i = k; });
+    if (pics.length > 1) {
+      var next = pics[(i + 1) % pics.length];
+      items.push(menuItem('zt-bg-next', 'Next custom background (' + ((i + 1) % pics.length + 1) + ' of ' + pics.length + ')',
+                          'ztbg:set?' + key + ',' + next.n));
+    }
+    items.push(menuItem('zt-bg-off', 'Use original background', 'ztbg:set?' + key + ',0'));
+    return items;
+  }
+  function bgAction(url) {
+    var m = /^ztbg:set\?([A-Za-z]{4}\d{5}),(\d+)$/.exec(url);
+    if (!m) return;
+    var key = m[1].toUpperCase(), n = parseInt(m[2], 10), pics = bgPics(key), list = [];
+    /* background 1 (the first) is the default: not written */
+    String(THEME.customBgChoice || '').split(';').forEach(function (t) {
+      var c = /^\s*([A-Za-z]{4}\d{5})\s*:\s*(\d+)\s*$/.exec(t);
+      if (c && c[1].toUpperCase() !== key) list.push(c[1].toUpperCase() + ':' + c[2]);
+    });
+    if (!(pics.length && n === pics[0].n)) list.push(key + ':' + n);
+    var value = list.join('; ');
+    log('custom background: ' + key + ' -> ' + (n ? 'background ' + n : 'own art'));
+    try { console.log('THEME-SET customBgChoice ' + value); } catch (e) {}
   }
   /* ---- custom game backgrounds ----
      Pictures in /data/ZhiThemes/Assets/custombg, listed by ZhiThemes at every Home

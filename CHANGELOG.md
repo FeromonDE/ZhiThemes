@@ -4,6 +4,15 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
 ## Unreleased
 
+- **Editor options reorganised:** every tab now has its options in titled groups, one line each (name on the left, control on the right, the explanation in the name's tooltip). Options that only matter with another one on stay hidden until it is on, sliders have their real range and unit (%, px, ×, ms; *Stock* / *Off* at 0) and many technical or duplicate options are gone (their values keep working). Text & fonts is gone (the font is in **Misc**, the old Extras), *Tools* is now **Info**, Settings & Trophies has no *Own look* switch any more (each part turns on with its own background).
+- **System icon picker:** icon fields show the icon and a *Pick…* button with every PS5 system icon, taken from your PS5 (nothing of Sony's is shipped).
+- **Editor on phones and tablets:** two-line header with a ⋯ menu (Install, Download, Reset all), tabs in a strip you swipe, every option fits the screen.
+- **Custom tiles, backgrounds and animated tiles are always used when a game has them.** The game's Options menu can switch back: *Use original tile*, *Next custom tile*, and now also *Use original background* / *Next custom background*.
+- **Game page:** with every section hidden, down from *Play* no longer opens an empty page. *Hide Play game button* hides Play, "…" and the Media button.
+- **Folders:** the open folder's games follow the tiles (corners, focus frame colour and thickness); its background fits round the games; the folder name looks like the game title.
+- The footer background fits round the hints. Opening or closing a folder no longer makes the Options hint pulse.
+- *Measure screen* is on only with Debug mode (the editor's Screen tab shows real positions then).
+
 - **New theme format:** a theme is now a folder with one `theme.json` (name, author, description and its settings, values only) and its files; a `.ztheme` is always that folder in a ZIP (`theme.json`, `wallpapers/`, `icons/`, `fonts/`). Before, `.ztheme` meant three different things and each theme file carried a whole copy of the theme script (about 500 KB, of which only the values were used); a theme is now about 13 KB. See [docs/THEMES.md](docs/THEMES.md).
 - **Older themes keep working:** themes on your PS5 are turned into the new format the first time this version starts, and older `.ztheme` files (packs or plain text) are translated when you install them (editor, USB, 🎨 menu, `Install/` folder).
 - **Download and Install are done by the PS5:** Download makes the `.ztheme` on the PS5 while it is sent (big videos no longer go through the browser's memory); Install sends the file to the PS5, which checks and installs it the same way as from USB. **Info** in the editor's Theme list sets a theme's author and description.

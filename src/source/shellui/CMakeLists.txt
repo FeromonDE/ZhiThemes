@@ -115,6 +115,7 @@ if(ZT_SLIM_MODULE)
 		${D_SRC}/zt_mosaic.cpp
 		${D_SRC}/zt_native_theme.cpp
 		${D_SRC}/zt_sgdb.cpp
+		${D_SRC}/zt_sysicons.cpp
 		${D_SRC}/zt_stats.cpp
 		${D_SRC}/zt_storage.cpp
 		${D_SRC}/zt_install.cpp

@@ -3638,9 +3638,10 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       const std::string key = sp == std::string::npos ? "" : text.substr(from, sp - from);
       const std::string value = sp == std::string::npos ? "" : text.substr(sp + 1);
       const bool clean = value.find_first_of("'\\\r\n") == std::string::npos && value.size() < 60000;
-      /* customTileChoice (name): the tiles' custom tile Options menu items;
-         favorites: Add to / Remove from favourites */
-      if ((key != "folders" && key != "customTileChoice" && key != "favorites") || !clean) {
+      /* customTileChoice / customBgChoice: the tiles' custom tile and
+         background Options menu items; favorites: Add to / Remove from favourites */
+      if ((key != "folders" && key != "customTileChoice" && key != "customBgChoice" && key != "favorites") ||
+          !clean) {
         zt_log("js: THEME-SET refused (%s, %zu bytes)", key.c_str(), value.size());
       } else if (key == "favorites") {
         /* console wide: favorites.txt, not the theme */
