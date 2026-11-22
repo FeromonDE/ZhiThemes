@@ -76,7 +76,7 @@ later version. See LICENSE and NOTICE.  */
 namespace {
 
 constexpr int kPort = 4444;
-/* the theme file is Themes/<active>.ztheme (zt_theme_file()) */
+/* the theme file is Themes/<active>/theme.json (zt_theme_file()) */
 constexpr const char *kLogPath = ZT_LOGS "/zhithemes.log";
 std::atomic<bool> g_web_quit{false}; /* set by POST /quit */
 time_t g_started = time(nullptr); /* when this copy of the module started */
@@ -142,34 +142,6 @@ std::string read_file(const char *path, size_t max_tail = 0) {
   return out;
 }
 
-/* Written to a temp file first, so a cut connection never leaves half a script. */
-bool write_script(const std::string &body, std::string file = std::string()) {
-  if (file.empty())
-    file = zt_theme_file();
-  const std::string temp = file + ".tmp";
-  zt_mkdirs(ZT_THEMES);
-  const int fd = open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-  if (fd < 0)
-    return false;
-  bool ok = true;
-  for (size_t off = 0; ok && off < body.size();) {
-    const ssize_t n = write(fd, body.data() + off, body.size() - off);
-    ok = n > 0;
-    off += ok ? (size_t)n : 0;
-  }
-  /* on disk before the rename: without it a reboot soon after a save
-     left no theme.js at all (the default one came back) */
-  ok = ok && fsync(fd) == 0;
-  close(fd);
-  if (!ok || rename(temp.c_str(), file.c_str()) != 0)
-    return false;
-  const int dir = open(ZT_THEMES, O_RDONLY);
-  if (dir >= 0) {
-    fsync(dir);
-    close(dir);
-  }
-  return true;
-}
 
 /* %XX and '+' of a query value */
 std::string url_decode(const std::string &s) {
@@ -242,6 +214,41 @@ void asset_send(int fd, AssetJob &j) {
 void *asset_client(void *arg) {
   AssetJob *j = (AssetJob *)arg;
   asset_send(j->fd, *j);
+  close(j->fd);
+  delete j;
+  pthread_mutex_lock(&g_asset_lock);
+  --g_asset_clients;
+  pthread_mutex_unlock(&g_asset_lock);
+  return nullptr;
+}
+
+/* GET /themes/pack: the .ztheme made while it is sent (see there) */
+struct PackJob {
+  int fd;
+  ZtPack pack;
+};
+void pack_send(int fd, const ZtPack &pack) {
+  char head[512];
+  const int n = snprintf(head, sizeof(head),
+                         "HTTP/1.0 200 OK\r\n"
+                         "Content-Type: application/zip\r\n"
+                         "Content-Disposition: attachment; filename=\"%s.ztheme\"\r\n"
+                         "Content-Length: %llu\r\n"
+                         "X-ZT-Missing: %d\r\n"
+                         "Cache-Control: no-store\r\n"
+                         "Connection: close\r\n\r\n",
+                         pack.theme.c_str(), (unsigned long long)pack.size, pack.missing);
+  if (n <= 0 || !send_all(fd, head, (size_t)n))
+    return;
+  const bool ok = zt_theme_pack_write(pack, [fd](const char *p, size_t size) {
+    return !g_web_quit && send_all(fd, p, size);
+  });
+  zt_logl(ok ? 'A' : 'W', "web: Download %s.ztheme (%zu files, %llu bytes) %s", pack.theme.c_str(),
+          pack.files.size(), (unsigned long long)pack.size, ok ? "sent" : "cut off");
+}
+void *pack_client(void *arg) {
+  PackJob *j = (PackJob *)arg;
+  pack_send(j->fd, j->pack);
   close(j->fd);
   delete j;
   pthread_mutex_lock(&g_asset_lock);
@@ -351,6 +358,64 @@ void handle(int fd) {
   path = path.substr(0, qmark);
 
   const size_t want = content_length(head);
+  /* POST /install?name=<file name>[&replace=<theme>]: the editor's Install. The .ztheme (or
+     an older theme file) is written to Install/.editor-upload.part while it
+     arrives, installed like the Home menu does (same checks, older files
+     translated) and deleted; the theme is used. {"theme":"<name>"} */
+  if (method == "POST" && path == "/install") {
+    const std::string fname = query_value(query, "name");
+    if (want == 0 || want > ((uint64_t)4u << 30)) {
+      if (want <= kMaxUpload)
+        drain(fd, want > body.size() ? want - body.size() : 0);
+      return reply(fd, 400, "Bad Request", "text/plain", want == 0 ? "empty file" : "file too big (4 GB at most)");
+    }
+    zt_mkdirs(ZT_DIR "/Install");
+    const std::string temp = ZT_DIR "/Install/.editor-upload.part";
+    const int lf = open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    bool ok = lf >= 0;
+    size_t got = 0;
+    auto put = [&](const char *data, size_t size) {
+      for (size_t off = 0; ok && off < size;) {
+        const ssize_t n = write(lf, data + off, size - off);
+        ok = n > 0;
+        off += ok ? (size_t)n : 0;
+      }
+      got += size;
+    };
+    put(body.data(), body.size() < want ? body.size() : want);
+    std::vector<char> chunk(256u << 10);
+    while (ok && got < want) {
+      const size_t room = want - got < chunk.size() ? want - got : chunk.size();
+      const ssize_t n = recv(fd, chunk.data(), room, 0);
+      if (n <= 0)
+        break;
+      put(chunk.data(), (size_t)n);
+    }
+    if (!ok && got < want)
+      drain(fd, want - got);
+    ok = ok && got == want;
+    if (lf >= 0) {
+      fsync(lf);
+      close(lf);
+    }
+    if (!ok) {
+      unlink(temp.c_str());
+      zt_logl('W', "web: Install %s: upload cut (%zu of %zu bytes)", fname.c_str(), got, want);
+      return reply(fd, 500, "Error", "text/plain", "the file did not arrive whole");
+    }
+    std::string theme;
+    /* &replace=<theme>: that theme is replaced (else a name already there gets -2) */
+    const std::string err = zt_install_file(temp, fname.empty() ? std::string("theme.ztheme") : fname, &theme,
+                                            query_value(query, "replace"));
+    unlink(temp.c_str());
+    if (!err.empty()) {
+      zt_logl('W', "web: Install %s: %s", fname.c_str(), err.c_str());
+      return reply(fd, 400, "Bad Request", "text/plain", err);
+    }
+    shellui_request_hub_reload();
+    shellui_request_home_reload();
+    return reply(fd, 200, "OK", "application/json", "{\"theme\":" + zt_json_quote(theme) + "}");
+  }
   /* POST /font?name=my.otf -> <dir>/fonts/, POST /background?name=x.png ->
      <dir>/backgrounds/ (the theme's own wallpaper; also .mp4 videos of a
      few hundred MB): written to the file while it arrives, never whole in
@@ -454,17 +519,20 @@ void handle(int fd) {
     const std::string file = zt_theme_file(name);
     /* &personal=1 (an installed pack): the folders and custom tile choices
        of the theme in use stay */
-    const std::string before = query_value(query, "personal") == "1" ? read_file(zt_theme_file().c_str()) : std::string();
-    /* the file as it was, for the "A field ..." lines */
-    const std::string old_text = read_file(file.c_str());
-    if (!write_script(body, file))
+    const std::string before = query_value(query, "personal") == "1" ? zt_theme_read() : std::string();
+    /* the values as they were, for the "A field ..." lines */
+    const std::string old_text = zt_theme_read_path(file);
+    /* only the values of the text are kept (theme.json) */
+    if (body.find("var THEME") == std::string::npos)
+      return reply(fd, 400, "Bad Request", "text/plain", "no THEME block in this text");
+    if (!zt_theme_write_path(file, body))
       return reply(fd, 500, "Error", "text/plain", "cannot write " + file);
     if (!before.empty())
       zt_carry_personal(before, file);
     static int saves = 0;
     const std::string who = "editor save " + std::to_string(++saves);
     const int changed = old_text.empty() ? -1
-                                         : zt_theme_log_changes(old_text, read_file(file.c_str()), who.c_str());
+                                         : zt_theme_log_changes(old_text, zt_theme_read_path(file), who.c_str());
     zt_logl('A', "web: %s saved (%zu bytes, %s, %s)", file.c_str(), body.size(),
             changed < 0 ? "new file" : (std::to_string(changed) + " fields changed").c_str(),
             who.c_str());
@@ -487,16 +555,74 @@ void handle(int fd) {
      to see a theme switched from the PS5 (Home menu, USB install) */
   if (method == "GET" && path == "/themes/active")
     return reply(fd, 200, "OK", "text/plain; charset=utf-8", zt_theme_name());
-  /* GET /themes/text?name= : that theme's file (the editor counts the
-     files it uses) */
+  /* GET /themes/pack?name= : the theme as a .ztheme (the editor's
+     Download), made while it is sent, from a thread of its own (a pack
+     with a video takes a while; the editor must not wait behind it) */
+  if (method == "GET" && path == "/themes/pack") {
+    auto *job = new PackJob{fd, ZtPack()};
+    const std::string err = zt_theme_pack_plan(query_value(query, "name"), &job->pack);
+    if (!err.empty()) {
+      delete job;
+      zt_logl('W', "web: Download %s: %s", query_value(query, "name").c_str(), err.c_str());
+      return reply(fd, 400, "Bad Request", "text/plain", err);
+    }
+    /* &check=1: only what would go in */
+    if (query_value(query, "check") == "1") {
+      const std::string out = "{\"files\":" + std::to_string(job->pack.files.size()) +
+                              ",\"size\":" + std::to_string((unsigned long long)job->pack.size) +
+                              ",\"missing\":" + std::to_string(job->pack.missing) + "}";
+      delete job;
+      return reply(fd, 200, "OK", "application/json", out);
+    }
+    pthread_t t;
+    pthread_mutex_lock(&g_asset_lock);
+    const bool room = g_asset_clients < 4;
+    if (room)
+      ++g_asset_clients;
+    pthread_mutex_unlock(&g_asset_lock);
+    if (room && pthread_create(&t, nullptr, pack_client, job) == 0) {
+      pthread_detach(t);
+      g_fd_taken = true;
+      return;
+    }
+    if (room) {
+      pthread_mutex_lock(&g_asset_lock);
+      --g_asset_clients;
+      pthread_mutex_unlock(&g_asset_lock);
+    }
+    pack_send(fd, job->pack);
+    delete job;
+    return;
+  }
+  /* GET /themes/text?name= : that theme's values as THEME text (the editor
+     counts the files it uses) */
   if (method == "GET" && path == "/themes/text") {
     const std::string name = query_value(query, "name");
     if (!zt_theme_name_ok(name))
       return reply(fd, 400, "Bad Request", "text/plain", "invalid theme name");
-    const std::string text = read_file(zt_theme_file(name).c_str());
+    const std::string text = zt_theme_read(name);
     if (text.empty())
       return reply(fd, 404, "Not Found", "text/plain", "no such theme");
     return reply(fd, 200, "OK", "text/plain; charset=utf-8", text);
+  }
+  /* POST /themes/info?name= : body = author on the first line, then the
+     description (theme.json's "author" / "description") */
+  if (method == "POST" && path == "/themes/info") {
+    const std::string name = query_value(query, "name");
+    if (!zt_theme_name_ok(name) || zt_theme_read(name).empty())
+      return reply(fd, 400, "Bad Request", "text/plain", "no such theme");
+    ZtThemeInfo info = zt_theme_info(name);
+    const size_t nl = body.find('\n');
+    info.author = body.substr(0, nl == std::string::npos ? body.size() : nl);
+    info.description = nl == std::string::npos ? std::string() : body.substr(nl + 1);
+    while (!info.author.empty() && (info.author.back() == '\r' || info.author.back() == ' '))
+      info.author.pop_back();
+    if (info.author.size() > 80 || info.description.size() > 1000)
+      return reply(fd, 400, "Bad Request", "text/plain", "author (80) or description (1000) too long");
+    if (!zt_theme_info_set(name, info))
+      return reply(fd, 500, "Error", "text/plain", "cannot write the theme");
+    zt_logl('A', "web: theme %s: author / description saved", name.c_str());
+    return reply(fd, 200, "OK", "text/plain", "saved");
   }
   if (method == "POST" && path.rfind("/themes/", 0) == 0) {
     const std::string name = query_value(query, "name");
@@ -1571,7 +1697,7 @@ void theme_web_start() {
     zt_log("video: pthread_create failed (errno %d)", errno);
 }
 
-/* `key: '...'` of the THEME block in theme.ztheme gets value (added at the
+/* `key: '...'` of the theme's values gets value (added at the
    top of the block when missing). The Home's Options menu writes the folders
    this way. */
 bool theme_set_field(const std::string &key, const std::string &value) {
@@ -1579,7 +1705,7 @@ bool theme_set_field(const std::string &key, const std::string &value) {
 }
 
 bool theme_set_field_in(const std::string &file, const std::string &key, const std::string &value) {
-  std::string src = read_file(file.c_str());
+  std::string src = zt_theme_read_path(file);
   const size_t th = src.find("var THEME");
   if (src.empty() || th == std::string::npos)
     return false;
@@ -1608,20 +1734,20 @@ bool theme_set_field_in(const std::string &file, const std::string &key, const s
     if (end >= src.size() || src[end] != '\'')
       return false;
     src.replace(p + 1, end - p - 1, value);
-    return write_script(src, file);
+    return zt_theme_write_path(file, src);
   }
   const size_t brace = src.find('{', th);
   if (brace == std::string::npos)
     return false;
   src.insert(brace + 1, "\n    " + key + ": '" + value + "',");
-  return write_script(src, file);
+  return zt_theme_write_path(file, src);
 }
 
 /* `key: true|false` of the THEME block (Options menu > Quick settings);
    added at the top of the block when missing */
 bool theme_set_bool(const std::string &key, bool on) {
   const std::string file = zt_theme_file();
-  std::string src = read_file(file.c_str());
+  std::string src = zt_theme_read_path(file);
   const size_t th = src.find("var THEME");
   if (src.empty() || th == std::string::npos)
     return false;
@@ -1650,13 +1776,13 @@ bool theme_set_bool(const std::string &key, bool on) {
     if (end == p)
       return false;
     src.replace(p, end - p, word);
-    return write_script(src, file);
+    return zt_theme_write_path(file, src);
   }
   const size_t brace = src.find('{', th);
   if (brace == std::string::npos)
     return false;
   src.insert(brace + 1, "\n    " + key + ": " + word + ",");
-  return write_script(src, file);
+  return zt_theme_write_path(file, src);
 }
 
 #else

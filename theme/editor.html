@@ -474,12 +474,12 @@
     <button id="btnThemes" title="The themes on this PS5: switch, make, rename or delete one">Theme: <b id="themeNow">…</b> ▾</button>
     <div id="themesPanel"></div>
   </div>
-  <label class="btn" for="file" title="Install a theme (.ztheme: a theme pack with its wallpapers, icons and fonts, or the theme text alone) as a theme of its own on this PS5 and use it. Your folders and custom tiles stay">Install</label>
+  <label class="btn" for="file" title="Install a .ztheme (a theme with its wallpapers, icons and fonts; older theme files work too) as a theme of its own on this PS5 and use it. Your folders and custom tiles stay">Install</label>
   <input type="file" id="file" accept=".ztheme,.zip,.js,text/javascript,text/plain">
   <!-- "Letra…" cancelado (ZhiThemes 11) -->
   <input type="file" id="fontfile" accept=".otf,.ttf,.ttc">
   <input type="file" id="ps5bgfile" accept=".png,.jpg,.jpeg,.mp4">
-  <button id="btnDownload" title="Save the current theme as a .ztheme pack to share: settings + the wallpaper, video, icons and fonts it uses (not your folders or custom tiles)">Download</button>
+  <button id="btnDownload" title="Save the theme in use as a .ztheme to share: its theme.json (settings, name, author, description) + the wallpaper, video, icons and fonts it shows (not your folders or custom tiles)">Download</button>
   <button id="btnFactory" title="Put every field back to the PS5 stock value and apply">Reset all</button>
   <button id="btnApply" class="primary" title="Save on the console and reload the Home (Ctrl+S)">Apply</button>
   <span id="reloadCount" hidden title="Home reloads in this ShellUI since it started" style="align-self:center;font-size:12px;opacity:.75;white-space:nowrap"></span>
@@ -507,7 +507,7 @@
     tileVertical: ['Vertical tiles', 'Vertical 2:3 tiles (covers). The sizes above are then the width'],
     focusShape: ['Focused tile', 'Shape of the focused tile: as the row, vertical 2:3 (square row) or Steam horizontal 92:43. Every focused tile takes it (same height, other width): the game picture of that shape (Pictures below) or its own picture cut; folders get a mosaic of that shape'],
     tileAnimAll: ['All tiles move', 'Experimental: every tile with an animated picture moves, not only the focused one (one video player each: heavy, can slow the Home)'],
-    videoResourceTry: ['Video decoder test', 'Experimental: the decoder type every video asks the PS5 for. Auto = by the file size (the 4K decoder only for 4K files). Try the others with an app open in the background (e.g. a homebrew store) to see which plays without "Stopping Features"'],
+    videoResourceTry: ['Video decoder', 'Experimental: the decoder type every video asks the PS5 for. Auto = FullHD first; the 4K decoder (UHD) only when FullHD cannot play a big video. Asking UHD while another app holds it makes the PS5 show "Stopping Features"'],
     tileAnimAllMax: ['Most moving tiles', 'Experimental: at most this many tiles move at once (the focused one always)'],
     debugOverlay: ['Debug panel', 'Experimental: a box on the Home with live numbers (ShellUI fps, console RAM/VRAM, ShellUI free memory, mono, CPU use, temperatures, fan, uptime, loads). Move it in the Screen tab'],
     debugX: ['Debug panel X', 'Distance from the left of the screen'],
@@ -963,6 +963,7 @@
     wallpaper: ['Wallpaper image or video', 'Uploaded from the editor (.png / .jpg, 1920×1080; .mp4 = video behind the Home, H.264 1080p)'],
     wallpaperVideoSound: ['Video sound', '.mp4 wallpaper: play its sound (the Home music stops)'],
     wallpaperVideoVolume: ['Video volume', '.mp4 wallpaper: 0-1'],
+    wallpaperVideoFit: ['Video fit', '.mp4 wallpaper that is not 16:9 (e.g. 3440x1440): Centered fills the screen and cuts off what is left over; Stretch stretches it to the screen'],
     homeMusicOn: ['Home music', 'Your music on the Home while the focused tile has no music of its own (system tiles, games without music). The .mp4 wallpaper stays silent'],
     homeMusic: ['Music file', 'Upload .mp3, .wav, .ogg, .m4a…: the editor makes it an MP4 with AAC sound (in real time, keep the tab in front); kept with the theme'],
     homeMusicGames: ['Also over games', 'Your music also instead of the games\' own music (off: a game with its own music plays it)'],
@@ -1729,7 +1730,7 @@
       bsend.title = f.key === 'wallpaper' || f.key === 'sysBg' ? '.png or .jpg, 1920×1080, or an .mp4 video' : '.png or .jpg, 1920×1080';
       bsend.onclick = function () { bgUploadKey = f.key; document.getElementById('ps5bgfile').click(); };
       ctl.appendChild(bsend);
-    } else if (/Align$|^elementFont$|^systemFont(Bold|Italic|BoldItalic|Missing)?$|^footerIcon\d$|^bgGradientCurve$|^bgShade$|^videoResourceTry$|^foldersBg$|^folders(Vertical|Horizontal)$|^focusShape$|^tileReflectionFlip$|^titleMode$|^ownClockLang$|^animNamesStyle$|^particlesStyle$|^padInfoBattery$/.test(f.key)) {
+    } else if (/Align$|^elementFont$|^systemFont(Bold|Italic|BoldItalic|Missing)?$|^footerIcon\d$|^bgGradientCurve$|^bgShade$|^wallpaperVideoFit$|^videoResourceTry$|^foldersBg$|^folders(Vertical|Horizontal)$|^focusShape$|^tileReflectionFlip$|^titleMode$|^ownClockLang$|^animNamesStyle$|^particlesStyle$|^padInfoBattery$/.test(f.key)) {
       var sel = document.createElement('select');
       sel.className = 'btn';
       var now = f.value.slice(1, -1);
@@ -1751,9 +1752,10 @@
            ['SST-Medium.otf', 'SST Medium'], ['SST-Light.otf', 'SST Light']]
         : f.key === 'padInfoBattery'
         ? [['both', 'Icon + %'], ['icon', 'Only the icon'], ['text', 'Only the %'], ['inside', 'Inside the controller']]
+        : f.key === 'wallpaperVideoFit'
+        ? [['center', 'Centered (fill, crop)'], ['stretch', 'Stretch']]
         : f.key === 'videoResourceTry'
-        ? [['', 'Auto (by file size)'], ['fullHD', 'FullHD'], ['UHD', 'UHD (4K)'], ['Full', 'Full'], ['Basic', 'Basic'],
-           ['LimitedForSpectating2Streams', 'Limited (2 streams)'], ['Custom', 'Custom'], ['none', 'No type']]
+        ? [['', 'Auto (FullHD first)'], ['fullHD', 'FullHD'], ['UHD', 'UHD (4K)'], ['none', 'No type']]
         : f.key === 'bgShade'
         ? [['', 'PS5 (ellipse)'], ['flat', 'Flat'], ['none', 'Off']]
         : f.key === 'bgGradientCurve'
@@ -2189,7 +2191,7 @@
     screen.innerHTML = out;
   }
   function showCode() {
-    view.innerHTML = '<p class="tip">The whole theme.ztheme. Changes made here only take effect after <b>Apply</b>.</p>';
+    view.innerHTML = '<p class="tip">The whole theme.js with the values of this theme. Only the values are kept (theme.json on the PS5); changes made here only take effect after <b>Apply</b>.</p>';
     var ta = document.createElement('textarea');
     ta.spellcheck = false; ta.value = source;
     ta.oninput = function () { source = ta.value; };
@@ -5422,7 +5424,7 @@
               '#Colours', 'buttonBgColor', 'buttonBgFocusColor', 'buttonTextColor', 'buttonTextFocusColor', '#Animation', 'animButtons']
   };
   var VIRT = [
-    { id: 'scrBackground', name: 'Background', keys: ['#Clean', 'bgClean', 'bgCleanTry', '#Wallpaper', 'wallpaperOn', 'wallpaper', 'wallpaperVideoSound', 'wallpaperVideoVolume', 'customBgOn',
+    { id: 'scrBackground', name: 'Background', keys: ['#Clean', 'bgClean', 'bgCleanTry', '#Wallpaper', 'wallpaperOn', 'wallpaper', 'wallpaperVideoSound', 'wallpaperVideoVolume', 'wallpaperVideoFit', 'customBgOn',
       '#Darken', 'bgShade', 'bgDim', 'bgDimColor', 'bgColor', 'bgGradient', 'bgGradientHeight', 'bgGradientCurve', 'bgGradientSteps',
       'bgVignette', 'bgVignetteSize', 'bgEdges', 'bgEdgesHeight', '#Overlay picture', 'bgOverlayOn', 'bgOverlay', 'bgOverlayOpacity'] },
     { id: 'scrParticles', name: 'Particles', keys: ['particlesOn', 'particlesStyle', 'particlesCount', 'particlesSpeed', 'particlesScale', 'particlesHue', 'particlesOpacity',
@@ -6223,7 +6225,11 @@
       el.onerror = function () { el.style.display = 'none'; };
       wallEls[name] = el;
     }
-    if (el.tagName === 'VIDEO') setTimeout(function () { try { el.play(); } catch (e) {} }, 0);
+    if (el.tagName === 'VIDEO') {
+      /* as the PS5: Centered = cover, Stretch = stretched to the screen */
+      el.style.objectFit = values().cur.wallpaperVideoFit === 'stretch' ? 'fill' : 'cover';
+      setTimeout(function () { try { el.play(); } catch (e) {} }, 0);
+    }
     return el;
   }
   function draw() {
@@ -7117,16 +7123,11 @@
     if (!sysInfo) loadSysinfo().then(function (i) { if (i && current === 'about') showAbout(); });
   }
   /* ================= theme pack (.ztheme) =================
-     A .ztheme is the theme text alone, or a ZIP to share a whole theme:
-       theme.ztheme                 the settings
-       zhitheme.json                name, ZhiThemes version, file list
-       assets/wallpapers/<file>     wallpaper (image or .mp4), overlay, Settings background
-       assets/icons/<file>          top bar, L1/R1, footer and decoration icons
-       assets/fonts/<file>          the user's own fonts (system fonts are on every PS5)
-     Never in a pack, and kept as they are when one comes in: the folders,
-     the custom tiles/backgrounds and the per-game choices, which are each
-     user's own. */
-  var PACK_PERSONAL = ['folders', 'foldersIcon', 'customTileChoice', 'customBgChoice'];
+     A .ztheme is a ZIP of the theme's folder, made and read by the PS5
+     (zt_install.cpp): theme.json + wallpapers/ icons/ fonts/. Download =
+     GET /themes/pack, Install = POST /install (older theme files are
+     translated there). The lists below only count the files a theme shows
+     (Theme panel); zt_theme_pack_plan on the PS5 uses the same rules. */
   var PACK_WALL = /^(wallpaper|bgOverlay|sysBg|homeMusic)$/;
   var PACK_ICON = /^(search|settings|powerBtn|trophyBtn|padInfo)Icon$|^deco\dIcon$|^tabs(Game|Media|Recent|Fav|Never)Icon$|^tabsGroup(Left|Right)$|^footerIcon\d$|^particlesImage$/;
   /* a picture/video field goes into the pack only when the theme shows
@@ -7162,55 +7163,6 @@
     for (var i = 0; i < u8.length; i++) crc = CRC_TABLE[(crc ^ u8[i]) & 255] ^ (crc >>> 8);
     return (crc ^ 0xffffffff) >>> 0;
   }
-  /* ZIP without compression (images, videos and fonts are already compressed) */
-  function zipStore(files) {
-    var parts = [], central = [], offset = 0, enc = new TextEncoder();
-    files.forEach(function (f) {
-      var name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
-      var h = new DataView(new ArrayBuffer(30));
-      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
-      h.setUint32(14, crc, true); h.setUint32(18, size, true); h.setUint32(22, size, true);
-      h.setUint16(26, name.length, true);
-      parts.push(h.buffer, name, f.data);
-      var c = new DataView(new ArrayBuffer(46));
-      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
-      c.setUint32(16, crc, true); c.setUint32(20, size, true); c.setUint32(24, size, true);
-      c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
-      central.push(c.buffer, name);
-      offset += 30 + name.length + size;
-    });
-    var csize = central.reduce(function (n, x) { return n + (x.byteLength || x.length); }, 0);
-    var e = new DataView(new ArrayBuffer(22));
-    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
-    e.setUint32(12, csize, true); e.setUint32(16, offset, true);
-    return new Blob(parts.concat(central, [e.buffer]), { type: 'application/zip' });
-  }
-  /* every file of a ZIP: {name: Uint8Array}; stored or deflated entries */
-  function unzip(buf) {
-    var dv = new DataView(buf), u8 = new Uint8Array(buf), end = -1;
-    for (var i = buf.byteLength - 22; i >= 0 && i >= buf.byteLength - 65557; i--)
-      if (dv.getUint32(i, true) === 0x06054b50) { end = i; break; }
-    if (end < 0) return Promise.reject(new Error('not a ZIP file'));
-    var count = dv.getUint16(end + 10, true), at = dv.getUint32(end + 16, true), dec = new TextDecoder(), jobs = [], out = {};
-    for (var n = 0; n < count; n++) {
-      if (dv.getUint32(at, true) !== 0x02014b50) return Promise.reject(new Error('broken ZIP file'));
-      var method = dv.getUint16(at + 10, true), csize = dv.getUint32(at + 20, true);
-      var nlen = dv.getUint16(at + 28, true), xlen = dv.getUint16(at + 30, true), clen = dv.getUint16(at + 32, true);
-      var local = dv.getUint32(at + 42, true), name = dec.decode(u8.subarray(at + 46, at + 46 + nlen));
-      var start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
-      var data = u8.subarray(start, start + csize);
-      at += 46 + nlen + xlen + clen;
-      if (/\/$/.test(name)) continue;
-      if (method === 0) out[name] = data;
-      else if (method === 8 && typeof DecompressionStream === 'function')
-        jobs.push((function (nm, d) {
-          return new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw')))
-            .arrayBuffer().then(function (b) { out[nm] = new Uint8Array(b); });
-        })(name, data));
-      else return Promise.reject(new Error('unsupported compression in ' + name));
-    }
-    return Promise.all(jobs).then(function () { return out; });
-  }
   function textValue(v) { return String(v || '').replace(/^'|'$/g, ''); }
   /* the files of a theme's values that are uploads ([{kind, name}]) */
   function packAssets(vals, myFonts, skipped) {
@@ -7231,132 +7183,28 @@
     });
     return out;
   }
-  function withValue(text, key, value) {
-    var b = block(text);
-    if (!b) return text;
-    var body = text.slice(b.from, b.to).split('\n').map(function (line) {
-      var m = LINE.exec(line);
-      return m && m[2] === key ? m[1] + m[2] + m[3] + value + m[5] + (m[6] || '') : line;
-    }).join('\n');
-    return text.slice(0, b.from) + body + text.slice(b.to);
-  }
+  /* Download: the PS5 makes the .ztheme of the theme in use as it is
+     saved there (unapplied changes are not in it); ?check=1 first says
+     what goes in (and why not, when it cannot) */
   function savePack() {
-    /* the pack is named after the theme (Rename in the Theme panel) */
-    var tn = themesInfo.active || 'theme';
-    status('making the theme pack…');
-    return request('GET', '/fonts').then(function (t) { return JSON.parse(t); }).catch(function () { return []; })
-      .then(function (myFonts) {
-        var text = source, vals = valuesOf(source), personal = valuesOf(source);
-        PACK_PERSONAL.forEach(function (k) { if (k in personal) text = withValue(text, k, "''"); });
-        var skipped = [];
-        var assets = packAssets(vals, myFonts, skipped), files = [], missing = [], i = 0;
-        /* the files left out are not named in the pack's text either */
-        skipped.forEach(function (k) { if (PACK_WALL.test(k) || /\.(png|jpe?g|webp|mp4|mp3|m4a|aac|wav|at9|ogg)$/i.test(textValue(vals[k]))) text = withValue(text, k, "''"); });
-        var next = function () {
-          if (i >= assets.length) return Promise.resolve();
-          var a = assets[i++];
-          status('adding ' + a.name + ' (' + i + ' of ' + assets.length + ')…');
-          return fetch('/asset?kind=' + a.kind + '&name=' + encodeURIComponent(a.name), { cache: 'no-store' })
-            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
-            .then(function (b) { files.push({ name: 'assets/' + a.kind + '/' + a.name, data: new Uint8Array(b) }); })
-            .catch(function () { missing.push(a.name); })
-            .then(next);
-        };
-        return next().then(function () {
-          var info = {
-            format: 1, name: tn, zhithemes: sysInfo ? sysInfo.version : '', made: new Date().toISOString(),
-            firmware: sysInfo ? sysInfo.fw : '', files: files.map(function (f) { return f.name; })
-          };
-          var enc = new TextEncoder();
-          files.unshift({ name: 'zhitheme.json', data: enc.encode(JSON.stringify(info, null, 2)) });
-          files.unshift({ name: 'theme.ztheme', data: enc.encode(text) });
-          var a = document.createElement('a');
-          a.href = URL.createObjectURL(zipStore(files));
-          a.download = tn + '.ztheme';
-          a.click();
-          setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
-          status('theme pack saved (' + (files.length - 2) + ' files' + (missing.length ? ', not found: ' + missing.join(', ') : '') + ')',
-                 missing.length ? 'err' : 'ok');
-        });
-      }).catch(fail);
-  }
-  /* sends the files of a pack to the PS5 (same uploads as the buttons) */
-  /* into the folder of theme (Themes/<theme>/<kind>/ on the PS5) */
-  /* a name the PS5 refuses (too long, other letters) is sent as
-     uploadName(name) and written in renamed[old] = new (the theme text is
-     changed to match) */
-  /* the same checks as the PS5's Install folder: a file's first bytes must
-     be what its name says (picture / video / sound / font), at most 64
-     files, 2 GB each, 4 GB in all */
-  function sniffType(u8) {
-    var at = function (o, s) { for (var i = 0; i < s.length; i++) if (u8[o + i] !== s.charCodeAt(i)) return false; return u8.length >= o + s.length; };
-    if (at(0, '\x89PNG\r\n\x1a\n')) return 'png';
-    if (u8[0] === 0xFF && u8[1] === 0xD8 && u8[2] === 0xFF) return 'jpg';
-    if (at(0, 'GIF87a') || at(0, 'GIF89a')) return 'gif';
-    if (at(0, 'RIFF') && at(8, 'WEBP')) return 'webp';
-    if (at(0, 'RIFF') && at(8, 'WAVE')) return 'wav';
-    if (at(4, 'ftyp')) return 'mp4';
-    if (u8[0] === 0x1A && u8[1] === 0x45 && u8[2] === 0xDF && u8[3] === 0xA3) return 'webm';
-    if (at(0, 'OggS')) return 'ogg';
-    if (at(0, 'ID3') || (u8[0] === 0xFF && (u8[1] & 0xE0) === 0xE0)) return 'mp3';
-    if ((u8[0] === 0 && u8[1] === 1 && u8[2] === 0 && u8[3] === 0) || at(0, 'OTTO') || at(0, 'true') || at(0, 'ttcf')) return 'font';
-    return '';
-  }
-  function packTypes(kind, name) {
-    var ext = (/\.([^.]+)$/.exec(name) || ['', ''])[1].toLowerCase();
-    var pic = /^(png|jpe?g|webp|gif)$/.test(ext);
-    if (kind === 'fonts') return /^(ttf|otf|ttc)$/.test(ext) ? ['font'] : [];
-    if (kind === 'icons') return pic ? ['png', 'jpg', 'webp', 'gif'] : [];
-    if (kind !== 'wallpapers') return [];
-    if (pic) return ['png', 'jpg', 'webp', 'gif'];
-    if (/^(mp4|m4v|mov|webm)$/.test(ext)) return ['mp4', 'webm'];
-    if (/^(mp3|aac|m4a|wav|at9|ogg)$/.test(ext)) return ['mp3', 'mp4', 'wav', 'ogg'];
-    return [];
-  }
-  function uploadAssets(files, theme, renamed) {
-    var names = Object.keys(files).filter(function (n) { return /^assets\/(wallpapers|icons|fonts)\/[^\/]+$/.test(n); });
-    var left = [], total = 0;
-    names = names.slice(0, 64).filter(function (n) {
-      var p = n.split('/'), d = files[n], ok = packTypes(p[1], p[2]).indexOf(sniffType(d)) >= 0 &&
-        d.length <= 2 * 1024 * 1024 * 1024 && total + d.length <= 4 * 1024 * 1024 * 1024;
-      if (ok) total += d.length; else left.push(p[2]);
-      return ok;
-    });
-    if (left.length) alert('Left out of this pack (wrong file type or too big):\n' + left.join('\n'));
-    var i = 0, th = theme ? '&theme=' + encodeURIComponent(theme) : '';
-    var next = function () {
-      if (i >= names.length) return Promise.resolve(names.length);
-      var n = names[i++], parts = n.split('/'), kind = parts[1], name = parts[2];
-      if (name.length >= 80 || !/^[A-Za-z0-9_-][A-Za-z0-9._-]*$/.test(name)) {
-        var nn = uploadName(name);
-        if (renamed) renamed[name] = nn;
-        name = nn;
-      }
-      status('sending ' + name + ' (' + i + ' of ' + names.length + ')…');
-      var url = kind === 'fonts' ? '/font?name=' + encodeURIComponent(name) + th
-                                 : '/background?kind=' + kind + '&name=' + encodeURIComponent(name) + th;
-      return upPost(url, new Blob([files[n]]))
-        .then(function (r) { return r.text().then(function (t) { if (!r.ok) throw new Error(name + ': ' + t); }); })
-        .then(next);
-    };
-    return next();
-  }
-  function useTheme(text) {
-    if (!block(text)) {
-      status('this file has no "var THEME = {...}" block: not a ZhiThemes theme', 'err');
-      return;
-    }
-    /* the folders and the custom tiles stay as they are on this PS5 */
-    var keep = valuesOf(loaded);
-    source = text;
-    PACK_PERSONAL.forEach(function (k) {
-      if (k in keep && k in valuesOf(source)) setField(k, keep[k]);
-    });
-    migrateTitles();
-    renderTabs(); apply();
+    var tn = themesInfo.active;
+    if (!tn) return;
+    if (source !== loaded && !confirm('Your changes to ' + tn + ' are not applied yet: the .ztheme will have the theme as it is on the PS5. Go on?')) return;
+    status('making ' + tn + '.ztheme…');
+    request('GET', '/themes/pack?check=1&name=' + enc(tn)).then(function (t) {
+      var p = JSON.parse(t), a = document.createElement('a');
+      a.href = '/themes/pack?name=' + enc(tn);
+      a.download = tn + '.ztheme';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      status(tn + '.ztheme: ' + p.files + ' file' + (p.files === 1 ? '' : 's') + ', ' + themeBytes(p.size) + ' (in the browser\'s downloads)' +
+             (p.missing ? '; ' + p.missing + ' file' + (p.missing > 1 ? 's' : '') + ' the theme names are not on the PS5' : ''),
+             p.missing ? 'err' : 'ok');
+    }).catch(fail);
   }
   /* ================= themes on the PS5 =================
-     Themes/<Name>.ztheme + Themes/<Name>/{wallpapers,icons,fonts}; one is
+     Themes/<Name>/ (theme.json + wallpapers, icons, fonts); one is
      in use (active_theme.txt). The editor always edits the one in use;
      switching reloads the page. Folders and custom tile choices follow the
      user from theme to theme (the PS5 carries them). */
@@ -7451,7 +7299,7 @@
     themesInfo.themes.forEach(function (t) {
       var on = t.name === themesInfo.active;
       h += '<div class="th-row' + (on ? ' on' : '') + '" data-n="' + html(t.name) + '">' +
-           '<span class="th-name" title="' + html(t.name) + '">' + html(t.name) + '</span>' +
+           '<span class="th-name" title="' + html(t.name + (t.author ? '\nby ' + t.author : '') + (t.description ? '\n' + t.description : '')) + '">' + html(t.name) + '</span>' +
            (t.use ? '<span class="th-size" title="wallpapers, videos, icons and fonts this theme shows' +
                     (t.use.unused ? '; ' + t.use.unused + ' more file' + (t.use.unused > 1 ? 's' : '') + ' (' + themeBytes(t.use.unusedBytes) +
                      ') in its folder are not used' : '') + '">' +
@@ -7461,6 +7309,7 @@
               ' in the folder of this theme that it does not use (' + themeBytes(t.use.unusedBytes) + ')">Clean ' + themeBytes(t.use.unusedBytes) + '</button>' : '') +
            (on ? '<span class="th-size">in use</span>' : '<button data-a="use" title="Use this theme (the Home reloads)">Use</button>') +
            '<button data-a="ren" title="Rename">Rename</button>' +
+           '<button data-a="info" title="Author and description (they go with the theme in its .ztheme)">Info</button>' +
            (on ? '' : '<button data-a="del" title="Delete this theme and its files from the PS5">Delete</button>') + '</div>';
     });
     if (!themesInfo.themes.length) h += '<p class="th-tip">No themes found on the PS5.</p>';
@@ -7497,6 +7346,15 @@
         status(n + ' is now ' + to, 'ok');
         if (to === themesInfo.active) setTimeout(function () { location.reload(); }, 700);
       });
+    } else if (a === 'info') {
+      var ti = themesInfo.themes.filter(function (x) { return x.name === n; })[0] || {};
+      var au = prompt('Author of ' + n + ' (people who install your .ztheme see it):', ti.author || '');
+      if (au === null) return;
+      var de = prompt('A short description of ' + n + ':', ti.description || '');
+      if (de === null) return;
+      status('saving…');
+      job = request('POST', '/themes/info?name=' + enc(n), au.replace(/\s+/g, ' ').trim().slice(0, 80) + '\n' + de.trim().slice(0, 1000))
+        .then(fetchThemes).then(function () { status(n + ': author and description saved', 'ok'); });
     } else if (a === 'del') {
       var t = themesInfo.themes.filter(function (x) { return x.name === n; })[0] || { files: 0, bytes: 0 };
       if (!confirm('Delete the theme ' + n + ' and its ' + t.files + ' files (' + themeBytes(t.bytes) + ') from the PS5?\n' +
@@ -7525,67 +7383,25 @@
   document.addEventListener('click', function (ev) {
     if (themesPanel.classList.contains('open') && !ev.target.closest('#themesWrap')) themesPanel.classList.remove('open');
   });
-  /* a .ztheme (text, or a pack's text + files) as a theme of its own */
-  function installTheme(text, files, suggested) {
-    if (!unsavedOk()) return Promise.resolve();
-    return fetchThemes().catch(function () { return themesInfo; }).then(function () {
-      var n = askThemeName('Install as the theme:', themeSafe(suggested) || 'New-theme');
-      if (!n) { status('install cancelled'); return; }
-      var replace = false, there = themeFound(n);
-      if (there) {
-        if (confirm('A theme called ' + there + ' is already on the PS5.\nOK = replace it (its old files go)\nCancel = keep both, the new one as ' + uniqueTheme(n))) {
-          replace = true;
-          n = there;
-        } else n = uniqueTheme(n);
-      }
-      var renamed = {};
-      var first = replace ? request('POST', '/themes/clear?name=' + enc(n))
-                          : request('POST', '/themes/new?name=' + enc(n) + '&from=');
-      return first
-        .then(function () { return uploadAssets(files, n, renamed); })
-        .then(function () {
-          Object.keys(renamed).forEach(function (o) { text = text.split(o).join(renamed[o]); });
-          status('saving ' + n + '…'); return request('POST', '/theme.js?personal=1&name=' + enc(n), text);
-        })
-        .then(function () {
-          if (n === themesInfo.active) {
-            loaded = source; /* nothing to keep: the page reloads */
-            return request('POST', '/reload').then(function () {
-              status('theme ' + n + ' replaced; the Home reloads', 'ok');
-              setTimeout(function () { location.reload(); }, 700);
-            });
-          }
-          loaded = source = '';
-          return useThemeNamed(n);
-        });
-    });
-  }
   fetchThemes().catch(function () { themeNowEl.textContent = '?'; });
   document.getElementById('btnDownload').onclick = savePack;
+  /* Install: the file goes to the PS5 (POST /install), which installs it
+     as a theme of its own and uses it, as from the Install folder or USB:
+     a .ztheme, or an older theme file (translated to theme.json). A theme
+     with the file's name already there: replace it, or keep both (-2). */
   document.getElementById('file').onchange = function (ev) {
     var file = ev.target.files && ev.target.files[0];
     ev.target.value = '';
-    if (!file) return;
-    /* a theme file or pack is installed as a theme of its own
-       (Themes/<name>.ztheme + its files in Themes/<name>/) and used */
-    var fileStem = file.name.replace(/\.[^.]+$/, '');
-    file.arrayBuffer().then(function (buf) {
-      var head = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
-      if (!(head[0] === 0x50 && head[1] === 0x4b && head[2] === 3 && head[3] === 4)) {
-        var plain = new TextDecoder().decode(buf);
-        if (!block(plain)) throw new Error('this file has no "var THEME = {...}" block: not a ZhiThemes theme');
-        return installTheme(plain, {}, textValue(valuesOf(plain).themeName) || fileStem);
-      }
-      status('opening the theme pack…');
-      return unzip(buf).then(function (files) {
-        if (!files['theme.ztheme']) throw new Error('no theme.ztheme in this pack');
-        var text = new TextDecoder().decode(files['theme.ztheme']);
-        if (!block(text)) throw new Error('theme.ztheme of this pack is not a ZhiThemes theme');
-        var info = {};
-        try { info = JSON.parse(new TextDecoder().decode(files['zhitheme.json'] || new Uint8Array(0))); } catch (e) {}
-        return installTheme(text, files, info.name || textValue(valuesOf(text).themeName) || fileStem);
-      });
-    }).catch(fail);
+    if (!file || !unsavedOk()) return;
+    var there = themeFound(themeSafe(file.name.replace(/\.[^.]+$/, ''))), replace = '';
+    if (there && confirm('A theme called ' + there + ' is already on the PS5.\nOK = replace it (its old files go)\nCancel = keep both (the new one gets -2)')) replace = there;
+    upPost('/install?name=' + enc(uploadName(file.name)) + (replace ? '&replace=' + enc(replace) : ''), file)
+      .then(function (r) { return r.text().then(function (t) { if (!r.ok) throw new Error(t); return JSON.parse(t); }); })
+      .then(function (res) {
+        loaded = source; /* the page reloads with the new theme */
+        status('theme ' + res.theme + ' installed and in use; the Home reloads', 'ok');
+        setTimeout(function () { location.reload(); }, 900);
+      }).catch(fail);
   };
   /* your font: the file goes to /data/ZhiThemes/fonts and becomes
      systemFont or elementFont (applied at once) */

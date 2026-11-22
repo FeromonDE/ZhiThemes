@@ -80,7 +80,7 @@ constexpr ThemedApp kThemedApps[] = {
     {"NPXS40008", "settings"}, /* rnps-settings: Settings (screen map only) */
     {"NPXS40025", "trophy"},   /* rnps-trophy: Trophies (screen map only) */
 };
-/* the theme is Themes/<active>.ztheme (zt_theme_file()) */
+/* the theme is Themes/<active>/theme.json (zt_theme_file()) */
 constexpr const char *kScriptUrl = "theme.js";
 constexpr size_t kScriptMaxLength = 1u << 20;
 /* Diagnostics: the first bundles started and console lines seen are logged */
@@ -266,10 +266,10 @@ void write_default_script() {
            zt_theme_file().c_str());
     return;
   }
-  /* a factory file does not replace the copy */
-  if (data != kThemeDefaultJs) {
+  /* only a good theme.json replaces the copy */
+  if (!zt_theme_read().empty()) {
     zt_mkdirs(ZT_THEME_BACKUPS);
-    const std::string backup = std::string(ZT_THEME_BACKUPS "/") + zt_theme_name() + ".ztheme";
+    const std::string backup = std::string(ZT_THEME_BACKUPS "/") + zt_theme_name() + ".json";
     write_synced(backup.c_str(), data.data(), data.size());
   }
 }
@@ -2040,7 +2040,7 @@ std::string safe_tokens(const std::string &block, int *dropped) {
 
 std::string merged_script() {
   const std::string base(kThemeDefaultJs);
-  const std::string user = read_file(zt_theme_file().c_str());
+  const std::string user = zt_theme_read();
   if (user.empty())
     return base;
   const Block bt = find_block(base, "var THEME");
@@ -3553,7 +3553,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
       return;
     }
     /* "THEME-SET <key> <value>": the Home's Options menu changed the folders;
-       written into theme.ztheme, then the Home and the hub reload with it */
+       written into the theme, then the Home and the hub reload with it */
     /* "THEME-CACHE-KEEP <mosaics|folderbg|icons>|names": what the
        Home uses of cache/; the other old files there go */
     if (text.rfind("THEME-CACHE-KEEP ", 0) == 0) {
@@ -3661,7 +3661,7 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
           shellui_request_home_reload();
         }
       } else {
-        zt_log("js: THEME-SET %s: cannot write theme.ztheme", key.c_str());
+        zt_log("js: THEME-SET %s: cannot write the theme", key.c_str());
       }
       return;
     }
@@ -3856,6 +3856,13 @@ std::vector<std::pair<std::string, std::string>> theme_values(const std::string 
   return out;
 }
 } // namespace
+
+/* for zt_theme_json.cpp: the "key: value" lines of a THEME block, and
+   whether a value is a plain one */
+std::vector<std::pair<std::string, std::string>> zt_theme_values_of(const std::string &text) {
+  return theme_values(text);
+}
+bool zt_theme_value_ok(const std::string &value) { return !value.empty() && safe_value(value); }
 
 std::string zt_theme_values_text(const std::string &src) {
   std::string out;

@@ -15,10 +15,12 @@ later version. See LICENSE and NOTICE.  */
  * tells which ones it uses, so the rest can go. The SteamGridDB key moved
  * out of the theme into steamgrid.key.
  * several themes. /data/ZhiThemes keeps Assets/ (the user's files,
- * shared by every theme), Themes/<Name>.ztheme + Themes/<Name>/ (the
- * wallpapers, icons and fonts of that theme: deleting a theme deletes its
- * folder) and Logs/. active_theme.txt names the theme in use. A file that
- * two themes have is one file on disk (hard link, zt_dedupe).
+ * shared by every theme), Themes/<Name>/ (theme.json + the wallpapers,
+ * icons and fonts of that theme: deleting a theme deletes its folder) and
+ * Logs/. active_theme.txt names the theme in use. A file that two themes
+ * have is one file on disk (hard link, zt_dedupe). Older themes were
+ * Themes/<Name>.ztheme (a whole theme.js): zt_storage_migrate turns them
+ * into theme.json.
  */
 
 #include "zt_storage.hpp"
@@ -331,9 +333,9 @@ void set_active(const std::string &name) {
   write_all(ZT_ACTIVE_FILE, name + "\n");
 }
 
-/* the active theme from active_theme.txt; its .ztheme missing (deleted by
+/* the active theme from active_theme.txt; its theme.json missing (deleted by
    the user to get out of a crash loop, or never there) -> Default. With no
-   Default.ztheme either, ZhiThemes stays off (zt_stock_on): the factory
+   Default theme either, ZhiThemes stays off (zt_stock_on): the factory
    theme is never written on its own; Apply in the editor makes the file */
 void load_active() {
   std::string name = trim(read_all(ZT_ACTIVE_FILE));
@@ -365,6 +367,47 @@ void make_theme_dirs(const std::string &name) {
     zt_mkdirs(zt_theme_dir_of(name, k));
 }
 
+/* the themes: the folders of Themes/ that have a theme.json */
+std::vector<std::string> theme_names() {
+  std::vector<std::string> names;
+  for (const std::string &n : list_dir(ZT_THEMES))
+    if (zt_theme_name_ok(n) && exists(zt_theme_file(n)))
+      names.push_back(n);
+  std::sort(names.begin(), names.end(), [](const std::string &a, const std::string &b) {
+    return strcasecmp(a.c_str(), b.c_str()) < 0;
+  });
+  return names;
+}
+
+std::string backup_file(const std::string &name) { return std::string(ZT_THEME_BACKUPS "/") + name + ".json"; }
+
+/* an older theme file (a whole theme.js) -> theme.json at to. The old file
+   stays where it is (an older ZhiThemes sent again still finds its themes;
+   this one only reads theme.json from now on); a theme deleted or renamed
+   here takes its old file with it */
+bool translate_old(const std::string &from, const std::string &to, const std::string &name) {
+  const std::string text = read_all(from.c_str());
+  if (text.find("var THEME") == std::string::npos) {
+    zt_logl('W', "storage: %s has no THEME block: not translated (left as it is)", from.c_str());
+    return false;
+  }
+  ZtThemeInfo info;
+  info.name = name;
+  int values = 0, dropped = 0;
+  const std::string json = zt_theme_json_make(text, info, &values, &dropped);
+  const size_t slash = to.rfind('/');
+  zt_mkdirs(to.substr(0, slash));
+  const std::string temp = to + ".tmp";
+  if (!write_all(temp.c_str(), json) || rename(temp.c_str(), to.c_str()) != 0) {
+    unlink(temp.c_str());
+    zt_logl('W', "storage: %s NOT translated (cannot write %s)", from.c_str(), to.c_str());
+    return false;
+  }
+  zt_logl('A', "storage: %s -> %s (old format translated: %d values%s)", from.c_str(), to.c_str(), values,
+          dropped ? (", " + std::to_string(dropped) + " not plain values left out").c_str() : "");
+  return true;
+}
+
 } // namespace
 
 void zt_mkdirs(const std::string &path) {
@@ -381,7 +424,7 @@ std::string zt_theme_name() {
 }
 
 std::string zt_theme_file(const std::string &name) {
-  return std::string(ZT_THEMES "/") + (name.empty() ? zt_theme_name() : name) + ".ztheme";
+  return std::string(ZT_THEMES "/") + (name.empty() ? zt_theme_name() : name) + "/theme.json";
 }
 
 std::string zt_theme_dir_of(const std::string &name, const char *kind) {
@@ -403,19 +446,13 @@ void zt_carry_personal(const std::string &from_text, const std::string &to_file)
   for (const char *k : kPersonal) {
     bool found = false;
     const std::string v = raw_field(from_text, k, &found);
-    if (found && raw_field(read_all(to_file.c_str()), k) != v && !theme_set_field_in(to_file, k, v))
+    if (found && raw_field(zt_theme_read_path(to_file), k) != v && !theme_set_field_in(to_file, k, v))
       zt_log("storage: %s not carried to %s", k, to_file.c_str());
   }
 }
 
 std::string zt_themes_json() {
-  std::vector<std::string> names;
-  for (const std::string &n : list_dir(ZT_THEMES))
-    if (ends(n, ".ztheme") && zt_theme_name_ok(n.substr(0, n.size() - 7)))
-      names.push_back(n.substr(0, n.size() - 7));
-  std::sort(names.begin(), names.end(), [](const std::string &a, const std::string &b) {
-    return strcasecmp(a.c_str(), b.c_str()) < 0;
-  });
+  const std::vector<std::string> names = theme_names();
   std::string out = "{\"active\":\"" + zt_theme_name() + "\",\"themes\":[";
   for (size_t i = 0; i < names.size(); ++i) {
     int files = 0;
@@ -437,8 +474,12 @@ std::string zt_themes_json() {
             q += c;
         list += (list.empty() ? "[\"" : ",[\"") + std::string(k) + "\",\"" + q + "\"," + std::to_string((long long)fs.st_size) + "]";
       }
-    out += (i ? ",{\"name\":\"" : "{\"name\":\"") + names[i] + "\",\"files\":" + std::to_string(files) +
-           ",\"bytes\":" + std::to_string(bytes) + ",\"modified\":" + std::to_string((long long)st.st_mtime) +
+    const ZtThemeInfo info = zt_theme_info(names[i]);
+    /* files: the theme's own, theme.json not counted */
+    out += (i ? ",{\"name\":\"" : "{\"name\":\"") + names[i] + "\",\"files\":" + std::to_string(std::max(0, files - 1)) +
+           ",\"bytes\":" + std::to_string(std::max(0LL, bytes - (long long)st.st_size)) +
+           ",\"modified\":" + std::to_string((long long)st.st_mtime) + ",\"title\":" + zt_json_quote(info.name) +
+           ",\"author\":" + zt_json_quote(info.author) + ",\"description\":" + zt_json_quote(info.description) +
            ",\"list\":[" + list + "]}";
   }
   return out + "]}";
@@ -450,7 +491,7 @@ std::string zt_theme_use(const std::string &name) {
   const std::string old = zt_theme_name();
   /* the folders and the custom tile choices follow the user */
   if (name != old)
-    zt_carry_personal(read_all(zt_theme_file(old).c_str()), zt_theme_file(name));
+    zt_carry_personal(zt_theme_read(old), zt_theme_file(name));
   make_theme_dirs(name);
   set_active(name);
   zt_log("storage: theme %s in use (was %s)", name.c_str(), old.c_str());
@@ -465,10 +506,14 @@ std::string zt_theme_new(const std::string &name, const std::string &from, bool 
   if (exists(zt_theme_file(name)) || exists(std::string(ZT_THEMES "/") + name))
     return "a theme called " + name + " already exists";
   std::string text;
+  ZtThemeInfo info;
   if (from.empty())
     text = theme_default_text();
-  else if (!zt_theme_name_ok(from) || (text = read_all(zt_theme_file(from).c_str())).empty())
+  else if (!zt_theme_name_ok(from) || (text = zt_theme_read(from)).empty())
     return "no theme " + from;
+  else
+    info = zt_theme_info(from);
+  info.name = name;
   make_theme_dirs(name);
   int linked = 0, copied = 0;
   if (!from.empty())
@@ -480,7 +525,7 @@ std::string zt_theme_new(const std::string &name, const std::string &from, bool 
         if (link_or_copy(zt_theme_dir_of(from, k) + "/" + n, zt_theme_dir_of(name, k) + "/" + n, &hard))
           ++(hard ? linked : copied);
       }
-  if (!write_all(zt_theme_file(name).c_str(), text)) {
+  if (!zt_theme_save(name, info, text)) {
     remove_tree(std::string(ZT_THEMES "/") + name);
     return "cannot write " + zt_theme_file(name);
   }
@@ -500,16 +545,18 @@ std::string zt_theme_rename(const std::string &name, const std::string &to) {
     return "";
   if (exists(zt_theme_file(to)) || exists(std::string(ZT_THEMES "/") + to))
     return "a theme called " + to + " already exists";
-  if (rename(zt_theme_file(name).c_str(), zt_theme_file(to).c_str()) != 0)
+  /* theme.json lives in the folder: the folder is the theme */
+  if (rename((std::string(ZT_THEMES "/") + name).c_str(), (std::string(ZT_THEMES "/") + to).c_str()) != 0)
     return "cannot rename (errno " + std::to_string(errno) + ")";
-  const std::string dir = std::string(ZT_THEMES "/") + name;
-  if (is_dir(dir) && rename(dir.c_str(), (std::string(ZT_THEMES "/") + to).c_str()) != 0)
-    zt_log("storage: folder of %s NOT renamed (errno %d)", name.c_str(), errno);
-  rename((std::string(ZT_THEME_BACKUPS "/") + name + ".ztheme").c_str(),
-         (std::string(ZT_THEME_BACKUPS "/") + to + ".ztheme").c_str());
+  rename(backup_file(name).c_str(), backup_file(to).c_str());
+  /* its file of the old format (translate_old) follows, else it would come back */
+  rename((std::string(ZT_THEMES "/") + name + ".ztheme").c_str(), (std::string(ZT_THEMES "/") + to + ".ztheme").c_str());
   if (zt_theme_name() == name)
     set_active(to);
   make_theme_dirs(to);
+  ZtThemeInfo info = zt_theme_info(to);
+  info.name = to;
+  zt_theme_info_set(to, info);
   zt_log("storage: theme %s renamed %s", name.c_str(), to.c_str());
   return "";
 }
@@ -519,8 +566,10 @@ std::string zt_theme_delete(const std::string &name) {
     return "no theme " + name;
   if (name == zt_theme_name())
     return "the theme in use cannot be deleted: use another one first";
-  unlink(zt_theme_file(name).c_str());
   remove_tree(std::string(ZT_THEMES "/") + name);
+  unlink(backup_file(name).c_str());
+  /* its files of the old format too (translate_old), else it would come back */
+  unlink((std::string(ZT_THEMES "/") + name + ".ztheme").c_str());
   unlink((std::string(ZT_THEME_BACKUPS "/") + name + ".ztheme").c_str());
   zt_log("storage: theme %s deleted with its files", name.c_str());
   return "";
@@ -631,9 +680,12 @@ void zt_storage_migrate() {
     if (want.empty() || !zt_theme_name_ok(want))
       want = "My-theme";
     name = want;
-    for (int n = 2; exists(zt_theme_file(name)) && n < 100; ++n)
+    auto taken = [](const std::string &n) {
+      return exists(zt_theme_file(n)) || exists(std::string(ZT_THEMES "/") + n + ".ztheme");
+    };
+    for (int n = 2; taken(name) && n < 100; ++n)
       name = want + "-" + std::to_string(n);
-    if (rename(old.c_str(), zt_theme_file(name).c_str()) == 0) {
+    if (rename(old.c_str(), (std::string(ZT_THEMES "/") + name + ".ztheme").c_str()) == 0) {
       set_active(name);
       zt_log("storage: theme.ztheme is now Themes/%s.ztheme (new layout)", name.c_str());
       ++moved;
@@ -645,6 +697,52 @@ void zt_storage_migrate() {
       unlink(backup.c_str());
   }
   unlink(ZT_DIR "/theme.ztheme.tmp");
+
+  /* older themes: Themes/<Name>.ztheme (a whole theme.js) -> Themes/<Name>/theme.json,
+     once: Themes/.translated names the ones done, so a theme.json deleted
+     by hand (to get out of a theme that breaks the Home) stays deleted */
+  int translated = 0;
+  std::set<std::string> done;
+  {
+    const std::string list = read_all(ZT_THEMES "/.translated");
+    for (size_t at = 0; at < list.size();) {
+      size_t nl = list.find('\n', at);
+      if (nl == std::string::npos)
+        nl = list.size();
+      done.insert(trim(list.substr(at, nl - at)));
+      at = nl + 1;
+    }
+  }
+  std::string add;
+  for (const std::string &n : list_dir(ZT_THEMES)) {
+    if (!ends(n, ".ztheme"))
+      continue;
+    const std::string stem = n.substr(0, n.size() - 7), from = std::string(ZT_THEMES "/") + n;
+    if (!zt_theme_name_ok(stem) || done.count(stem))
+      continue;
+    if (exists(zt_theme_file(stem)))
+      add += stem + "\n"; /* translated by a build without the list */
+    else if (translate_old(from, zt_theme_file(stem), stem)) {
+      ++translated;
+      add += stem + "\n";
+    }
+  }
+  if (!add.empty()) {
+    const int fd = open(ZT_THEMES "/.translated", O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (fd >= 0) {
+      if (write(fd, add.data(), add.size()) != (ssize_t)add.size())
+        zt_log("storage: Themes/.translated not written whole");
+      fsync(fd);
+      close(fd);
+    }
+  }
+  for (const std::string &n : list_dir(ZT_THEME_BACKUPS)) {
+    const std::string stem = ends(n, ".ztheme") ? n.substr(0, n.size() - 7) : std::string();
+    if (zt_theme_name_ok(stem) && !exists(backup_file(stem)))
+      translate_old(std::string(ZT_THEME_BACKUPS "/") + n, backup_file(stem), stem);
+  }
+  if (translated)
+    zt_logl('A', "storage: %d themes of the old format now theme.json", translated);
   load_active();
   /* the wallpapers, icons and fonts belonged to that theme */
   for (const char *k : kThemeKinds)
@@ -661,7 +759,7 @@ void zt_storage_setup() {
                                std::string(ZT_CUSTOMBG), std::string(ZT_CACHE_MOSAICS),
                                std::string(ZT_CACHE_FOLDERBG), std::string(ZT_CACHE_ICONS)})
     zt_mkdirs(d);
-  const std::string theme = read_all(zt_theme_file().c_str());
+  const std::string theme = zt_theme_read();
 
   /* the user's icons: what the icon fields name */
   std::set<std::string> icons;
@@ -725,13 +823,13 @@ void zt_storage_setup() {
   /* favourites leave the themes: one list for the console (the active
      theme's first, then the other themes') */
   if (!exists(ZT_FAVORITES_FILE)) {
-    std::vector<std::string> files{zt_theme_file()};
-    for (const std::string &n : list_dir(ZT_THEMES))
-      if (ends(n, ".ztheme") && std::string(ZT_THEMES "/") + n != files[0])
-        files.push_back(std::string(ZT_THEMES "/") + n);
+    std::vector<std::string> themes{zt_theme_name()};
+    for (const std::string &n : theme_names())
+      if (n != themes[0])
+        themes.push_back(n);
     std::string all = ",";
-    for (const std::string &f : files) {
-      const std::string v = string_field(read_all(f.c_str()), "favorites");
+    for (const std::string &t : themes) {
+      const std::string v = string_field(zt_theme_read(t), "favorites");
       size_t at = 0;
       while (at <= v.size()) {
         size_t c = v.find(',', at);

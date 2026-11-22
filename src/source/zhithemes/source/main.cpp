@@ -17,7 +17,7 @@ later version. See LICENSE and NOTICE.  */
  * swap back to the original bytes) and close the port, then the new module is
  * injected. A previous watcher process is stopped through its pid file.
  *
- * Files: /data/ZhiThemes/Themes/<active>.ztheme; logs in /data/ZhiThemes/Logs/
+ * Files: /data/ZhiThemes/Themes/<active>/theme.json; logs in /data/ZhiThemes/Logs/
  * (zhithemes.log: the module's lines and this payload's "[payload]" lines).
  */
 
@@ -276,7 +276,8 @@ bool stock_mode() {
     return true;
   /* no theme file (first run, or deleted): the module keeps ZhiThemes off
      too. The name in active_theme.txt, else Default (zt_storage.cpp);
-     theme.ztheme = the old layout, moved by the module */
+     Themes/<Name>.ztheme and theme.ztheme = older layouts, made
+     Themes/<Name>/theme.json by the module */
   {
     std::string active;
     const int fd = open((std::string(kDir) + "/active_theme.txt").c_str(), O_RDONLY);
@@ -290,8 +291,11 @@ bool stock_mode() {
     while (!active.empty() && isspace((unsigned char)active.back()))
       active.pop_back();
     const bool named = !active.empty() && active.find('/') == std::string::npos && active[0] != '.';
-    const bool has = (named && stat((std::string(kDir) + "/Themes/" + active + ".ztheme").c_str(), &st) == 0) ||
-                     stat((std::string(kDir) + "/Themes/Default.ztheme").c_str(), &st) == 0 ||
+    auto theme_there = [&](const std::string &n) {
+      return stat((std::string(kDir) + "/Themes/" + n + "/theme.json").c_str(), &st) == 0 ||
+             stat((std::string(kDir) + "/Themes/" + n + ".ztheme").c_str(), &st) == 0;
+    };
+    const bool has = (named && theme_there(active)) || theme_there("Default") ||
                      stat((std::string(kDir) + "/theme.ztheme").c_str(), &st) == 0;
     if (!has)
       return true;
@@ -304,43 +308,20 @@ bool stock_mode() {
   return false;
 }
 
-/* the theme that will load: the name in `themeName: '...'` of theme.ztheme
-   (or of theme.js, renamed by the module); "default" without one */
+/* the theme that will load: the name in active_theme.txt (the theme's
+   folder, Rename in the editor); "default" without one */
 std::string current_theme() {
-  /* Themes/<active_theme.txt>.ztheme (theme.ztheme before the
-     module moves it) */
   std::string active;
-  int fd = open((std::string(kDir) + "/active_theme.txt").c_str(), O_RDONLY);
+  const int fd = open((std::string(kDir) + "/active_theme.txt").c_str(), O_RDONLY);
   if (fd >= 0) {
     char nb[64] = {};
     const ssize_t got = read(fd, nb, sizeof(nb) - 1);
     close(fd);
-    for (ssize_t i = 0; i < got && nb[i] != '\n' && nb[i] != '\r'; ++i)
+    for (ssize_t i = 0; i < got && nb[i] != 10 && nb[i] != 13; ++i)
       active += nb[i];
   }
-  /* the theme's own name (Rename in the editor), not themeName */
   if (!active.empty() && active.find('/') == std::string::npos)
     return active;
-  fd = -1;
-  if (!active.empty() && active.find('/') == std::string::npos)
-    fd = open((std::string(kDir) + "/Themes/" + active + ".ztheme").c_str(), O_RDONLY);
-  if (fd < 0)
-    fd = open((std::string(kDir) + "/theme.ztheme").c_str(), O_RDONLY);
-  if (fd < 0)
-    return active.empty() ? "default" : active;
-  std::string text;
-  char buf[4096];
-  ssize_t n;
-  while (text.size() < 65536 && (n = read(fd, buf, sizeof(buf))) > 0)
-    text.append(buf, (size_t)n);
-  close(fd);
-  const size_t key = text.find("themeName:");
-  if (key != std::string::npos) {
-    const size_t q1 = text.find('\'', key);
-    const size_t q2 = q1 == std::string::npos ? q1 : text.find('\'', q1 + 1);
-    if (q2 != std::string::npos && q2 > q1 + 1 && q2 - q1 < 60)
-      return text.substr(q1 + 1, q2 - q1 - 1);
-  }
   return "default";
 }
 

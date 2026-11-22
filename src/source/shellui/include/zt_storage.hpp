@@ -10,11 +10,15 @@ later version. See LICENSE and NOTICE.  */
 
 #include "zt_paths.hpp"
 
+#include <stdint.h>
+
+#include <functional>
 #include <string>
+#include <vector>
 
 /* one folder per kind of file; the user's own files under
    Assets/, the theme's own files (wallpapers, icons, fonts) under
-   Themes/<Name>/ next to Themes/<Name>.ztheme */
+   Themes/<Name>/ next to its theme.json */
 #define ZT_FOLDERS ZT_ASSETS "/folders"            /* uploaded folder icons */
 #define ZT_CUSTOMTILE ZT_ASSETS "/customtile"      /* <titleId>_<format>_<n>.png (+ .mp4), logos */
 #define ZT_CUSTOMBG ZT_ASSETS "/custombg"          /* <titleId>_16x9_<n>.png (+ .mp4) */
@@ -47,8 +51,38 @@ void zt_particles_install();
 /* ---- themes ---- */
 /* the theme in use ("Default" when none) */
 std::string zt_theme_name();
-/* Themes/<name>.ztheme (the active one when name is empty) */
+/* Themes/<name>/theme.json (the active one when name is empty) */
 std::string zt_theme_file(const std::string &name = std::string());
+
+/* ---- theme.json (zt_theme_json.cpp) ----
+   {"format":2,"name","author","description","settings":{key: value}}.
+   Whatever reads a theme works on THEME text ("var THEME = {\n    key:
+   value,\n  };", the form of the older theme files): read makes it from
+   theme.json, write keeps the plain values of such a text (numbers,
+   true/false, 'text') in theme.json. */
+struct ZtThemeInfo {
+  std::string name, author, description;
+};
+/* the theme's values as THEME text; "" when missing or not a theme.json */
+std::string zt_theme_read(const std::string &name = std::string());
+std::string zt_theme_read_path(const std::string &file);
+/* the values of text (THEME text, the editor's theme.js, an older theme
+   file) become the theme's settings; name/author/description stay */
+bool zt_theme_write(const std::string &name, const std::string &text);
+bool zt_theme_write_path(const std::string &file, const std::string &text);
+/* the same with new name/author/description */
+bool zt_theme_save(const std::string &name, const ZtThemeInfo &info, const std::string &text);
+/* name/author/description (name = the folder's name when theme.json has none) */
+ZtThemeInfo zt_theme_info(const std::string &name);
+bool zt_theme_info_set(const std::string &name, const ZtThemeInfo &info);
+/* theme.json text from THEME text: older theme files translated;
+   *values = how many kept, *dropped = how many were not plain values */
+std::string zt_theme_json_make(const std::string &text, const ZtThemeInfo &info, int *values = nullptr,
+                               int *dropped = nullptr);
+/* a theme.json's info and values as THEME text; false when it is not one */
+bool zt_theme_json_parse(const std::string &json, ZtThemeInfo *info, std::string *text, int *dropped = nullptr);
+/* "text" with JSON escapes */
+std::string zt_json_quote(const std::string &s);
 /* Themes/<active>/<kind> (wallpapers, icons, fonts) */
 std::string zt_theme_dir(const char *kind);
 /* the folder of one kind of a theme (the active one when name is empty) */
@@ -73,8 +107,8 @@ std::string zt_theme_clean(const std::string &name, const std::string &list, int
    used twice; the space comes back when the last theme with it goes) */
 void zt_dedupe(const std::string &file);
 /* the personal values (folders, foldersIcon, customTileChoice,
-   customBgChoice) of a theme text written into another theme file: they
-   follow the user from theme to theme */
+   customBgChoice) of a theme text written into another theme's theme.json:
+   they follow the user from theme to theme */
 void zt_carry_personal(const std::string &from_text, const std::string &to_file);
 
 /* The files still in backgrounds/ as a JSON list (the theme looks there
@@ -96,10 +130,30 @@ bool zt_favorites_set(const std::string &list);
 std::string zt_sgdb_key();
 bool zt_sgdb_key_set(const std::string &key);
 
-/* installs the themes copied to /data/ZhiThemes/Install (pack or
-   text, as the editor's Install) and deletes them from there; the last one
+/* installs the themes copied to /data/ZhiThemes/Install (.ztheme, or an
+   older theme file, translated) and deletes them from there; the last one
    is used. Call after zt_storage_setup, before the theme runs. */
 void zt_install_dropped();
+/* the editor's Install: the file at path (sent as file_name) becomes a
+   theme of its own (replace: that theme is replaced) and the theme in
+   use; "" or the reason */
+std::string zt_install_file(const std::string &path, const std::string &file_name, std::string *theme,
+                            const std::string &replace = std::string());
+
+/* the .ztheme of a theme (the editor's Download): plan says what goes in
+   and how big the ZIP is ("" or the reason), write sends it to sink */
+struct ZtPackFile {
+  std::string rel, path; /* "<kind>/<file>" in the ZIP, the file on the PS5 */
+  uint64_t size;
+};
+struct ZtPack {
+  std::string theme, json;
+  std::vector<ZtPackFile> files;
+  uint64_t size = 0; /* the whole ZIP */
+  int missing = 0;   /* files the theme names that are not on the PS5 */
+};
+std::string zt_theme_pack_plan(const std::string &name, ZtPack *pack);
+bool zt_theme_pack_write(const ZtPack &pack, const std::function<bool(const char *, size_t)> &sink);
 
 /* ---- the Home's Options menu > ZhiThemes ---- */
 /* ZhiThemes off ("PS5 default"): /data/ZhiThemes/no_theme, or a USB stick

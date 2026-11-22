@@ -6,16 +6,20 @@ under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3, or (at your option) any
 later version. See LICENSE and NOTICE.  */
 
-/* themes dropped in /data/ZhiThemes/Install (FTP, USB copy...) are
-   installed when the module starts, the same way as the editor's Install:
-   a .ztheme pack (ZIP: theme.ztheme, zhitheme.json, assets/<kind>/<file>)
-   or the theme text alone. The theme becomes Themes/<name>.ztheme +
-   Themes/<name>/{wallpapers,icons,fonts} (a theme with that name already
-   there is kept: the new one becomes <name>-2, -3..., as the editor's
-   Install), the folders / custom tile choices of the theme in use are
-   kept, and it becomes the theme in use. The file is then deleted from
-   Install/; one that is not a theme becomes <file>.failed (kept, not tried
-   again). */
+/* A .ztheme is a ZIP of a theme's folder:
+     theme.json                 {"format":2,"name","author","description","settings":{...}}
+     wallpapers/<file>  icons/<file>  fonts/<file>
+   Older .ztheme files are translated when they are installed: a ZIP with
+   theme.ztheme (a whole theme.js) + zhitheme.json + assets/<kind>/<file>,
+   or that theme text alone; only the values of its THEME block are kept.
+   Every install goes through here: the editor's Install (POST /install),
+   the Home menu, USB and /data/ZhiThemes/Install (FTP, USB copy..., at the
+   module's start). The theme becomes Themes/<name>/ (theme.json + its
+   files; a name already there is kept: the new one becomes <name>-2,
+   -3...), the folders / custom tile choices of the theme in use are kept,
+   and it becomes the theme in use. A file of Install/ is then deleted; one
+   that is not a theme becomes <file>.failed (kept, not tried again).
+   zt_theme_pack_* make the .ztheme of a theme (the editor's Download). */
 
 #include "zt_storage.hpp"
 #include "zt_log.hpp"
@@ -39,10 +43,15 @@ later version. See LICENSE and NOTICE.  */
 
 #include <algorithm>
 #include <atomic>
+#include <functional>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
 #define ZT_INSTALL ZT_DIR "/Install"
+
+/* homeui_js_inject.cpp */
+std::vector<std::pair<std::string, std::string>> zt_theme_values_of(const std::string &text);
 
 namespace {
 
@@ -240,19 +249,6 @@ std::string quoted_after(const std::string &text, const char *key, char quote) {
 }
 
 bool is_theme_text(const std::string &t) { return t.find("var THEME") != std::string::npos; }
-
-bool write_text(const std::string &file, const std::string &text) {
-  const std::string temp = file + ".tmp";
-  const int fd = open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-  if (fd < 0)
-    return false;
-  bool ok = write_out(fd, text.data(), text.size()) && fsync(fd) == 0;
-  close(fd);
-  ok = ok && rename(temp.c_str(), file.c_str()) == 0;
-  if (!ok)
-    unlink(temp.c_str());
-  return ok;
-}
 
 std::string read_text(const char *path) {
   std::string out;
@@ -471,7 +467,10 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
   fstat(fd, &st);
   unsigned char head[4] = {};
   const bool zip = st.st_size >= 22 && read_at(fd, head, 4, 0) && le32(head) == 0x04034b50;
-  std::string text, info;
+  /* what the file holds: info + the THEME values, and the files to unpack
+     (<kind>/<file>; assets/<kind>/<file> in older packs) */
+  ZtThemeInfo info;
+  std::string text, json, old_info, from;
   std::vector<Entry> entries, assets;
   if (zip) {
     if (!zip_list(fd, st.st_size, entries)) {
@@ -489,45 +488,82 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
       close(fd);
       return "pack too big (more than 4 GB unpacked)";
     }
+    /* theme.json at the top, or in one folder (a theme's folder zipped by hand) */
+    std::string base;
     for (const Entry &e : entries) {
-      if (e.name == "theme.ztheme" && !zip_text(fd, e, text)) {
+      const size_t slash = e.name.find('/');
+      const std::string file = e.name.substr(slash == std::string::npos ? 0 : slash + 1);
+      if ((e.name == "theme.json" || (file == "theme.json" && e.name.find('/', slash + 1) == std::string::npos)) &&
+          (json.empty() || e.name == "theme.json")) {
+        if (!zip_text(fd, e, json)) {
+          close(fd);
+          return "cannot read theme.json";
+        }
+        base = e.name.substr(0, e.name.size() - 10);
+      }
+    }
+    for (const Entry &e : entries) {
+      if (e.name == "theme.ztheme" && json.empty() && !zip_text(fd, e, text)) {
         close(fd);
         return "cannot read theme.ztheme";
       }
       if (e.name == "zhitheme.json")
-        zip_text(fd, e, info);
-      if (e.name.rfind("assets/", 0) == 0) {
-        const size_t s1 = e.name.find('/', 7);
-        if (s1 == std::string::npos || e.name.find('/', s1 + 1) != std::string::npos)
+        zip_text(fd, e, old_info);
+      std::string rel = e.name;
+      if (!base.empty()) {
+        if (rel.compare(0, base.size(), base) != 0)
           continue;
-        const std::string kind = e.name.substr(7, s1 - 7);
-        if ((kind == "wallpapers" || kind == "icons" || kind == "fonts") && assets.size() < kMaxAssets)
-          assets.push_back(e);
+        rel = rel.substr(base.size());
+      } else if (rel.rfind("assets/", 0) == 0)
+        rel = rel.substr(7);
+      const size_t s1 = rel.find('/');
+      if (s1 == std::string::npos || rel.find('/', s1 + 1) != std::string::npos || s1 + 1 >= rel.size())
+        continue;
+      const std::string kind = rel.substr(0, s1);
+      if ((kind == "wallpapers" || kind == "icons" || kind == "fonts") && assets.size() < kMaxAssets) {
+        Entry a = e;
+        a.name = rel; /* <kind>/<file> */
+        assets.push_back(a);
       }
     }
-    if (text.empty()) {
+    if (!json.empty()) {
+      int dropped = 0;
+      if (!zt_theme_json_parse(json, &info, &text, &dropped)) {
+        close(fd);
+        return "theme.json of this pack is not a ZhiThemes theme (format 2)";
+      }
+      from = "pack";
+      if (dropped)
+        zt_logl('W', "install: %s: %d values not plain values, left out", path.c_str(), dropped);
+    } else if (text.empty()) {
       close(fd);
-      return "no theme.ztheme in this pack";
-    }
+      return "no theme.json in this pack";
+    } else
+      from = "old pack, translated";
   } else {
     if (st.st_size > (off_t)kMaxText) {
       close(fd);
       return "not a theme (too big for a theme text)";
     }
     text = read_text(path.c_str());
+    from = "old theme text, translated";
   }
   if (!is_theme_text(text)) {
     close(fd);
-    return "no \"var THEME = {...}\" block: not a ZhiThemes theme";
+    return "no theme.json and no \"var THEME = {...}\" block: not a ZhiThemes theme";
   }
-  /* the editor's order: zhitheme.json name, themeName, the file's name */
-  std::string n = theme_safe(quoted_after(info, "\"name\"", '"'));
-  if (n.empty())
-    n = theme_safe(quoted_after(text, "themeName", '\''));
+  /* the name: theme.json's, an older pack's zhitheme.json / themeName, the file's */
+  if (info.name.empty())
+    info.name = quoted_after(old_info, "\"name\"", '"');
+  if (info.name.empty())
+    info.name = quoted_after(text, "themeName", '\'');
+  std::string n = theme_safe(info.name);
   if (n.empty())
     n = theme_safe(stem);
   if (n.empty())
     n = "New-theme";
+  if (info.name.empty())
+    info.name = n;
   if (!replace.empty() && zt_theme_name_ok(replace) && access(zt_theme_file(replace).c_str(), F_OK) == 0)
     n = replace;
   else {
@@ -539,7 +575,7 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
   *name = n;
   const std::string active = zt_theme_name();
   const bool there = access(zt_theme_file(n).c_str(), F_OK) == 0;
-  const std::string before = n == active ? read_text(zt_theme_file(active).c_str()) : std::string();
+  const std::string before = n == active ? zt_theme_read(active) : std::string();
   std::string err = there ? zt_theme_clear(n) : zt_theme_new(n, std::string());
   if (!err.empty()) {
     close(fd);
@@ -548,8 +584,8 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
   int files = 0, refused = 0;
   uint64_t total = 0;
   for (const Entry &e : assets) {
-    const size_t s1 = e.name.find('/', 7);
-    const std::string kind = e.name.substr(7, s1 - 7), orig = e.name.substr(s1 + 1);
+    const size_t s1 = e.name.find('/');
+    const std::string kind = e.name.substr(0, s1), orig = e.name.substr(s1 + 1);
     std::string file = name_ok(orig) ? orig : upload_name(orig);
     const char *allowed = allowed_types(kind, file);
     if (!*allowed) {
@@ -573,15 +609,15 @@ std::string install_one(const std::string &path, const std::string &stem, std::s
     ++files;
   }
   close(fd);
-  if (!write_text(zt_theme_file(n), text))
+  if (!zt_theme_save(n, info, text))
     return "cannot write " + zt_theme_file(n);
   if (n == active) {
     if (!before.empty())
       zt_carry_personal(before, zt_theme_file(n));
   } else if (!(err = zt_theme_use(n)).empty())
     return err;
-  zt_log("install: %s -> theme %s (%s, %d of %zu files%s)", path.c_str(), n.c_str(),
-         zip ? "pack" : "text", files, assets.size(), there ? ", replaced the old one" : "");
+  zt_logl('A', "install: %s -> theme %s (%s, %d of %zu files%s)", path.c_str(), n.c_str(), from.c_str(), files,
+          assets.size(), there ? ", replaced the old one" : "");
   if (refused)
     tell(std::to_string(refused) + " file(s) of " + n + " left out (wrong type or too big, see the log)");
   return "";
@@ -963,3 +999,316 @@ std::string zt_theme_menu_install(const std::string &path, void (*done)()) {
 }
 
 void zt_menu_notify(const std::string &text) { menu_tell(text); }
+
+/* the editor's Install: a file it sent (POST /install), installed as the
+   Home menu does */
+std::string zt_install_file(const std::string &path, const std::string &file_name, std::string *theme,
+                            const std::string &replace) {
+  bool idle = false;
+  if (!g_menu_installing.compare_exchange_strong(idle, true))
+    return "another theme is being installed";
+  const size_t dot = file_name.rfind('.');
+  const std::string stem = dot == std::string::npos || dot == 0 ? file_name : file_name.substr(0, dot);
+  const time_t t0 = time(nullptr);
+  const std::string err = install_one(path, stem, theme, replace);
+  if (err.empty()) {
+    zt_stock_set(false);
+    zt_log("install: %s (editor) -> %s in %ld s", file_name.c_str(), theme->c_str(), (long)(time(nullptr) - t0));
+  }
+  g_menu_installing.store(false);
+  return err;
+}
+
+/* ---- the .ztheme of a theme (the editor's Download) ----
+   theme.json without the personal values (folders, custom tile choices:
+   each user's own) and the files of the fields the theme shows; a picture
+   or video in a field that is off stays out (and out of theme.json). A ZIP
+   without compression (pictures, videos and fonts are compressed already),
+   each entry's CRC and size after its data (sent while it is read, so a
+   video is never whole in memory and never read twice). */
+namespace {
+
+const char *const kPackPersonal[] = {"folders", "foldersIcon", "customTileChoice", "customBgChoice",
+                                     "favorites", "steamGridKey"};
+
+bool pack_wall(const std::string &k) {
+  return k == "wallpaper" || k == "bgOverlay" || k == "sysBg" || k == "homeMusic";
+}
+
+bool one_of(const std::string &s, std::initializer_list<const char *> list) {
+  for (const char *x : list)
+    if (s == x)
+      return true;
+  return false;
+}
+
+/* deco1Icon, footerIcon2: prefix + one digit + suffix */
+bool digit_key(const std::string &k, const char *prefix, const char *suffix) {
+  const size_t p = strlen(prefix), s = strlen(suffix);
+  return k.size() == p + 1 + s && k.compare(0, p, prefix) == 0 && isdigit((unsigned char)k[p]) &&
+         k.compare(p + 1, s, suffix) == 0;
+}
+
+bool pack_icon(const std::string &k) {
+  return one_of(k, {"searchIcon", "settingsIcon", "powerBtnIcon", "trophyBtnIcon", "padInfoIcon", "tabsGameIcon",
+                    "tabsMediaIcon", "tabsRecentIcon", "tabsFavIcon", "tabsNeverIcon", "tabsGroupLeft",
+                    "tabsGroupRight", "particlesImage"}) ||
+         digit_key(k, "deco", "Icon") || digit_key(k, "footerIcon", "");
+}
+
+bool pack_font(const std::string &k) {
+  return one_of(k, {"elementFont", "systemFont", "systemFontBold", "systemFontItalic", "systemFontBoldItalic",
+                    "footerIconFont"});
+}
+
+bool ends_any(const std::string &s, std::initializer_list<const char *> list) {
+  for (const char *e : list)
+    if (ends_nocase(s, e))
+      return true;
+  return false;
+}
+
+std::string unquote(const std::string &v) {
+  return v.size() >= 2 && v.front() == '\'' && v.back() == '\'' ? v.substr(1, v.size() - 2) : std::string();
+}
+
+/* the editor's packUsed: is the field's picture / video shown? */
+bool pack_used(const std::string &k, const std::vector<std::pair<std::string, std::string>> &values) {
+  auto value = [&](const std::string &f) {
+    for (const auto &kv : values)
+      if (kv.first == f)
+        return kv.second;
+    return std::string();
+  };
+  auto on = [&](const std::string &f) { return value(f) == "true"; };
+  if (k == "wallpaper")
+    return on("wallpaperOn");
+  if (k == "bgOverlay")
+    return on("bgOverlayOn");
+  if (k == "homeMusic")
+    return on("homeMusicOn");
+  if (k == "sysBg")
+    return on("sysOn") && on("sysBgOn") && !on("sysBgWallpaper");
+  if (k == "particlesImage")
+    return on("particlesOn") && unquote(value("particlesStyle")).empty();
+  if (k == "powerBtnIcon" || k == "trophyBtnIcon" || k == "padInfoIcon")
+    return on(k.substr(0, k.size() - 4) + "On");
+  if (digit_key(k, "deco", "Icon"))
+    return on(k.substr(0, 5) + "On");
+  if (k == "tabsGroupLeft" || k == "tabsGroupRight")
+    return on("tabsGroup");
+  if (k.compare(0, 4, "tabs") == 0 && ends_with(k, "Icon"))
+    return on("tabsIconsOn");
+  if (digit_key(k, "footerIcon", ""))
+    return on("footer");
+  return true;
+}
+
+std::vector<std::string> dir_files(const std::string &dir) {
+  std::vector<std::string> out;
+  if (DIR *d = opendir(dir.c_str())) {
+    while (dirent *e = readdir(d)) {
+      const std::string n = e->d_name;
+      if (!n.empty() && n[0] != '.' && !ends_with(n, ".part") && !ends_with(n, ".tmp"))
+        out.push_back(n);
+    }
+    closedir(d);
+  }
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+void put16(std::string &b, unsigned v) {
+  b += (char)(v & 255);
+  b += (char)((v >> 8) & 255);
+}
+void put32(std::string &b, uint32_t v) {
+  put16(b, v & 0xFFFF);
+  put16(b, v >> 16);
+}
+
+} // namespace
+
+std::string zt_theme_pack_plan(const std::string &name, ZtPack *pack) {
+  *pack = ZtPack();
+  if (!zt_theme_name_ok(name))
+    return "invalid theme name";
+  const std::string text = zt_theme_read(name);
+  if (text.empty())
+    return "no theme " + name;
+  const auto values = zt_theme_values_of(text);
+  const std::vector<std::string> fonts = dir_files(zt_theme_dir_of(name, "fonts"));
+  std::string out = "var THEME = {\n";
+  std::vector<std::string> seen;
+  auto add = [&](const char *kind, const std::string &file) {
+    const std::string rel = std::string(kind) + "/" + file;
+    if (std::find(seen.begin(), seen.end(), rel) != seen.end() || !name_ok(file))
+      return;
+    seen.push_back(rel);
+    std::string path = zt_theme_dir_of(name, kind) + "/" + file;
+    struct stat st = {};
+    if (stat(path.c_str(), &st) != 0 && strcmp(kind, "fonts") != 0)
+      path = std::string(ZT_LEGACY "/") + file; /* files of older versions */
+    if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
+      zt_logl('W', "pack: %s: %s is not on the PS5, left out", name.c_str(), rel.c_str());
+      ++pack->missing;
+      return;
+    }
+    pack->files.push_back({rel, path, (uint64_t)st.st_size});
+  };
+  for (const auto &kv : values) {
+    const std::string &k = kv.first;
+    bool personal = false;
+    for (const char *p : kPackPersonal)
+      personal = personal || k == p;
+    if (personal)
+      continue;
+    std::string value = kv.second;
+    const std::string v = unquote(value);
+    const bool wall = pack_wall(k), icon = pack_icon(k);
+    if (!v.empty() && (wall || icon) && !pack_used(k, values)) {
+      /* not shown: no file, and its name not in theme.json either */
+      if (wall || ends_any(v, {".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4", ".mp3", ".m4a", ".aac", ".wav",
+                               ".at9", ".ogg"}))
+        value = "''";
+    } else if (!v.empty() && v.find('/') == std::string::npos) {
+      if (wall)
+        add("wallpapers", v);
+      else if (icon && ends_any(v, {".png", ".jpg", ".jpeg", ".webp"}))
+        add("icons", v);
+      else if (pack_font(k) && std::find(fonts.begin(), fonts.end(), v) != fonts.end()) {
+        add("fonts", v);
+        /* its -Bold / -Italic files, used when the style fields are empty */
+        std::string stem = v.substr(0, v.rfind('.') == std::string::npos ? v.size() : v.rfind('.'));
+        for (const char *tail : {"-regular", "-roman"})
+          if (ends_nocase(stem, tail))
+            stem.resize(stem.size() - strlen(tail));
+        for (const std::string &f : fonts)
+          if (f != v && f.compare(0, stem.size() + 1, stem + "-") == 0)
+            add("fonts", f);
+      }
+    }
+    out += "    " + k + ": " + value + ",\n";
+  }
+  out += "  };\n";
+  if (pack->files.size() > kMaxAssets)
+    return "too many files for one .ztheme (" + std::to_string(pack->files.size()) + ", at most " +
+           std::to_string(kMaxAssets) + ")";
+  pack->theme = name;
+  pack->json = zt_theme_json_make(out, zt_theme_info(name));
+  uint64_t size = 22;
+  auto entry = [&](const std::string &rel, uint64_t bytes) { size += 30 + 16 + 46 + 2 * rel.size() + bytes; };
+  entry("theme.json", pack->json.size());
+  for (const ZtPackFile &f : pack->files)
+    entry(f.rel, f.size);
+  if (size >= 0xFFFFFFFFull)
+    return "the theme's files are too big for one .ztheme (4 GB at most)";
+  pack->size = size;
+  return "";
+}
+
+bool zt_theme_pack_write(const ZtPack &pack, const std::function<bool(const char *, size_t)> &sink) {
+  const time_t now = time(nullptr);
+  struct tm tm = {};
+  gmtime_r(&now, &tm);
+  const unsigned dtime = (unsigned)(tm.tm_hour << 11 | tm.tm_min << 5 | tm.tm_sec / 2);
+  const unsigned ddate = (unsigned)((tm.tm_year - 80) << 9 | (tm.tm_mon + 1) << 5 | tm.tm_mday);
+  std::string central;
+  uint32_t offset = 0;
+  unsigned count = 0;
+  /* one entry: local header, the data (data() sends it and gives its CRC),
+     descriptor; its central record kept for the end */
+  auto entry = [&](const std::string &rel, uint64_t size, const std::function<bool(uint32_t *)> &data) {
+    std::string h;
+    put32(h, 0x04034b50);
+    put16(h, 20);
+    put16(h, 0x0808); /* sizes after the data; UTF-8 names */
+    put16(h, 0);
+    put16(h, dtime);
+    put16(h, ddate);
+    put32(h, 0);
+    put32(h, 0);
+    put32(h, 0);
+    put16(h, (unsigned)rel.size());
+    put16(h, 0);
+    h += rel;
+    if (!sink(h.data(), h.size()))
+      return false;
+    uint32_t crc = 0;
+    if (!data(&crc))
+      return false;
+    std::string d;
+    put32(d, 0x08074b50);
+    put32(d, crc);
+    put32(d, (uint32_t)size);
+    put32(d, (uint32_t)size);
+    if (!sink(d.data(), d.size()))
+      return false;
+    std::string c;
+    put32(c, 0x02014b50);
+    put16(c, 20);
+    put16(c, 20);
+    put16(c, 0x0808);
+    put16(c, 0);
+    put16(c, dtime);
+    put16(c, ddate);
+    put32(c, crc);
+    put32(c, (uint32_t)size);
+    put32(c, (uint32_t)size);
+    put16(c, (unsigned)rel.size());
+    put16(c, 0);
+    put16(c, 0);
+    put16(c, 0);
+    put16(c, 0);
+    put32(c, 0);
+    put32(c, offset);
+    c += rel;
+    central += c;
+    offset += (uint32_t)(h.size() + size + d.size());
+    ++count;
+    return true;
+  };
+  const std::string &json = pack.json;
+  if (!entry("theme.json", json.size(), [&](uint32_t *crc) {
+        *crc = (uint32_t)crc32(0L, (const Bytef *)json.data(), (uInt)json.size());
+        return sink(json.data(), json.size());
+      }))
+    return false;
+  std::vector<char> buf(256u << 10);
+  for (const ZtPackFile &f : pack.files) {
+    const bool ok = entry(f.rel, f.size, [&](uint32_t *crc) {
+      const int in = open(f.path.c_str(), O_RDONLY);
+      if (in < 0)
+        return false;
+      uLong c = crc32(0L, Z_NULL, 0);
+      uint64_t left = f.size;
+      bool good = true;
+      while (good && left) {
+        const ssize_t n = read(in, buf.data(), (size_t)std::min<uint64_t>(left, buf.size()));
+        good = n > 0 && sink(buf.data(), (size_t)n);
+        if (good) {
+          c = crc32(c, (const Bytef *)buf.data(), (uInt)n);
+          left -= (uint64_t)n;
+        }
+      }
+      close(in);
+      *crc = (uint32_t)c;
+      return good;
+    });
+    if (!ok) {
+      zt_logl('W', "pack: %s: %s not sent (file changed, or the browser closed the download)", pack.theme.c_str(),
+              f.rel.c_str());
+      return false;
+    }
+  }
+  std::string e;
+  put32(e, 0x06054b50);
+  put16(e, 0);
+  put16(e, 0);
+  put16(e, count);
+  put16(e, count);
+  put32(e, (uint32_t)central.size());
+  put32(e, offset);
+  put16(e, 0);
+  return sink(central.data(), central.size()) && sink(e.data(), e.size());
+}

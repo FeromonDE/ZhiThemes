@@ -39,7 +39,7 @@ if CUSTOMBG and not os.path.isdir(CUSTOMBG):
     os.makedirs(CUSTOMBG)
 
 
-# several themes (Themes/<name>.ztheme + their wallpapers/icons/fonts);
+# several themes (Themes/<name>/theme.json + their wallpapers/icons/fonts);
 # state['theme'] / state['files'] are the active one's
 PERSONAL = ('folders', 'foldersIcon', 'customTileChoice', 'customBgChoice')
 state['active'] = 'My-theme'
@@ -84,9 +84,10 @@ def themes_json():
     for n in sorted(state['themes'], key=str.lower):
         f = state['themes'][n]['files']
         lst = [[k, nm, len(b)] for k, d in f.items() for nm, b in d.items()]
-        items.append('{"name":"%s","files":%d,"bytes":%d,"modified":0,"list":%s}' % (
+        au, de = state.setdefault('info', {}).get(n, ('', ''))
+        items.append('{"name":"%s","files":%d,"bytes":%d,"modified":0,"title":%s,"author":%s,"description":%s,"list":%s}' % (
             n, sum(len(d) for d in f.values()), sum(len(b) for d in f.values() for b in d.values()),
-            json.dumps(lst)))
+            json.dumps(n), json.dumps(au), json.dumps(de), json.dumps(lst)))
     return '{"active":"%s","themes":[%s]}' % (state['active'], ','.join(items))
 
 
@@ -140,6 +141,11 @@ def themes_post(path, q, body=''):
             k, _, f = line.partition('/')
             if k in ('wallpapers', 'icons', 'fonts'):
                 files.get(k, {}).pop(f, None)
+    elif path == '/themes/info':
+        if n not in T:
+            return 'no such theme'
+        au, _, de = (body or '').partition('\n')
+        state.setdefault('info', {})[n] = (au.strip(), de)
     elif path == '/themes/clear':
         t = T.setdefault(n, {'text': THEME, 'files': {}})
         for k in ('wallpapers', 'icons', 'fonts'):
@@ -349,6 +355,20 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._send(200, themes_json(), 'application/json')
         if u.path == '/themes/active':
             return self._send(200, state['active'], 'text/plain')
+        if u.path == '/themes/pack':  # the PS5 makes the .ztheme
+            t = _theme(q.get('name', ''))
+            if not t:
+                return self._send(400, 'no theme ' + q.get('name', ''))
+            files = [(k + '/' + nm, b) for k, d in t['files'].items() for nm, b in d.items()]
+            if q.get('check') == '1':
+                return self._send(200, json.dumps({'files': len(files), 'size': sum(len(b) for _, b in files) + 2000, 'missing': 0}), 'application/json')
+            import io as _io, zipfile
+            buf = _io.BytesIO()
+            with zipfile.ZipFile(buf, 'w') as z:
+                z.writestr('theme.json', json.dumps({'format': 2, 'name': q['name'], 'settings': {}}, indent=2))
+                for nm, b in files:
+                    z.writestr(nm, b)
+            return self._bytes(buf.getvalue(), 'application/zip')
         if u.path == '/themes/text':
             t = _theme(q.get('name', ''))
             return self._send(200, t['text'], 'text/plain') if t and t.get('text') else self._send(404, 'no such theme', 'text/plain')
@@ -455,6 +475,18 @@ class H(http.server.BaseHTTPRequestHandler):
                 state['files'].setdefault(kind, {})[name] = raw
             state['log'].append('web: %s %s saved (%d bytes)' % (kind, name, len(raw)))
             return self._send(200, 'saved')
+        if u.path == '/install':  # the PS5 installs it: here a new theme named after the file
+            _store()
+            stem = re.sub(r'\.[^.]*$', '', q.get('name', 'theme')) or 'theme'
+            n = q.get('replace') or stem
+            i = 2
+            while n in state['themes'] and not q.get('replace'):
+                n = '%s-%d' % (stem, i)
+                i += 1
+            state['themes'][n] = {'text': THEME, 'files': {}}
+            themes_post('/themes/use', {'name': n})
+            state['log'].append('install: %s -> theme %s (mock, %d bytes)' % (q.get('name'), n, len(raw)))
+            return self._send(200, json.dumps({'theme': n}), 'application/json')
         if u.path.startswith('/themes/'):
             err = themes_post(u.path, q, raw.decode('utf-8', 'replace'))
             if err:
@@ -468,7 +500,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 state['theme'] = body
             else:
                 state['themes'].setdefault(q['name'], {'files': {}})['text'] = body
-            state['log'].append('web: Themes/%s.ztheme saved (%d bytes)' % (q['name'], len(body.encode())))
+            state['log'].append('web: Themes/%s/theme.json saved (%d bytes)' % (q['name'], len(body.encode())))
             return self._send(200, 'saved')
         if u.path == '/injectdelay':
             state['inject'] = max(5, min(120, int(q.get('s', '15') or 15)))

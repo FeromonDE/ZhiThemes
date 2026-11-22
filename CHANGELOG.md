@@ -4,6 +4,11 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
 ## Unreleased
 
+- **New theme format:** a theme is now a folder with one `theme.json` (name, author, description and its settings, values only) and its files; a `.ztheme` is always that folder in a ZIP (`theme.json`, `wallpapers/`, `icons/`, `fonts/`). Before, `.ztheme` meant three different things and each theme file carried a whole copy of the theme script (about 500 KB, of which only the values were used); a theme is now about 13 KB. See [docs/THEMES.md](docs/THEMES.md).
+- **Older themes keep working:** themes on your PS5 are turned into the new format the first time this version starts, and older `.ztheme` files (packs or plain text) are translated when you install them (editor, USB, 🎨 menu, `Install/` folder).
+- **Download and Install are done by the PS5:** Download makes the `.ztheme` on the PS5 while it is sent (big videos no longer go through the browser's memory); Install sends the file to the PS5, which checks and installs it the same way as from USB. **Info** in the editor's Theme list sets a theme's author and description.
+- **Video wallpaper that is not 16:9** (e.g. 3440×1440): it now fills the screen, centred, instead of showing black bands. *Video fit* (Background, Advanced): *Centered* (fill and crop, default) or *Stretch*.
+- *Video decoder* (Experimental, was *Video decoder test*) keeps only the decoder types that play (fullHD, UHD, auto); auto tries fullHD first, also for big files.
 - **Automatic updates:** ZhiThemes checks GitHub for a new version when it starts and once a day (can be turned off). A new version shows a ❗ in Options > 🎨 ZhiThemes > ⬇ Updates and a button in the editor's header (click the version there to check now); *Download and install* gets it, checks it (signed by the author, size and SHA-256) and starts it right away, or after a restart when ZhiThemes was already loaded many times since the PS5 started. With the payload manager the new ELF replaces the old one there. If the new version brings the Home down twice, the previous one comes back by itself, with *Try again* and *Report a problem*.
 - **PS5 shade behind the tile** (Background tab): the dark shade the PS5 puts over the game art behind the selected tile can be the PS5's ellipse, flat, or off.
 - The power menu stays on screen when the Power button sits near the right edge.

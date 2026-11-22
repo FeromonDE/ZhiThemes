@@ -43,14 +43,14 @@ Rest mode keeps the theme: ShellUI does not restart, so the Home comes back as y
 
 - **Safe mode:** if ShellUI crashes twice within 3 minutes, ZhiThemes stops loading the theme and shows "Theme off (safe mode)". Send the payload again after fixing the theme.
 - **After a ShellUI restart** ZhiThemes waits 15 s before putting the theme in again (Logs tab → "Injection after a ShellUI restart", 5–120 s). Rest mode does not restart ShellUI: the theme stays in.
-- **A theme that breaks the Home:** delete (or rename) `/data/ZhiThemes/Themes/<Name>.ztheme` (the name is in `active_theme.txt`) over FTP and send the payload again. `Default` is used if it exists, else ZhiThemes starts off (*PS5 default*); a copy of the previous theme is kept in `Themes/.backup/<Name>.ztheme`.
+- **A theme that breaks the Home:** delete (or rename) `/data/ZhiThemes/Themes/<Name>/theme.json` (the name is in `active_theme.txt`) over FTP and send the payload again. `Default` is used if it exists, else ZhiThemes starts off (*PS5 default*); a copy of the previous theme is kept in `Themes/.backup/<Name>.json`.
 - **Report it:** see [LOGS.md](LOGS.md).
 
 ## Files on the PS5 (`/data/ZhiThemes/`)
 
 | Path | What |
 |---|---|
-| `Themes/<Name>.ztheme` | one theme (values only); you can keep several |
+| `Themes/<Name>/theme.json` | one theme (name, author, description and its values); you can keep several |
 | `Themes/<Name>/wallpapers/` | that theme's wallpapers, overlays, Settings backgrounds, `.mp4` videos |
 | `Themes/<Name>/icons/` | that theme's uploaded icons (top bar, L1/R1, footer, decorations) |
 | `Themes/<Name>/fonts/` | that theme's uploaded fonts |
@@ -70,7 +70,7 @@ Rest mode keeps the theme: ShellUI does not restart, so the Home comes back as y
 | `Update/` | automatic updates: `state.txt`, the previous ELF while a new version is on trial, and `ZhiThemes.elf` when you don't use the payload manager |
 | `watcher.pid`, `inject_count`, `inject_delay`, `debug.on`, `session.open` | small state files of ZhiThemes; leave them alone |
 
-Everything in `Assets/` is yours and the same in every theme. Deleting a theme in the editor deletes its `.ztheme` and its folder. A file two themes share (same bytes) is stored once on the PS5. Files from older versions are moved here automatically on the first start.
+Everything in `Assets/` is yours and the same in every theme. Deleting a theme in the editor deletes its folder (theme.json and files). A file two themes share (same bytes) is stored once on the PS5. Files from older versions are moved here automatically on the first start, and older `Themes/<Name>.ztheme` files are turned into `theme.json` (the old file stays, unused).
 
 ## The editor
 

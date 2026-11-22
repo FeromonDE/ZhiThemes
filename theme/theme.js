@@ -370,6 +370,7 @@
     wallpaper: '',              /* your wallpaper, uploaded from the editor; an .mp4 plays as a video behind the Home ('') */
     wallpaperVideoSound: false, /* .mp4 wallpaper: play its sound (false) */
     wallpaperVideoVolume: 0.5,  /* .mp4 wallpaper: volume of its sound, 0-1 (0.5) */
+    wallpaperVideoFit: 'center', /* .mp4 wallpaper that is not 16:9: 'center' = fills the screen, centred, the rest cut off; 'stretch' = stretched to the screen, nothing cut off ('center') */
     /* --- sounds --- */
     homeMusicOn: false,         /* Home music: your own music on the Home while the focused tile has no music of its own; the .mp4 wallpaper stays silent (false) */
     homeMusic: '',              /* the music file, uploaded from the editor (.mp3 .m4a .aac .wav .at9 .mp4) ('') */
@@ -581,7 +582,7 @@
     /* --- experimental --- */
     tileAnimAll: false,      /* every tile with an animated picture moves, not only the focused one (a video player each: heavy) (false) */
     tileAnimAllMax: 6,       /* at most this many tiles move at once (the focused one always) (6) */
-    videoResourceTry: '',    /* test: decoder type every video asks: '' = by the file's size (4K decoder only for 4K files), 'fullHD', 'UHD', 'Full', 'Basic', 'LimitedForSpectating2Streams', 'Custom', 'none' ('') */
+    videoResourceTry: '',    /* decoder type every video asks: '' = auto (fullHD first; UHD only if a video bigger than 1920x1080 fails there), 'fullHD', 'UHD', 'none' ('') */
     debugOverlay: false,     /* debug panel on the Home: fps, memory, mono, CPU, temperatures... (like Aniketos' OSD) (false) */
     debugX: 60,              /* debug panel: distance from the left of the screen (60) */
     debugY: 60,              /* debug panel: distance from the top of the screen (60) */
@@ -6761,7 +6762,7 @@
        move / remove / move to another folder; next to the game in the strip
      - row game: "Add to folder"
      A change goes to ZhiThemes as "THEME-SET folders <value>": written into
-     theme.ztheme, then the Home reloads. */
+     the theme, then the Home reloads. */
   function MenuAnchor() {
     var React = T.React, rn = T.rn;
     if (!T.menuAnchor) T.menuAnchor = React.createRef();
@@ -9474,13 +9475,36 @@
   /* Decoder sizes asked for a video (coreResourceType), in order. The
      PS5 has one 4K decoder: asking 'UHD' while another app holds it (a
      homebrew like ProsperoStore open in the background) shows "Stopping
-     Features: <app>". So 'UHD' only for a file known to be bigger than
-     1920x1080 (globalThis.__ztVideoSizes, read by ZhiThemes from the MP4);
-     a 1080p file never asks it. Size unknown: the old order (fallback).
-     videoResourceTry (Experimental): only that one type, to test the
-     other types of the PS5 player (Full, Basic,
-     LimitedForSpectating2Streams, Custom) with an app open. */
-  var VIDEO_TYPES = /^(fullHD|UHD|Full|Basic|LimitedForSpectating2Streams|Custom)$/;
+     Features: <app>". So fullHD first (it also plays a 3440x1440 file);
+     'UHD' only after that fails, and never for a file known to be
+     1920x1080 or smaller (globalThis.__ztVideoSizes, read by ZhiThemes
+     from the MP4). Size unknown: the old order. videoResourceTry: only
+     that one type (the player's other types, Full, Basic,
+     LimitedForSpectating2Streams and Custom, did not play at all). */
+  var VIDEO_TYPES = /^(fullHD|UHD)$/;
+  /* A video wallpaper that is not 16:9 (3440x1440): the PS5 video view
+     has no 'cover' (it showed the whole video with black bands; a view
+     with the video's proportions did not help either). The whole-screen
+     view is scaled up by the cover factor instead (the PS5 scales from
+     the centre), so the extra width or height goes off the screen.
+     wallpaperVideoFit 'stretch': the whole-screen view with resizeMode
+     'AspectOutside' (on the PS5 that stretches the video to the screen,
+     nothing cut off).
+     Returns {style, resizeMode}. */
+  function videoFit(file) {
+    var full = { position: 'absolute', left: 0, top: 0, width: 1920, height: 1080 };
+    var name = String(file || '').split('?')[0].split('/').pop();
+    try { name = decodeURIComponent(name); } catch (e) {}
+    var wh = (globalThis.__ztVideoSizes || {})[name];
+    var a = wh && wh[0] > 0 && wh[1] > 0 ? wh[0] / wh[1] : 16 / 9;
+    if (Math.abs(a - 16 / 9) < 0.01) return { style: full, resizeMode: 'cover' };
+    var stretch = String(THEME.wallpaperVideoFit || '') === 'stretch';
+    var k = Math.round((a > 16 / 9 ? 1080 * a / 1920 : 1920 / (1080 * a)) * 1000) / 1000;
+    if (!stretch) full.transform = [{ scale: k }];
+    var how = stretch ? 'stretched (AspectOutside)' : 'centred x' + k;
+    if (!T.done['video fit ' + name + how]) done('video fit ' + name + ' ' + wh[0] + 'x' + wh[1] + ': ' + how);
+    return { style: full, resizeMode: stretch ? 'AspectOutside' : 'cover' };
+  }
   function videoKinds(file, fallback) {
     var name = String(file || '').split('?')[0].split('/').pop();
     try { name = decodeURIComponent(name); } catch (e) {}
@@ -9490,7 +9514,9 @@
     else if (test === 'none') out = [''];
     else {
       var sizes = globalThis.__ztVideoSizes, wh = sizes && sizes[name];
-      if (wh && wh[0] > 0) out = wh[0] > 1920 || wh[1] > 1080 ? ['UHD', ''] : ['fullHD', ''];
+      /* a bigger file tries fullHD first too (it plays 3440x1440 there);
+         UHD only if that fails */
+      if (wh && wh[0] > 0) out = wh[0] > 1920 || wh[1] > 1080 ? ['fullHD', 'UHD', ''] : ['fullHD', ''];
       else out = fallback;
     }
     var key = name + ':' + out.join(',');
@@ -9555,12 +9581,13 @@
     var vol = THEME.wallpaperVideoVolume == null ? 0.5 : Math.max(0, Math.min(1, +THEME.wallpaperVideoVolume || 0));
     var source = { source: uri, autoLoad: true };
     if (kind) source.coreResourceType = kind;
+    var fit = videoFit(uri);
     return React.createElement(Video, {
       key: 'v' + round + '-' + attempt + '-' + restart,
       pointerEvents: 'none',
       source: source,
       repeat: true, paused: !active, muted: !sound, volume: sound ? vol : 0,
-      suppressBgm: sound, resizeMode: 'cover',
+      suppressBgm: sound, resizeMode: fit.resizeMode,
       onLoad: function (e) { videoEvent('load', e); if (!T.done['video wallpaper']) done('video wallpaper'); },
       onStartPlaying: function (e) { videoEvent('playing', e); },
       onError: function (e) {
@@ -9574,7 +9601,7 @@
         videoEvent('end', e);
         if (restart < 50) setTimeout(function () { setRestart(restart + 1); }, 300);
       },
-      style: { position: 'absolute', left: 0, top: 0, width: 1920, height: 1080 }
+      style: fit.style
     });
   }
 

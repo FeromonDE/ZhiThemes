@@ -10,7 +10,9 @@
 - `source/shellui/src/zt_log.cpp`: logs in `/data/ZhiThemes/logs/` with timestamps, a session header (firmware, version), debug mode, and debug and crash logs.
 - `source/shellui/src/zt_mosaic.cpp`: folder mosaics and backgrounds (PNG).
 - `source/shellui/src/zt_sgdb.cpp`: SteamGridDB requests for the editor.
-- `source/shellui/src/zt_storage.cpp`: the folders under `/data/ZhiThemes`; writes the particle style textures to `Assets/particles/`.
+- `source/shellui/src/zt_storage.cpp`: the folders under `/data/ZhiThemes`; writes the particle style textures to `Assets/particles/`; turns themes of the older format into `theme.json`.
+- `source/shellui/src/zt_theme_json.cpp`: reads and writes a theme's `theme.json` (values only).
+- `source/shellui/src/zt_install.cpp`: installs `.ztheme` files (editor, Home menu, USB, `Install/` folder; older theme files are translated) and makes the `.ztheme` of a theme for the editor's Download.
 - `source/shellui/src/zt_native_theme.cpp`: native looks: the animated avatar (`ImageBox.LoadAsync`), the system background colour (`BGLayerPlugin`), the panel and icon tint (`Panel.set_BackgroundColor`, `Widget.GetTokenColor`). Adapted from AniketosHEN (GPL-3.0).
 - `source/shellui/src/zt_sys_video.cpp`: the video or picture behind Settings and Trophies (and the Home, with "Use the wallpaper") in the system background layer (`BGLayerPlugin.RootWidget`, `Sce.Vsh.Video.VideoPlayer` + `VideoView`, `ImageBox`). Adapted from AniketosHEN (GPL-3.0).
 - `source/shellui/src/zt_notify.cpp`: plain notifications, only for the experimental slim module (`ZT_SLIM_MODULE`).

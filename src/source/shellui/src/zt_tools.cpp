@@ -421,14 +421,7 @@ std::string zt_theme_values_text(const std::string &src);
 std::string zt_report_name() { return "ZhiThemes-report-" + stamp() + ".txt"; }
 
 std::string zt_report_text(const std::string &what, const char *from) {
-  std::string theme_text;
-  const std::string file = zt_theme_file();
-  if (const int fd = open(file.c_str(), O_RDONLY); fd >= 0) {
-    std::vector<char> buf(1 << 16);
-    for (ssize_t n; (n = read(fd, buf.data(), buf.size())) > 0 && theme_text.size() < (8u << 20);)
-      theme_text.append(buf.data(), (size_t)n);
-    close(fd);
-  }
+  const std::string theme_text = zt_theme_read();
   const time_t now = time(nullptr);
   struct tm tm = {};
   gmtime_r(&now, &tm);
