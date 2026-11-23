@@ -6908,13 +6908,17 @@
     var uri = folderGameUri(g);
     var ready = function () { if (props.onReady) props.onReady(g.id); };
     var corners = folderGameCorners(size);
+    var alpha = THEME.focusLineAlpha >= 0 && THEME.focusLineAlpha <= 1 ? THEME.focusLineAlpha : 1;
     var ring = THEME.focusLineColorOn
-      ? 'rgb(' + THEME.focusLineR + ',' + THEME.focusLineG + ',' + THEME.focusLineB + ')' : '#ffffff';
-    var w = folderRingWidth(size);
+      ? 'rgba(' + THEME.focusLineR + ',' + THEME.focusLineG + ',' + THEME.focusLineB + ',' + alpha + ')'
+      : 'rgba(255,255,255,0.8)';
+    var r = folderRing();
     return React.createElement(rn.View, {
-      ref: function (r) { T.stripRefs[props.index] = r; }, collapsable: false,
-      style: { width: size + 2 * w, height: sizeH + 2 * w, borderRadius: corners + w, padding: w,
-               backgroundColor: on ? ring : 'transparent', transform: [{ scale: on ? 1.06 : 1 }] } },
+      ref: function (v) { T.stripRefs[props.index] = v; }, collapsable: false,
+      /* the frame = a plate in the frame colour behind the cover (borderWidth
+         is not drawn on the PS5) */
+      style: { width: size + 2 * r.out, height: sizeH + 2 * r.out, borderRadius: corners + r.out, padding: r.out,
+               backgroundColor: on && !THEME.hideFocus ? ring : 'transparent', transform: [{ scale: on ? 1.06 : 1 }] } },
       React.createElement(rn.View, {
         style: { width: size, height: sizeH, borderRadius: corners, overflow: 'hidden',
                  backgroundColor: 'rgba(255,255,255,0.08)', opacity: on ? 1 : 0.75 } },
@@ -6929,14 +6933,17 @@
           : null));
   }
   /* an open folder's games look like the row: corners in the same
-     proportion as the tiles, the highlight frame as thick as the focus
-     frame (scaled to the game; 4 px with the stock frame) */
+     proportion as the tiles; the highlight frame drawn like the native
+     focus frame: a thin line of focusThickness/2 px (stock 6 -> 3 px, not
+     scaled with the tile, as the native one), touching the picture (a gap
+     would need a border, not drawn on the PS5) */
   function folderGameCorners(size) {
     return Math.round(size * (THEME.tileCorners || 16) / (THEME.tileSize || 106));
   }
-  function folderRingWidth(size) {
+  function folderRing() {
     var t = +THEME.focusThickness || 0;
-    return t > 0 ? Math.max(1, Math.round(t * size / (THEME.focusSize || 168))) : 4;
+    var line = t > 0 ? Math.max(1, Math.round(t / 2)) : 3;
+    return { line: line, out: line };
   }
   /* the picture of a game in an open folder: its own tile picture, else its icon */
   function folderGameUri(g) {
@@ -7043,7 +7050,7 @@
     if (gate && gate.readyAt && anim) fresh = Date.now() - gate.readyAt < 300;
     var items = shown.map(function (g, j) {
       var i = first + j;
-      var itemStyle = { marginRight: gap - 2 * folderRingWidth(size) };
+      var itemStyle = { marginRight: gap - 2 * folderRing().out };
       var game = React.createElement(FolderGame, { game: g, index: i, sel: idx, onReady: onReady });
       if (anim)
         return React.createElement(ZtEnter, { key: 'zt-fg-' + g.id, k: animKey, style: itemStyle,
@@ -7058,7 +7065,9 @@
     });
     if (!T.done['folder strip']) done('folder strip');
     var games = React.createElement(rn.View, { key: 'zt-fgames',
-      style: { position: 'absolute', left: x, top: y, flexDirection: 'row' } }, items.concat(hidden));
+      /* moved back by the frame so the pictures sit at x, y (inside the background) */
+      style: { position: 'absolute', left: x - folderRing().out, top: y - folderRing().out,
+               flexDirection: 'row' } }, items.concat(hidden));
     if (THEME.foldersStripBgOn !== false) {
       var pad = THEME.foldersStripBgPadding >= 0 ? THEME.foldersStripBgPadding : 16;
       var w = shown.length * (size + gap) - gap;

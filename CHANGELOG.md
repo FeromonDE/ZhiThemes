@@ -8,6 +8,7 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 - **Older firmwares (4.03):** creating or deleting a folder could leave an empty Home after the reload; the message after a reload now waits until the new Home has its tab bar.
 - Errors inside the Home's own scripts are now written to the log (with where they happened), to find crashes that left nothing behind.
 - *Animated tiles* (every tile in the row moving, Experimental) is gone: the PS5 plays only about 3 videos at once, so the tiles took turns and blinked. The focused tile keeps moving as before.
+- **Open folders:** the highlighted game's frame is thin like the PS5's own focus frame (it was about twice as thick) and takes the frame colour with its opacity; the games sit centred in the folder background.
 
 - **Animated game backgrounds change like the still ones:** the old video fades out with a little zoom and slides a few pixels the way you moved; the next one fades in once it plays (before, both were instant).
 
