@@ -746,16 +746,13 @@
     tabsPillBorderWidth: ['Outline', 'A line around the highlight; 0 = none'],
     tabsPillTextColor: ['Selected text colour', 'Text colour of the selected tab; empty = stock'],
     tabRecentOn: ['Recently played', 'Tab with the games played lately, newest first (Home reloads)'],
-    tabRecentName: ['Name', 'The tab name'],
     tabRecentMax: ['Games', 'How many games the tab shows'],
     tabFavOn: ['Favourites', 'Tab with your favourite games: Options menu > Add to favourites'],
-    tabFavName: ['Name', 'The tab name'],
     tabFavFirst: ['Left of Games', 'The Favourites tab on the left of Games; the Home still starts on Games'],
     tabNeverOn: ['Never played', 'Tab with the games never played'],
-    tabNeverName: ['Name', 'The tab name'],
     favMenu: ['In the Options menu', 'Add to / Remove from favourites in the Options menu of the games'],
     favorites: ['Favourite games', 'Title ids separated by commas (the Options menu writes them)'],
-    playInfoOn: ['ZhiThemes play info', 'A box drawn by ZhiThemes: “Never played” or “Last played 3 days ago” for the focused game'],
+    playInfoOn: ['ZhiThemes play info', 'A box drawn by ZhiThemes: “Never played” or “Last played: 3 days ago” for the focused game, in the PS5\'s language'],
     playInfoX: ['Play info X', 'Distance from the left'],
     playInfoY: ['Play info Y', 'Distance from the top'],
     playInfoFontSize: ['Play info text size', ''],
@@ -763,7 +760,6 @@
     playInfoBg: ['Play info background', ''],
     playInfoBgOpacity: ['Play info background opacity', '0 = no background'],
     playInfoCorners: ['Play info corners', ''],
-    playInfoNever: ['Never played text', ''],
     animTabs: ['Tab animations', 'The row slides in from the side of the new tab, and the tab panel moves to the new tab like a worm'],
     animTabsMs: ['Duration', ''],
     animTabsSlide: ['Distance', 'How far the row comes from'],
@@ -779,7 +775,6 @@
     animTitleGlow: ['Fake title glow', 'The fake title glows now and then (not with the scrolling name)'],
     animTitleGlowColor: ['Glow colour', ''],
     animTitleGlowSec: ['Interval', 'Seconds between two glows'],
-    playInfoLast: ['Last played text', 'Shown before "3 days ago", "yesterday"...'],
 
     tileNameX: ['Tile name X', '+ = right'],
     tileNameY: ['Tile name Y', '+ = down'],
@@ -1191,9 +1186,9 @@
     topBarBgHeight: ['Height', ''],
     topBarBgCorners: ['Corners', 'Corner radius'],
     footer: ['Footer', 'Button hints at the bottom of the Home'],
-    footerText1: ['Hint 1', 'Its button and text; empty text = not shown'],
-    footerText2: ['Hint 2', 'Its button and text; empty text = not shown'],
-    footerText3: ['Hint 3', 'Its button and text; empty text = not shown'],
+    footerShow1: ['Start', 'Shown, and its button; the text is in the PS5\'s language'],
+    footerShow2: ['Options', 'Shown, and its button; the text is in the PS5\'s language'],
+    footerShow3: ['Home', 'Shown, and its button; the text is in the PS5\'s language'],
     footerIcon1: ['Footer button 1', 'Controller button before text 1'],
     footerIcon2: ['Footer button 2', 'Controller button before text 2'],
     footerIcon3: ['Footer button 3', 'Controller button before text 3'],
@@ -2284,7 +2279,7 @@
       }
     }
     /* footer hint: the controller button (footerIconN) before the text */
-    var fm = /^footerText(\d)$/.exec(f.key);
+    var fm = /^footerShow(\d)$/.exec(f.key);
     if (fm) {
       var bkey = 'footerIcon' + fm[1], fprev = document.createElement('span');
       fprev.className = 'icoprev';
@@ -5752,7 +5747,7 @@
       'tabsPillCorners', 'tabsPillPadX', 'tabsPillPadY', 'tabsPillBorderColor', 'tabsPillBorderWidth', 'tabsPillTextColor'] },
     { id: 'playInfo', name: 'ZhiThemes play info', app: 'home', toggle: 'playInfoOn',
       mx: 'playInfoX', my: 'playInfoY',
-      extra: ['playInfoFontSize', 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners', 'playInfoNever', 'playInfoLast'] },
+      extra: ['playInfoFontSize', 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners'] },
     { id: 'box1', name: 'Box 1', app: 'home', toggle: 'box1On', behind: true, boxKey: 'box1',
       mx: 'box1X', my: 'box1Y', growW: 'box1Width', growH: 'box1Height',
       extra: ['box1', 'box1Opacity', 'box1Corners', 'box1Width', 'box1Height'] },
@@ -5827,7 +5822,7 @@
       extra: ['logoWidth', 'logoHeight', 'logoAlign', 'logoVAlign', 'logoOpacity', 'logoHidesTitle'] },
     { id: 'footer', name: 'Footer', app: 'home', toggle: 'footer',
       dx: [['footerX', 1]], dy: [['footerY', 1]], mx: 'footerX', my: 'footerY',
-      extra: ['footerText1', 'footerIcon1', 'footerText2', 'footerIcon2', 'footerText3', 'footerIcon3', 'footerIconSize', 'footerIconColor', 'footerIconFont', 'footerSpacing',
+      extra: ['footerShow1', 'footerIcon1', 'footerShow2', 'footerIcon2', 'footerShow3', 'footerIcon3', 'footerIconSize', 'footerIconColor', 'footerIconFont', 'footerSpacing',
               'footerFontSize', 'footerFontStyle', 'footerColor', 'footerOpacity', 'footerAlign', 'footerWidth'] },
     { id: 'title', name: 'Game title', app: 'hub', guess: [172, 689, 772, 76],
       dx: [['titleX', 1, 't']], dy: [['titleY', 1, 't'], ['rowOffsetY', 1], ['focusSize', 1]], mx: 'titleX', my: 'titleY',
@@ -5895,10 +5890,10 @@
            '#Group (icons + background)', 'tabsGroup', 'tabsGroupLeft', 'tabsGroupRight', 'tabsGroupIconSize', 'tabsGroupIconGap',
            'tabsGroupIconColor', 'tabsGroupIconOpacity', 'tabsGroupBgOn', 'tabsGroupBg', 'tabsGroupBgOpacity', 'tabsGroupHeight',
            'tabsGroupPadding', 'tabsGroupCorners',
-           '#Extra tabs', 'tabRecentOn', 'tabRecentName', 'tabRecentMax', 'tabFavOn', 'tabFavName', 'tabFavFirst', 'tabNeverOn', 'tabNeverName', 'favMenu',
+           '#Extra tabs', 'tabRecentOn', 'tabRecentMax', 'tabFavOn', 'tabFavFirst', 'tabNeverOn', 'favMenu',
            '#Animation', 'animTabs', 'animTabsMs', 'animTabsSlide', 'animFav'],
     playInfo: ['#Look', 'playInfoFontSize', 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners',
-               '#Texts', 'playInfoNever', 'playInfoLast', '#Animation', 'animInfo'],
+               '#Animation', 'animInfo'],
     user: ['#Look', 'userFontSize', 'userFontStyle', 'userColor', 'userAlign', 'userWidth', 'userShadow', 'userDot', 'userDotColor',
            '#Avatar', 'avatarOn', 'avatar'],
     topBarBgEl: ['#Look', 'topBarBg', 'topBarBgOpacity', 'topBarBgCorners', 'topBarBgWidth', 'topBarBgHeight', 'topBarOpacity'],
@@ -5936,7 +5931,7 @@
                 'nameCopyScroll', 'nameCopyScrollSpeed', 'nameCopyColor', 'nameCopyShadow',
                 '#Background', 'nameCopyBgOn', 'nameCopyBg', 'nameCopyBgOpacity', 'nameCopyBgPadding', 'nameCopyBgPaddingV', 'nameCopyBgCorners',
                 '#Animation', 'animNames', 'animNamesStyle', 'animNamesMs'],
-    footer: ['#Hints', 'footerText1', 'footerText2', 'footerText3',
+    footer: ['#Hints', 'footerShow1', 'footerShow2', 'footerShow3',
              '#Look', 'footerFontSize', 'footerColor', 'footerOpacity', 'footerFontStyle', 'footerIconSize', 'footerIconColor',
              'footerSpacing', 'footerAlign', 'footerWidth', '#Background', 'footerBgOn', 'footerBg', 'footerBgOpacity',
              'footerBgPadding', 'footerBgCorners'],
@@ -5962,7 +5957,7 @@
     { id: 'scrAnimations', name: 'Animations', keys: ['#Speed', 'animationSpeed', 'rowSpeed', 'rowFastRepeat', 'rowRepeatWindow',
       '#Tabs', 'animTabs', 'animTabsMs', 'animTabsSlide', 'animFav', '#Names', 'animNames', 'animNamesStyle', 'animNamesMs',
       '#Others', 'animInfo', 'animButtons', 'animFolders', 'animFolderClose', 'animToast', 'animTitleGlow', 'animTitleGlowColor', 'animTitleGlowSec'] },
-    { id: 'scrExperimental', name: 'Experimental', keys: ['tileAnimAll', 'tileAnimAllMax', 'videoResourceTry', 'measureScreen', 'screenDump'] }
+    { id: 'scrExperimental', name: 'Experimental', keys: ['videoResourceTry', 'measureScreen', 'screenDump'] }
   ];
   /* data fields with their own editors (Folders / Tiles tabs, Options menu) */
   var PANEL_SKIP = /^(folders|foldersIcon|favorites|customTileChoice|customBgChoice|themeName|avatarCrop)$/;
@@ -6187,9 +6182,9 @@
     return { tiles: out, focus: out[f], measured: measured };
   }
 
-  function footerText(c) {
-    return [c.footerText1, c.footerText2, c.footerText3].filter(function (t) { return t; });
-  }
+  /* the footer hints (the PS5 shows them in its language) */
+  var FOOTER_TEXT = ['', 'Start', 'Options', 'Home'];
+  function footerOn(c, i) { return c['footerShow' + i] !== false && c['footerShow' + i] !== 'false'; }
   /* where the old Big name (nameCopyX/Y, relative to the tile name) was drawn */
   function oldCopyBox(c, v) {
     /* ZhiThemes 229+ with the old fields measures the fake title where the
@@ -6335,7 +6330,7 @@
     }
     if (e.id === 'playInfo') {
       var pp = num(c.playInfoFontSize) || 24, mp = V.layout['home:playInfo'];
-      var pw = Math.round(pp * 0.55 * String(c.playInfoLast || 'Last played').length + pp * 7), ph = Math.round(pp * 1.9);
+      var pw = Math.round(pp * 0.55 * 'Last played: 3 days ago'.length + pp * 7), ph = Math.round(pp * 1.9);
       if (mp && mp.box) { pw = mp.box[2]; ph = mp.box[3]; }
       return { b: [num(c.playInfoX), num(c.playInfoY), pw, ph], measured: !!(mp && mp.box) };
     }
@@ -6355,8 +6350,8 @@
     if (e.id === 'footer') {
       var fs = num(c.footerFontSize) || 28, isz = num(c.footerIconSize) || 40, w = 0, k = 0;
       [1, 2, 3].forEach(function (i) {
-        if (!c['footerText' + i]) return;
-        w += c['footerText' + i].length * fs * 0.56 + (k++ ? num(c.footerSpacing) : 0) +
+        if (!footerOn(c, i)) return;
+        w += FOOTER_TEXT[i].length * fs * 0.56 + (k++ ? num(c.footerSpacing) : 0) +
              (c['footerIcon' + i] ? isz * 1.3 : 0);
       });
       w = Math.max(60, Math.round(w));
@@ -6605,9 +6600,9 @@
       var rf = num(c.footerFontSize) || 28, isz = num(c.footerIconSize) || 40;
       s = '<div style="height:100%;display:flex;align-items:center;justify-content:' + ({ center: 'center', right: 'flex-end' }[c.footerAlign] || 'flex-start') +
           ';white-space:nowrap;font-size:' + rf + 'px;color:' + html(c.footerColor || '#fff') + ';opacity:' + num(c.footerOpacity) + ';text-shadow:' + shadow(c, 'footerShadow') + '">' +
-          [1, 2, 3].filter(function (i) { return c['footerText' + i]; }).map(function (i, k) {
+          [1, 2, 3].filter(function (i) { return footerOn(c, i); }).map(function (i, k) {
             return '<span style="display:flex;align-items:center;gap:' + Math.round(isz * 0.3) + 'px;margin-left:' + (k ? num(c.footerSpacing) : 0) + 'px">' +
-                   padIcon(c['footerIcon' + i], isz, c.footerIconColor) + html(c['footerText' + i]) + '</span>';
+                   padIcon(c['footerIcon' + i], isz, c.footerIconColor) + html(FOOTER_TEXT[i]) + '</span>';
           }).join('') + '</div>';
     } else if (e.id === 'logo') {
       var lf = (ctFiles || []).filter(function (f) { return /^[A-Za-z]{4}\d{5}_logo_\d+\.png$/i.test(f); })[0];
@@ -6697,7 +6692,7 @@
           (num(c.playInfoBgOpacity) > 0 ? '<div style="position:absolute;inset:0;border-radius:' + num(c.playInfoCorners) + 'px;background:' +
            html(c.playInfoBg || '#000') + ';opacity:' + num(c.playInfoBgOpacity) + '"></div>' : '') +
           '<div style="position:relative;padding:' + Math.round(pf * 0.3) + 'px ' + Math.round(pf * 0.6) + 'px">' +
-          html(c.playInfoLast || 'Last played') + ' 3 days ago</div></div>';
+          'Last played: 3 days ago</div></div>';
     } else if (e.id === 'homeTrophies') {
       var tsc = num(c.fakeTrophiesScale) || 1, tf = (num(c.fakeTrophiesFontSize) || 27) * tsc, tc = html(c.fakeTrophiesColor || '#fff');
       var dots = ['#c9d6e3', '#e8c35a', '#c0c4c8', '#c98a5a'].map(function (col, i) {
@@ -6898,7 +6893,7 @@
     focusTile: ['focusSize', 'focusShape', 'hideFocus', 'focusLineColorOn', 'focusLineR', 'focusThickness', 'hideGlow'],
     tileName: ['titleMode', 'hideTileName', 'hidePS5Icon', 'tileNameColor', 'tileNameScale'],
     fakeTitle: ['titleMode', 'nameCopyFontSize', 'nameCopyColor', 'nameCopyAlign', 'nameCopyBgOn'],
-    footer: ['footerText1', 'footerIcon1', 'footerText2', 'footerIcon2', 'footerText3', 'footerIcon3', 'footerColor'],
+    footer: ['footerShow1', 'footerIcon1', 'footerShow2', 'footerIcon2', 'footerShow3', 'footerIcon3', 'footerColor'],
     title: ['titleMode', 'titleFontSize', 'titleColor'],
     folderTitle: [],
     folderStrip: ['foldersStripMax', 'foldersVertical', 'foldersHorizontal', 'foldersBg'],
@@ -7291,8 +7286,8 @@
       ['Tabs', ['hideTabs', 'tabsFontSize', 'tabsColor', 'tabsFontStyle', 'tabsInactiveOpacity', 'tabsSpacing', 'tabsSameWeight',
                 'tabsAlign', 'tabsWidth', 'tabsX', 'tabsY', 'tabsIconsOn', 'tabsIconSize', 'tabsGameIcon', 'tabsMediaIcon',
                 'tabsRecentIcon', 'tabsFavIcon', 'tabsNeverIcon']],
-      ['Extra tabs', ['tabRecentOn', 'tabRecentName', 'tabRecentMax', 'tabFavOn', 'tabFavName', 'tabFavFirst', 'favMenu',
-                      'tabNeverOn', 'tabNeverName']],
+      ['Extra tabs', ['tabRecentOn', 'tabRecentMax', 'tabFavOn', 'tabFavFirst', 'favMenu',
+                      'tabNeverOn']],
       ['Selected tab', ['tabsPillOn', 'tabsPillColor', 'tabsPillOpacity', 'tabsPillCorners', 'tabsPillPadX', 'tabsPillPadY',
                         'tabsPillBorderWidth', 'tabsPillBorderColor', 'tabsPillTextColor']],
       ['Tab group', ['tabsGroup', 'tabsGroupLeft', 'tabsGroupRight', 'tabsGroupIconSize', 'tabsGroupIconGap', 'tabsGroupIconColor',
@@ -7338,7 +7333,6 @@
                       'animFolders', 'animFolderClose', 'animToast', 'animFav', 'animInfo', 'animButtons', 'animationSpeed']]
     ],
     experimental: [
-      ['Animated tiles', ['tileAnimAll', 'tileAnimAllMax']],
       ['Debug panel', ['debugOverlay', 'debugItems', 'debugRow', 'debugFontSize', 'debugColor', 'debugBgOpacity', 'debugX', 'debugY']],
       ['For developers', ['screenDump']]
     ],
@@ -7359,8 +7353,8 @@
       ['Game info on the Home', ['fakeTrophies', 'fakeTrophiesScale', 'fakeTrophiesFontSize', 'fakeTrophiesColor', 'fakeTrophiesBg',
                                  'fakeTrophiesBgOpacity', 'fakeTrophiesCorners', 'fakeTrophiesTotals', 'fakeTrophiesProgress',
                                  'fakeTrophiesBarColor', 'fakeTrophiesX', 'fakeTrophiesY', 'playInfoOn', 'playInfoFontSize',
-                                 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners', 'playInfoNever',
-                                 'playInfoLast', 'playInfoX', 'playInfoY']]
+                                 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners',
+                                 'playInfoX', 'playInfoY']]
     ],
     user: [
       ['User name and avatar', ['user', 'userFontSize', 'userColor', 'userFontStyle', 'userAlign', 'userWidth', 'userX', 'userY',
@@ -7387,7 +7381,7 @@
      value that stays as it is */
   /* a switch that also sets other fields to the same value */
   var SYNC = { animFolders: ['animFolderClose'], hideButtons: ['hideMediaButtons'] };
-  var EDITOR_HIDE = /^(bgOverlayOn|bgCleanTry|nameCopyScroll|fixDetails|rowFastRepeat|rowRepeatWindow|favorites|tabsSameWeight|iconsNav|topBarOpacity|fakeTrophiesFast|hideHubIds|hideByTitle|foldersOpenWithX|foldersStripAbove|foldersHideName|foldersNameSize|foldersNameX|foldersNameY|foldersTitle|folderTitleSize|folderTitleColor|foldersRingColor|foldersRingWidth|foldersStripBgCorners|sysOn|sysTrophies|sysBgOn|footerIcon1|footerIcon2|footerIcon3|footerIconFont|footerBgX|footerBgY|footerBgWidth|footerBgHeight|animFolderClose|menuNoDim|folderMenu|menuMove|animationSpeed|animFolders|animToast|animFav|animInfo|animButtons|customTilesOn|customBgOn|tileAnimOn|videoResourceTry|measureScreen|searchDetached|settingsDetached|profileDetached|searchDetachedX|settingsDetachedX|profileDetachedX|hideMediaButtons|buttonsX|buttonsY|hubOffset|hideRowInLibrary|libraryHideGames|libraryPeekDown)$/;
+  var EDITOR_HIDE = /^(bgOverlayOn|bgCleanTry|nameCopyScroll|fixDetails|rowFastRepeat|rowRepeatWindow|favorites|tabsSameWeight|iconsNav|topBarOpacity|fakeTrophiesFast|hideHubIds|hideByTitle|foldersOpenWithX|foldersStripAbove|foldersHideName|foldersNameSize|foldersNameX|foldersNameY|foldersTitle|folderTitleSize|folderTitleColor|foldersRingColor|foldersRingWidth|foldersStripBgCorners|sysOn|sysTrophies|sysBgOn|footerIcon1|footerIcon2|footerIcon3|footerIconFont|footerBgX|footerBgY|footerBgWidth|footerBgHeight|animFolderClose|menuNoDim|folderMenu|menuMove|animationSpeed|animFolders|animToast|animFav|animInfo|animButtons|customTilesOn|customBgOn|tileAnimOn|tileAnimAll|tileAnimAllMax|videoResourceTry|measureScreen|searchDetached|settingsDetached|profileDetached|searchDetachedX|settingsDetachedX|profileDetachedX|hideMediaButtons|buttonsX|buttonsY|hubOffset|hideRowInLibrary|libraryHideGames|libraryPeekDown)$/;
   /* a field that only matters while another one is on: hidden until then
      (c = values().cur). Not applied while searching. */
   var isVideoName = function (n) { return /\.(mp4|m4v)$/i.test(String(n || '')); };
@@ -7489,9 +7483,8 @@
   DEPENDS.tabsRecentIcon = function (c) { return !c.hideTabs && c.tabsIconsOn && c.tabRecentOn; };
   DEPENDS.tabsFavIcon = function (c) { return !c.hideTabs && c.tabsIconsOn && c.tabFavOn; };
   DEPENDS.tabsNeverIcon = function (c) { return !c.hideTabs && c.tabsIconsOn && c.tabNeverOn; };
-  dependAll(['tabRecentName', 'tabRecentMax'], function (c) { return !c.hideTabs && c.tabRecentOn; });
-  dependAll(['tabFavName', 'tabFavFirst', 'favMenu'], function (c) { return !c.hideTabs && c.tabFavOn; });
-  dependAll(['tabNeverName'], function (c) { return !c.hideTabs && c.tabNeverOn; });
+  dependAll(['tabRecentMax'], function (c) { return !c.hideTabs && c.tabRecentOn; });
+  dependAll(['tabFavFirst', 'favMenu'], function (c) { return !c.hideTabs && c.tabFavOn; });
   dependAll(['tabsPillColor', 'tabsPillOpacity', 'tabsPillCorners', 'tabsPillPadX', 'tabsPillPadY', 'tabsPillBorderWidth'],
             function (c) { return !c.hideTabs && c.tabsPillOn; });
   DEPENDS.tabsPillBorderColor = function (c) { return !c.hideTabs && c.tabsPillOn && c.tabsPillBorderWidth > 0; };
@@ -7514,7 +7507,7 @@
   dependAll(['debugItems', 'debugRow', 'debugFontSize', 'debugColor', 'debugBgOpacity', 'debugX', 'debugY'],
             function (c) { return c.debugOverlay; });
   /* Misc: footer, animations */
-  dependAll(['footerText1', 'footerText2', 'footerText3', 'footerFontSize', 'footerColor', 'footerOpacity', 'footerFontStyle',
+  dependAll(['footerShow1', 'footerShow2', 'footerShow3', 'footerFontSize', 'footerColor', 'footerOpacity', 'footerFontStyle',
              'footerIconSize', 'footerIconColor', 'footerSpacing', 'footerAlign', 'footerX', 'footerY', 'footerBgOn'],
             function (c) { return c.footer; });
   DEPENDS.footerWidth = function (c) { return c.footer && !!c.footerAlign && c.footerAlign !== 'left'; };
@@ -7539,8 +7532,8 @@
              'fakeTrophiesCorners', 'fakeTrophiesTotals', 'fakeTrophiesProgress', 'fakeTrophiesX', 'fakeTrophiesY'],
             function (c) { return c.fakeTrophies; });
   DEPENDS.fakeTrophiesBarColor = function (c) { return c.fakeTrophies && c.fakeTrophiesProgress; };
-  dependAll(['playInfoFontSize', 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners', 'playInfoNever',
-             'playInfoLast', 'playInfoX', 'playInfoY'], function (c) { return c.playInfoOn; });
+  dependAll(['playInfoFontSize', 'playInfoColor', 'playInfoBg', 'playInfoBgOpacity', 'playInfoCorners',
+             'playInfoX', 'playInfoY'], function (c) { return c.playInfoOn; });
   /* clock: the PS5 one, or the theme's own one */
   DEPENDS.hideClock = function (c) { return !c.ownClock; };
   dependAll(['clockFontSize', 'clockColor', 'clockFontStyle', 'clockGap', 'clockX', 'clockY'],
@@ -7661,7 +7654,7 @@
       g.fields.forEach(function (f) {
         parts[/^topBar(Bg|Opacity)/.test(f.key) ? 'top bar background' : /^footer/.test(f.key) ? 'footer' : /^box\d/.test(f.key) ? 'boxes' : 'bars'].push(f);
       });
-      var FOOT = ['footer', 'footerText1', 'footerText2', 'footerText3', 'footerFontSize', 'footerColor', 'footerOpacity',
+      var FOOT = ['footer', 'footerShow1', 'footerShow2', 'footerShow3', 'footerFontSize', 'footerColor', 'footerOpacity',
                   'footerFontStyle', 'footerIconSize', 'footerIconColor', 'footerSpacing', 'footerAlign', 'footerWidth', 'footerX',
                   'footerY', 'footerBgOn', 'footerBg', 'footerBgOpacity', 'footerBgPadding', 'footerBgCorners'];
       parts.footer.sort(function (a, b) {
@@ -7852,7 +7845,7 @@
   var FIXED = { foldersOpenWithX: 'true', foldersStripAbove: 'false', foldersHideName: 'true', foldersTitle: 'true',
     menuNoDim: 'false', folderMenu: 'true', menuMove: 'true', animationSpeed: '1', animFolders: 'true', animFolderClose: 'true',
     animToast: 'true', animFav: 'true', animInfo: 'true', animButtons: 'true', customTilesOn: 'true', customBgOn: 'true',
-    tileAnimOn: 'true', videoResourceTry: "''", buttonsX: '0', buttonsY: '0',
+    tileAnimOn: 'true', tileAnimAll: 'false', videoResourceTry: "''", buttonsX: '0', buttonsY: '0',
     hubOffset: '0', hideRowInLibrary: 'true', libraryHideGames: 'false', libraryPeekDown: '0' };
   function migrateSys() {
     var c = values().cur, moved = false;

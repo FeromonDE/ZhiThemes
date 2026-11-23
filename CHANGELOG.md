@@ -2,7 +2,12 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased
+## 0.1.1-alpha
+
+- **ZhiThemes speaks your PS5's language:** the 🎨 ZhiThemes menu, folder menus, messages, empty tabs and play info follow the PS5's system language (28 languages). Words the PS5 already has (Start, Options, Recently played, Favourites, "3 days ago", the power menu…) are taken from the PS5 itself. The footer hints are now switches (*Start* / *Options* / *Home*) instead of free text.
+- **Older firmwares (4.03):** creating or deleting a folder could leave an empty Home after the reload; the message after a reload now waits until the new Home has its tab bar.
+- Errors inside the Home's own scripts are now written to the log (with where they happened), to find crashes that left nothing behind.
+- *Animated tiles* (every tile in the row moving, Experimental) is gone: the PS5 plays only about 3 videos at once, so the tiles took turns and blinked. The focused tile keeps moving as before.
 
 - **Animated game backgrounds change like the still ones:** the old video fades out with a little zoom and slides a few pixels the way you moved; the next one fades in once it plays (before, both were instant).
 
