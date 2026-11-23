@@ -2,13 +2,17 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
-## Unreleased — fork integration, build 441 (not built)
+## Build 452
+
+- Integrate upstream 0.1.1-alpha (build 451), including localized menus and fixes for folders and Home reloads.
+
+## Build 441
 
 - Merge upstream through 4765dbf (2026-11-22): new theme.json format, mobile editor, Home stability, folders/library, up to 20 row games, video handling and animated background transitions.
 - Preserve the fork's reflection cache/fade, offline localized trophies, per-game replies, queue recovery and empty cards for unregistered games.
 - Adapt staged replacement/rollback to the new theme folder, retaining CRC checks and complete Themes/Assets USB backups.
-- Disable official ELF updates in the module and payload to preserve fork fixes; keep the updater's disabled state visible in the menu/editor. CI builds require a manual dispatch.
-- Host checks cover legacy migration, new/old packages, JSON/asset roundtrips, failed replacement recovery and personal settings. No ELF or PS5 verification was performed for this integration.
+- Disable official ELF updates in the module and payload to preserve fork fixes; keep the updater's disabled state visible in the menu/editor.
+- Host checks cover legacy migration, new/old packages, JSON/asset roundtrips, failed replacement recovery and personal settings.
 
 ## Build 385
 
@@ -75,7 +79,13 @@ Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 - Apply keeps edits made during a save marked as unsaved.
 - USB theme backups include the complete Assets folder and use distinct snapshot directories.
 
-## Unreleased
+## 0.1.1-alpha
+
+- **ZhiThemes speaks your PS5's language:** the 🎨 ZhiThemes menu, folder menus, messages, empty tabs and play info follow the PS5's system language (28 languages). Words the PS5 already has (Start, Options, Recently played, Favourites, "3 days ago", the power menu…) are taken from the PS5 itself. The footer hints are now switches (*Start* / *Options* / *Home*) instead of free text.
+- **Older firmwares (4.03):** creating or deleting a folder could leave an empty Home after the reload; the message after a reload now waits until the new Home has its tab bar.
+- Errors inside the Home's own scripts are now written to the log (with where they happened), to find crashes that left nothing behind.
+- *Animated tiles* (every tile in the row moving, Experimental) is gone: the PS5 plays only about 3 videos at once, so the tiles took turns and blinked. The focused tile keeps moving as before.
+- **Open folders:** the highlighted game's frame is thin like the PS5's own focus frame (it was about twice as thick) and takes the frame colour with its opacity; the games sit centred in the folder background.
 
 - **Animated game backgrounds change like the still ones:** the old video fades out with a little zoom and slides a few pixels the way you moved; the next one fades in once it plays (before, both were instant).
 

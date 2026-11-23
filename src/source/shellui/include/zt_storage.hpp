@@ -33,6 +33,7 @@ later version. See LICENSE and NOTICE.  */
 #define ZT_SGDB_KEY_FILE ZT_DIR "/steamgrid.key"   /* the SteamGridDB API key, never in a theme */
 #define ZT_ACTIVE_FILE ZT_DIR "/active_theme.txt"  /* the name of the theme in use */
 #define ZT_FAVORITES_FILE ZT_DIR "/favorites.txt"  /* favourite games, console wide (not in a theme) */
+#define ZT_LANG_FILE ZT_DIR "/lang.txt"            /* the PS5's own texts in its language (from the Home) */
 #define ZT_THEME_BACKUPS ZT_THEMES "/.backup"      /* a copy of each theme at every start */
 
 /* moves the files of the layout in older versions (everything in
@@ -132,6 +133,15 @@ void zt_cache_keep(const std::string &text);
    zt_storage_setup gathers those once. */
 std::string zt_favorites();
 bool zt_favorites_set(const std::string &list);
+
+/* The PS5's language as the code of theme.js' ZT_TEXT ("en", "pt", "pt-BR",
+   "ja", "zh-Hans"...), from the system setting. */
+std::string zt_lang_code();
+/* The PS5's own texts the Home got for that language (I18nPS): "key=text&..."
+   with the texts URI-encoded (only [A-Za-z0-9%=&._~!*'()-]); "" when
+   lang.txt is for another language. set = the Home's "THEME-LANG <code> <texts>". */
+std::string zt_lang_texts(const std::string &code);
+bool zt_lang_texts_set(const std::string &code, const std::string &texts);
 
 /* The SteamGridDB key on the PS5 ("" = none); set "" removes it. */
 std::string zt_sgdb_key();

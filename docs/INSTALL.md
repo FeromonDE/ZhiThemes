@@ -25,7 +25,7 @@ Rest mode keeps the theme: ShellUI does not restart, so the Home comes back as y
 
 ## Fork updates
 
-This fork integrates upstream through `4765dbf` while retaining the reflection,
+This fork integrates upstream 0.1.1-alpha through `dbcb1ab` while retaining the reflection,
 offline trophy and Assets backup fixes. Official ELF updates are disabled in
 both the module and payload (`ZT_OFFICIAL_UPDATES=0`): neither an update button
 nor a previously staged official ELF may replace this fork. Install a new fork

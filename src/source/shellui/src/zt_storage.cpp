@@ -27,6 +27,7 @@ later version. See LICENSE and NOTICE.  */
 #include "zt_log.hpp"
 #include "theme_web.hpp"
 #include "zt_particle_textures.hpp"
+#include "external_symbols.hpp"
 
 #include <ctype.h>
 #include <errno.h>
@@ -1054,6 +1055,57 @@ bool zt_favorites_set(const std::string &list) {
     return false;
   const std::string part = std::string(ZT_FAVORITES_FILE) + ".part";
   return write_all(part.c_str(), clean) && rename(part.c_str(), ZT_FAVORITES_FILE) == 0;
+}
+
+/* the system language setting (SceSystemServiceParamId 1) */
+std::string zt_lang_code() {
+  static const char *const kCodes[] = {"ja", "en", "fr", "es", "de", "it", "nl", "pt", "ru", "ko", "zh-Hant",
+                                       "zh-Hans", "fi", "sv", "da", "no", "pl", "pt-BR", "en", "tr", "es", "ar",
+                                       "fr", "cs", "hu", "el", "ro", "th", "vi", "id", "uk"};
+  int v = -1;
+  if (!sceSystemServiceParamGetInt || sceSystemServiceParamGetInt(1, &v) < 0)
+    return "en";
+  return v >= 0 && v < (int)(sizeof(kCodes) / sizeof(kCodes[0])) ? kCodes[v] : "en";
+}
+
+static bool lang_code_ok(const std::string &c) {
+  if (c.empty() || c.size() > 8)
+    return false;
+  for (char ch : c)
+    if (!isalpha((unsigned char)ch) && ch != '-')
+      return false;
+  return true;
+}
+
+static bool lang_texts_ok(const std::string &t) {
+  if (t.size() > 16000)
+    return false;
+  for (char ch : t)
+    if (!isalnum((unsigned char)ch) && !strchr("%=&._~!*'()-", ch))
+      return false;
+  return true;
+}
+
+std::string zt_lang_texts(const std::string &code) {
+  const std::string all = read_all(ZT_LANG_FILE);
+  const size_t nl = all.find('\n');
+  if (nl == std::string::npos || all.compare(0, nl, code) != 0)
+    return "";
+  std::string t = all.substr(nl + 1);
+  while (!t.empty() && (t.back() == '\n' || t.back() == '\r'))
+    t.pop_back();
+  return lang_texts_ok(t) ? t : "";
+}
+
+bool zt_lang_texts_set(const std::string &code, const std::string &texts) {
+  if (!lang_code_ok(code) || !lang_texts_ok(texts))
+    return false;
+  if (zt_lang_texts(code) == texts)
+    return true;
+  const std::string part = std::string(ZT_LANG_FILE) + ".part";
+  const bool ok = write_all(part.c_str(), code + "\n" + texts) && rename(part.c_str(), ZT_LANG_FILE) == 0;
+  zt_log("storage: PS5 texts for %s %s (%d bytes)", code.c_str(), ok ? "saved" : "NOT saved", (int)texts.size());
+  return ok;
 }
 
 bool zt_sgdb_key_set(const std::string &key) {

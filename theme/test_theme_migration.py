@@ -43,6 +43,8 @@ with tempfile.TemporaryDirectory(prefix='zt-migration-') as tmp:
     support += '\nbool zt_theme_value_ok(const std::string &v) { return !v.empty() && safe_value(v); }\n'
     support += function(web, 'bool theme_set_field_in(')
     (temp / 'support.cpp').write_text(support)
+    (temp / 'external_symbols.hpp').write_text(
+        'inline int (*sceSystemServiceParamGetInt)(int, int *) = nullptr;\n')
     installer = (SRC / 'src/zt_install.cpp').read_text().replace('#include "external_symbols.hpp"',
         'struct OrbisNotificationRequest { char message[1024]; };\n'
         'static int (*sceKernelSendNotificationRequest)(int, OrbisNotificationRequest *, unsigned long, int) = nullptr;')
@@ -51,7 +53,7 @@ with tempfile.TemporaryDirectory(prefix='zt-migration-') as tmp:
                     str(temp / 'zt_particle_textures.hpp')], check=True, stdout=subprocess.DEVNULL)
     binary = temp / 'test'
     subprocess.run(['g++', '-std=c++20', '-O1', '-Wall', '-Wextra', '-ffunction-sections', '-fdata-sections',
-        '-DZT_TEST_ROOT="ZhiThemes"', '-DZHITHEMES=1', '-I' + str(SRC / 'include'), '-I' + str(temp),
+        '-DZT_TEST_ROOT="ZhiThemes"', '-DZHITHEMES=1', '-I' + str(temp), '-I' + str(SRC / 'include'),
         str(ROOT / 'theme/test_storage_safety.cpp'), str(SRC / 'src/zt_theme_json.cpp'),
         str(temp / 'support.cpp'), str(temp / 'installer.cpp'), str(SRC / 'src/zt_update.cpp'),
         '-Wl,--gc-sections', '-Wl,--wrap=rename', '-lz', '-o', str(binary)], check=True)

@@ -2041,6 +2041,46 @@ std::string safe_tokens(const std::string &block, int *dropped) {
   return out + "  ";
 }
 
+/* theme.js' dictionary (between the ZT-TEXT marks, one line per language,
+   "    <code>: {...},"): only English and the lines of the PS5's language
+   ("pt" keeps "pt" and "pt-BR"; "no" also "nb") stay in the script */
+static std::string zt_lang_filter(const std::string &script, const std::string &lang) {
+  const size_t from = script.find("/*ZT-TEXT*/"), to = script.find("/*ZT-TEXT-END*/");
+  if (from == std::string::npos || to == std::string::npos || to < from)
+    return script;
+  const std::string base = lang.substr(0, lang.find('-'));
+  std::string out = script.substr(0, from);
+  int kept = 0, dropped = 0;
+  for (size_t at = from; at < to;) {
+    size_t end = script.find((char)10, at);
+    if (end == std::string::npos || end > to)
+      end = to;
+    const std::string line = script.substr(at, end - at);
+    const size_t i = line.find_first_not_of(' ');
+    const size_t c = i == std::string::npos ? std::string::npos : line.find(':', i);
+    std::string code = c == std::string::npos ? "" : line.substr(i, c - i);
+    if (!code.empty() && (code.front() == 39 || code.front() == 34))
+      code = code.substr(1, code.size() >= 2 ? code.size() - 2 : 0);
+    const std::string cbase = code.substr(0, code.find('-'));
+    const bool entry = !code.empty() && line.find('{', c) != std::string::npos;
+    if (!entry || code == "en" || cbase == base) {
+      out += line;
+      if (end < to)
+        out += (char)10;
+      if (entry)
+        ++kept;
+    } else {
+      ++dropped;
+    }
+    at = end + 1;
+  }
+  out += script.substr(to);
+  static int logged = 0;
+  if (logged++ < 2)
+    zt_log("js: texts in %s (%d languages kept, %d left out)", lang.c_str(), kept, dropped);
+  return out;
+}
+
 std::string merged_script() {
   const std::string base(kThemeDefaultJs);
   const std::string user = zt_theme_read();
@@ -2072,6 +2112,14 @@ std::string merged_script() {
       /* homeTrophies* was renamed fakeTrophies* */
       if (key.compare(0, 12, "homeTrophies") == 0)
         key = "fakeTrophies" + key.substr(12);
+      /* the footer's texts are the PS5's own now: an empty one was a hidden hint */
+      if (key.size() == 11 && key.compare(0, 10, "footerText") == 0) {
+        /* (a theme saved since then has footerShowN itself) */
+        if (value == "''" && ublock.find("footerShow" + key.substr(10)) == std::string::npos)
+          values.emplace_back("footerShow" + key.substr(10), "false");
+        at = end + 1;
+        continue;
+      }
       if (safe_value(value))
         values.emplace_back(key, value);
       else
@@ -2690,7 +2738,9 @@ void eval_theme(MonoObject *self, const char *app, unsigned hub_id = 0) {
   }
   if (stock)
     zt_log("js: ZhiThemes off (PS5 default): Home gets only the Options menu item");
-  const std::string script = stock || diag_plain ? std::string(kThemeDefaultJs) : merged_script();
+  /* ZT_TEXT keeps only English and the PS5's language */
+  const std::string lang = zt_lang_code();
+  const std::string script = zt_lang_filter(stock || diag_plain ? std::string(kThemeDefaultJs) : merged_script(), lang);
   /* the Home starts first: its theme decides the dump for the next bundles */
   if (strcmp(app, "home") == 0) {
     /* the diagnostic build dumps always */
@@ -2739,6 +2789,9 @@ void eval_theme(MonoObject *self, const char *app, unsigned hub_id = 0) {
                              /* video sizes (decoder asked per file) */
                              "globalThis.__ztVideoSizes = " +
                              (strcmp(app, "home") == 0 || strcmp(app, "hub") == 0 ? video_sizes_js() : std::string("{}")) + ";\n" +
+                             /* the PS5's language and its own texts (lang.txt, from the Home) */
+                             "globalThis.__ztLang = \"" + lang + "\";\n" +
+                             "globalThis.__ztSysText = \"" + zt_lang_texts(lang) + "\";\n" +
                              "globalThis.__ztCustomBgs = " +
                              (strcmp(app, "home") == 0 || strcmp(app, "hub") == 0 ? ascii_js(custom_tiles_js("custombg"))
                                                                                : std::string("[]")) + ";\n" +
@@ -3904,6 +3957,13 @@ void ConsoleLog_Hook(MonoString *msg, int level, void *error, void *userarg) {
         zt_logl('W', "js: menu: %s: %s", key.c_str(), err.c_str());
         zt_menu_notify(err);
       }
+      return;
+    }
+    /* the PS5's own texts in its language: "THEME-LANG <code> <key=text&...>" */
+    if (text.rfind("THEME-LANG ", 0) == 0) {
+      const size_t sp = text.find(' ', 11);
+      if (sp == std::string::npos || !zt_lang_texts_set(text.substr(11, sp - 11), text.substr(sp + 1)))
+        zt_logl('W', "js: THEME-LANG refused (%zu bytes)", text.size());
       return;
     }
     /* About's QR code open / closed: "THEME-QRFOCUS <1|0>" */
