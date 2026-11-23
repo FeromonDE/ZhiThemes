@@ -1,9 +1,9 @@
 {
-  "version": "0.1.1-test",
-  "build": 411,
-  "url": "https://github.com/itsRealZhi/ZhiThemes/releases/download/v0.1.1-test/ZhiThemes.elf",
-  "size": 10029008,
-  "sha256": "470e0bbc91c14e2fe425d3378cc4a167d9e4fbcbec19bee12add01acc5c0795c",
-  "notes": "Updater test build (normal). Not for everyday use.",
-  "sig": "3CRl5xksDxJTXmPz7cJKoJN1TRttCSkdXIXtP3QvuAtaBGXaUq1cgKXT0Ynhmv7K+2GncV8jg6k4s08newakBA=="
+  "version": "0.1.1-alpha",
+  "build": 449,
+  "url": "https://github.com/itsRealZhi/ZhiThemes/releases/download/v0.1.1-alpha/ZhiThemes.elf",
+  "size": 10323920,
+  "sha256": "f71febad57d97941d985e01a777f872773e1ed22a7a1d572feea44567554853c",
+  "notes": "ZhiThemes",
+  "sig": "V+uAQgDIfh0T1zFREpg0gpmr9SEAGfjhxKVp7I55SpWqByg0yGf41JnsxBDajWay35kSmtMuFBc7BUXyUET0Dg=="
 }
