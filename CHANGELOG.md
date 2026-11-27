@@ -2,6 +2,10 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
+## Build 453
+
+- Keep the Game and App Library at the stock vertical position when the Home row is resized or moved, so the library tabs stay on screen.
+
 ## Build 452
 
 - Integrate upstream 0.1.1-alpha (build 451), including localized menus and fixes for folders and Home reloads.

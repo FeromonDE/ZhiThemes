@@ -171,6 +171,26 @@ const modules = {
     const j = req(2), c = req(24);
     exports.hub = j.jsx('Hub', { HubCache: {}, hubStyles: {},
                                  marginTop: c.SCALED_EXP_SIZE - c.VERTICAL_HEIGHT_CHANGE });
+    if (process.env.HARNESS_LIBRARY_LAYOUT) {
+      const rn = req(1);
+      const previousId = globalThis.__theme.selectedId;
+      const renderLibrary = (space, isHubFocused) => {
+        const props = { hubUrl: 'pslibraryhub:main?space=' + space, focusLayerName: 'hub',
+                        isHubFocused, style: { top: 7, height: 1080 } };
+        const style = j.jsx('HubPage', props).props.style;
+        return rn.StyleSheet.flatten([style].flat(Infinity));
+      };
+      exports.libraryLayout = ['game', 'media'].map((space) => {
+        globalThis.__theme.selectedId = space === 'game' ? 'NPXS40071' : 'NPXS40139';
+        const preview = renderLibrary(space, false);
+        const open = renderLibrary(space, true);
+        const back = renderLibrary(space, false);
+        globalThis.__theme.selectedId = 'PPSA00001';
+        const left = renderLibrary(space, false);
+        return { preview, open, back, left };
+      });
+      globalThis.__theme.selectedId = previousId;
+    }
     exports.other = j.jsx('View', { marginTop: 5 });
     exports.header = req(261).default;
     exports.shift = req(146).headerShift;
@@ -359,6 +379,7 @@ const out = {
   gameName: entry.gameName, gameNameAfterFocus: entry.gameNameAfterFocus, hubFocus: entry.hubFocus, hubSections: entry.hubSections,
   spring: entry.spring, iconSize: entry.iconSize, trophy: entry.trophy, scroll: entry.scroll,
   hubMarginTop: entry.hub.props.marginTop,
+  libraryLayout: entry.libraryLayout,
   headerShift: entry.shift,
   callRestored: Function.prototype.call.toString().includes('native code'),
   errors: globalThis.__theme && globalThis.__theme.errors

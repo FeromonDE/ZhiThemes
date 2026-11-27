@@ -1226,6 +1226,8 @@
        (module 146: homeContainer translateY = -(SYSTEM_HEIGHT + VERTICAL_HEIGHT_CHANGE)) */
     if (THEME.hubOffset && typeof exp.VERTICAL_HEIGHT_CHANGE === 'number')
       exp.VERTICAL_HEIGHT_CHANGE += THEME.hubOffset;
+    if (typeof T.hubMargin === 'number')
+      T.libraryOffset = T.hubMargin - (exp.SCALED_EXP_SIZE - exp.VERTICAL_HEIGHT_CHANGE);
     done('constants');
   }
 
@@ -11930,14 +11932,6 @@
   function isKeyGuide(props) {
     return 'r3' in props && 'l3' in props && 'enableBackground' in props && 'triangle' in props;
   }
-  /* Game/Apps Library page under a low row: each hub page is a native
-     AppModule inside FocusLayerPS {style: appModule 1920x1080} (HubProvider,
-     module ~113420); the page follows that layout. marginTop only goes to the
-     hub app by context (the library ignores it) and the styles
-     around it did nothing. The component above it (~166670) passes
-     isHubFocused = (vertical position === 'hub'): while it is false the
-     library page's style gets `top: libraryPeekDown` (plain layout, nothing
-     animated); when the library opens it goes back to its place. */
   /* Game Library: 'pslibraryhub:main?space=game' (Apps: space=media) */
   function isLibraryUrl(u) { return /^pslibraryhub:|NPXS40071|NPXS40139/.test(String(u || '')); }
   var hubUrlLogs = {};
@@ -11962,6 +11956,14 @@
     }, 0);
     if ((T.libVidLogs = (T.libVidLogs || 0) + 1) <= 6) log('library: Home video ' + (on ? 'hidden' : 'back'));
   }
+  function alignLibraryPage(props) {
+    if (!T.libraryOffset) return;
+    /* The library ignores the hub's marginTop. Correct its AppModule
+       position by the difference between the stock and themed margins. */
+    var top = flat(props.style).top;
+    props.style = [props.style, { top: (typeof top === 'number' ? top : 0) + T.libraryOffset }];
+    if (!T.done['library page aligned']) done('library page aligned by ' + T.libraryOffset + ' px');
+  }
   function libraryHub(props) {
     var u = String(props.hubUrl || '');
     var lib = isLibraryUrl(u), focused = 'isHubFocused' in props;
@@ -11974,7 +11976,11 @@
     if (!lib || !focused) return;
     libraryVideo(!!props.isHubFocused);
     T.libOpened = T.libOpened || {};
-    if (props.isHubFocused) { T.libOpened[u] = true; return; }
+    if (props.isHubFocused) {
+      T.libOpened[u] = true;
+      alignLibraryPage(props);
+      return;
+    }
     /* libraryHideGames: the page waits out of the screen until it opens
        (its games showed under the row); always in an empty Favourites tab.
        Once the library was open it is never moved while its tile is still
@@ -11985,6 +11991,7 @@
     if (T.libOpened[u]) {
       var selLib = isLibraryUrl(T.selectedId) || T.selectedId == null;
       if (selLib) {
+        alignLibraryPage(props);
         if (!T.libKept || T.libKept !== u) {
           T.libKept = u;
           if ((T.libBackLogs = (T.libBackLogs || 0) + 1) <= 6) log('library: back from ' + u.slice(0, 60) + ', page left in place while its tile is selected');
