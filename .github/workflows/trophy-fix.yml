@@ -1,6 +1,7 @@
 name: ZhiThemes trophy fix
 on:
-  workflow_dispatch:
+  push:
+    branches: [build/zhithemes-453]
 permissions:
   contents: read
 jobs:
