@@ -1164,6 +1164,8 @@
         typeof exp.MINIMIZED_EXP_MARGIN_TOP !== 'number')
       return;
     var stockFocus = exp.SCALED_EXP_SIZE, stockTile = exp.EXPERIENCE_SIZE;
+    T.libraryHeaderBox = { left: exp.MINIMIZED_EXP_MARGIN_LEFT, top: exp.MINIMIZED_EXP_MARGIN_TOP,
+                           size: exp.MINIMIZED_EXP_SIZE || 80 };
     /* margin the Home gives the hub/library page (SCALED_EXP_SIZE -
        VERTICAL_HEIGHT_CHANGE, 128 stock): with bigger tiles it got very
        negative and the last library line left the screen; it keeps the stock one */
@@ -1251,6 +1253,8 @@
   /* vertical rows without a shape too: their MIN_EXP_TOP change also
      moved the name up over the small tile */
   function shapeTitleConstants(exp) {
+    if (T.libraryTitleGap == null && typeof exp.MINIMIZED_TITLE_MARGIN_LEFT === 'number' &&
+        typeof exp.TITLE_X === 'number') T.libraryTitleGap = exp.MINIMIZED_TITLE_MARGIN_LEFT;
     if (T.shapeMargins || (!focusFormat() && tileRatio() === 1) || typeof exp.MINIMIZED_TITLE_MARGIN_LEFT !== 'number' ||
         typeof exp.MINIMIZED_TITLE_MARGIN_TOP !== 'number' || typeof exp.TITLE_X !== 'number')
       return;
@@ -3171,8 +3175,10 @@
        the library; the theme layers on the Home fade out with that move */
     if (APP === 'home' && s.homeContainer && Array.isArray(s.homeContainer.transform)) {
       s.homeContainer.transform.forEach(function (t) {
-        if (t && t.translateY && typeof t.translateY.interpolate === 'function')
+        if (t && t.translateY && typeof t.translateY.interpolate === 'function') {
           T.homeLift = t.translateY;
+          T.homeContainerStyle = s.homeContainer;
+        }
       });
       if (T.homeLift) done('Home lift');
     }
@@ -11938,6 +11944,41 @@
   }
   /* Game Library: 'pslibraryhub:main?space=game' (Apps: space=media) */
   function isLibraryUrl(u) { return /^pslibraryhub:|NPXS40071|NPXS40139/.test(String(u || '')); }
+  var libraryHeaderListeners = new Set();
+  function libraryHeaderPage(url, focused) {
+    if (focused ? T.libraryHeaderPage === url : T.libraryHeaderPage !== url) return;
+    T.libraryHeaderPage = focused ? url : '';
+    /* The library page can announce focus during render. */
+    setTimeout(function () {
+      libraryHeaderListeners.forEach(function (update) { update(T.libraryHeaderPage); });
+    }, 0);
+  }
+  function LibraryHeader() {
+    var R = T.React, rn = T.rn, state = R.useState(T.libraryHeaderPage || ''), url = state[0];
+    R.useEffect(function () {
+      var update = state[1];
+      libraryHeaderListeners.add(update);
+      update(T.libraryHeaderPage || '');
+      return function () { libraryHeaderListeners.delete(update); };
+    }, []);
+    if (!url) return null;
+    var media = /[?&]space=media(?:&|$)|NPXS40139/.test(url);
+    var id = media ? 'NPXS40139' : 'NPXS40071';
+    var row = (media ? T.rowDataMedia : T.rowData) || [];
+    var tile = row.find(function (item) { return item && item.id === id; });
+    var meta = gamesById[id], label = itemName(tile) || (meta && meta.name);
+    if (!label) return null;
+    var icon = (tile && tile.iconPath && tile.iconPath.uri) || (meta && meta.icon);
+    var box = T.libraryHeaderBox || {}, size = box.size || 80;
+    var gap = T.libraryTitleGap == null ? 44 : T.libraryTitleGap;
+    if (!T.done['library header restored']) done('library header restored');
+    return R.createElement(rn.View, { testID: 'zt-library-header', pointerEvents: 'none',
+      style: { position: 'absolute', top: box.top == null ? 48 : box.top, left: box.left == null ? 48 : box.left,
+               height: size, flexDirection: 'row', alignItems: 'center' } },
+      icon && rn.Image ? R.createElement(rn.Image, { source: { uri: icon }, resizeMode: 'contain',
+        style: { width: size, height: size, borderRadius: 12, marginRight: gap } }) : null,
+      R.createElement(rn.Text, { numberOfLines: 1, style: { color: '#ffffff', fontSize: 30 } }, label));
+  }
   var hubUrlLogs = {};
   /* the Home's own video wallpaper stays out of the Game / App Library
      page (drawn by the Home, under the row) while it has the focus */
@@ -11978,6 +12019,7 @@
           (lib && focused ? ' style=' + JSON.stringify(props.style) : ''));
     }
     if (!lib || !focused) return;
+    libraryHeaderPage(u, !!props.isHubFocused);
     libraryVideo(!!props.isHubFocused);
     T.libOpened = T.libOpened || {};
     if (props.isHubFocused) {
@@ -12594,6 +12636,13 @@
         hubGateProps = null;
         try { return fn(HubPageGate, { el: fn.apply(this, arguments) }, arguments[2]); }
         catch (e) { T.errors++; logE('hub page gate: ' + e); }
+      }
+      /* This sibling sits outside the animated Home lift and its hidden row. */
+      if (APP === 'home' && !PLAIN && props && T.homeContainerStyle &&
+          styleHas(props.style, T.homeContainerStyle) && T.React && T.Fragment && T.rn &&
+          typeof T.React.useState === 'function' && typeof T.React.useEffect === 'function') {
+        return T.React.createElement(T.Fragment, { key: arguments[2] }, fn.apply(this, arguments),
+          T.React.createElement(LibraryHeader, { key: 'zt-library-header' }));
       }
       return fn.apply(this, arguments);
     };

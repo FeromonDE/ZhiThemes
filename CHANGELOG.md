@@ -2,6 +2,10 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
+## Build 455
+
+- Show the system tile's localized title and icon above the Game and App Library while the Home row is hidden.
+
 ## Build 454
 
 - Account for the Home row's actual height and margin in the Game and App Library offset to avoid moving the viewport too far down.

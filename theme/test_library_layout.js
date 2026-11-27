@@ -26,15 +26,23 @@ try {
     assert.equal(result.errors, 0);
     assert.equal(result.hubMarginTop, 128);
     const hidePreview = fixture.tileSize !== 106 || fixture.rowOffsetY !== 0;
-    for (const { preview, open, back, left } of result.libraryLayout) {
+    for (const { id, name, preview, open, back, left, previewHeader, openHeader, backHeader } of result.libraryLayout) {
       assert.deepEqual(open, { top: expectedTop, height: 1080 });
       assert.equal(back.top, expectedTop);
       assert.equal(back.opacity, hidePreview ? 0 : undefined);
       assert.equal(preview.top, hidePreview ? 2000 : 7);
       assert.equal(left.top, preview.top);
+      assert.equal(previewHeader, null);
+      assert.equal(backHeader, null);
+      assert.equal(openHeader.props.pointerEvents, 'none');
+      assert.equal(openHeader.props.style.top, 48);
+      assert.equal(openHeader.props.style.left, 48);
+      const [icon, title] = openHeader.props.children;
+      assert.equal(icon.props.source.uri, '/assets/' + id + '.png');
+      assert.deepEqual(title.props.children, [name]);
     }
   }
 } finally {
   fs.rmSync(temp, { force: true, recursive: true });
 }
-console.log('Game and App Library layout passed: stock, moved, resized, vertical, and exit focus path.');
+console.log('Game and App Library layout passed: stock, moved, resized, vertical, exit, and localized header.');

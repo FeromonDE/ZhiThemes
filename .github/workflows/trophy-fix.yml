@@ -73,7 +73,7 @@ jobs:
           sha256sum release/ZhiThemes.elf > release/ZhiThemes.elf.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: ZhiThemes-build454
+          name: ZhiThemes-build455
           path: |
             release/ZhiThemes.elf
             release/ZhiThemes.elf.sha256

@@ -36,7 +36,7 @@ const modules = {
   // module 1: React Native (comes from rnps-ppr)
   1: function (module, exports) {
     module.exports = { AppRegistry: {}, StyleSheet: { create: (s) => s, flatten: (s) => Array.isArray(s) ? Object.assign({}, ...s.filter(Boolean)) : (s || {}) },
-      View: 'View', Text: 'Text', ScrollView: 'RCTScrollView', IconPS: 'IconPS',
+      View: 'View', Text: 'Text', Image: 'Image', ScrollView: 'RCTScrollView', IconPS: 'IconPS',
       Animated: process.env.HARNESS_ANIM ? { spring: (v, c) => c, View: 'Animated.View', Value: AN.Value, add: AN.add, multiply: AN.multiply }
                                          : { spring: (v, c) => c },
       FontSizePS: { SizeSmall: 24, SizeNormal: 28, SizeLarge: 32, Size2X: 44, Size5X: 96 } };
@@ -173,6 +173,13 @@ const modules = {
                                  marginTop: c.SCALED_EXP_SIZE - c.VERTICAL_HEIGHT_CHANGE });
     if (process.env.HARNESS_LIBRARY_LAYOUT) {
       const rn = req(1);
+      req(3);
+      const homeStyle = rn.StyleSheet.create({ homeContainer: { transform: [{ translateY: new AN.Value(0) }] } }).homeContainer;
+      const readHeader = () => {
+        const root = j.jsx('Animated.View', { style: homeStyle });
+        const header = root.props.children[1];
+        return header.type(header.props);
+      };
       const previousId = globalThis.__theme.selectedId;
       const renderLibrary = (space, isHubFocused) => {
         const props = { hubUrl: 'pslibraryhub:main?space=' + space, focusLayerName: 'hub',
@@ -181,13 +188,20 @@ const modules = {
         return rn.StyleSheet.flatten([style].flat(Infinity));
       };
       exports.libraryLayout = ['game', 'media'].map((space) => {
-        globalThis.__theme.selectedId = space === 'game' ? 'NPXS40071' : 'NPXS40139';
+        const id = space === 'game' ? 'NPXS40071' : 'NPXS40139';
+        const name = space === 'game' ? 'Библиотека игр' : 'Библиотека приложений';
+        j.jsx('Strand', { selectedItem: id, keyExtractor: item => item.id, renderItem: () => null,
+          data: [{ id, experienceName: name, iconPath: { uri: '/assets/' + id + '.png' }, hubUri: 'pslibraryhub:main?space=' + space }] });
+        globalThis.__theme.selectedId = id;
         const preview = renderLibrary(space, false);
+        const previewHeader = readHeader();
         const open = renderLibrary(space, true);
+        const openHeader = readHeader();
         const back = renderLibrary(space, false);
+        const backHeader = readHeader();
         globalThis.__theme.selectedId = 'PPSA00001';
         const left = renderLibrary(space, false);
-        return { preview, open, back, left };
+        return { id, name, preview, open, back, left, previewHeader, openHeader, backHeader };
       });
       globalThis.__theme.selectedId = previousId;
     }
