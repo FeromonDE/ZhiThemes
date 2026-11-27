@@ -9,9 +9,10 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'zt-library-'));
 try {
   for (const fixture of [
     { tileSize: 106, focusSize: 168, rowOffsetY: 0, tileVertical: false, expectedTop: 7 },
-    { tileSize: 150, focusSize: 238, rowOffsetY: 130, tileVertical: false, expectedTop: 163 },
-    { tileSize: 106, focusSize: 168, rowOffsetY: 0, tileVertical: true, expectedTop: 91 },
-    { tileSize: 106, focusSize: 168, rowOffsetY: -40, tileVertical: false, expectedTop: -33 }
+    { tileSize: 150, focusSize: 238, rowOffsetY: 130, tileVertical: false, expectedTop: 33 },
+    { tileSize: 271, focusSize: 500, rowOffsetY: 211, tileVertical: false, expectedTop: 174 },
+    { tileSize: 106, focusSize: 168, rowOffsetY: 0, tileVertical: true, expectedTop: 7 },
+    { tileSize: 106, focusSize: 168, rowOffsetY: -40, tileVertical: false, expectedTop: 7 }
   ]) {
     const { expectedTop, ...settings } = fixture;
     let script = source;

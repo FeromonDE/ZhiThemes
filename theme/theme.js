@@ -1226,8 +1226,12 @@
        (module 146: homeContainer translateY = -(SYSTEM_HEIGHT + VERTICAL_HEIGHT_CHANGE)) */
     if (THEME.hubOffset && typeof exp.VERTICAL_HEIGHT_CHANGE === 'number')
       exp.VERTICAL_HEIGHT_CHANGE += THEME.hubOffset;
-    if (typeof T.hubMargin === 'number')
-      T.libraryOffset = T.hubMargin - (exp.SCALED_EXP_SIZE - exp.VERTICAL_HEIGHT_CHANGE);
+    if (typeof T.hubMargin === 'number') {
+      /* The AppModule already sits below the rendered row. Use its real
+         height and margin when calculating what remains after Home lifts. */
+      var rowBottom = focusHeight() + (Number(THEME.rowOffsetY) || 0);
+      T.libraryOffset = T.hubMargin - (rowBottom - exp.VERTICAL_HEIGHT_CHANGE);
+    }
     done('constants');
   }
 

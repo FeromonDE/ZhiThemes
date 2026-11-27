@@ -14,7 +14,7 @@ keep the author attribution).  */
 #define ZT_NAME "ZhiThemes"
 #define ZT_AUTHOR "Zhi"
 #define ZT_VERSION "0.1.1-alpha"
-#define ZT_BUILD 453
+#define ZT_BUILD 454
 /* This fork keeps local fixes; an official ELF must not replace it. */
 #define ZT_OFFICIAL_UPDATES 0
 #define ZT_STR2(x) #x

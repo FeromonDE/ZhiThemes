@@ -2,6 +2,10 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
+## Build 454
+
+- Account for the Home row's actual height and margin in the Game and App Library offset to avoid moving the viewport too far down.
+
 ## Build 453
 
 - Keep the Game and App Library at the stock vertical position when the Home row is resized or moved, so the library tabs stay on screen.
