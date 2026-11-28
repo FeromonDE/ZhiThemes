@@ -4982,16 +4982,30 @@
     return fetch(path, { method: method || 'GET', cache: 'no-store' })
       .then(function (r) { return r.text().then(function (t) { if (!r.ok) throw new Error(t || r.status); return t; }); });
   }
+  function sgGameId(q) {
+    var link = /^https?:\/\/(?:www\.)?steamgriddb\.com\/game\/(\d{1,11})(?:[\/?#].*)?$/i.exec(q);
+    var explicit = /^id:\s*(\d{1,11})$/i.exec(q);
+    var id = (link || explicit || [])[1] || '';
+    return id.replace(/^0+(?=\d)/, '');
+  }
   function sgSearch(q) {
+    var state = sg, id = sgGameId(q), search = {};
+    state.search = search;
     sg.q = q; sg.games = null; sg.game = null; sg.grids = null; sg.pick = null; sg.full = null; sg.busyFrac = null; sg.busy = 'Searching "' + q + '"…';
     drawTiles();
-    sgFetch('/sgdb/search?q=' + encodeURIComponent(q)).then(function (t) {
+    return sgFetch('/sgdb/search?' + (id ? 'id=' + id : 'q=' + encodeURIComponent(q))).then(function (t) {
+      if (sg !== state || sg.search !== search) return;
       var j = JSON.parse(t);
-      sg.games = (j && j.data) || [];
+      var data = j && j.data;
+      sg.games = id ? (data && String(data.id) === id && typeof data.name === 'string' ? [data] : [])
+                    : (Array.isArray(data) ? data : []);
       sg.busyFrac = null; sg.busy = '';
       if (sg.games.length === 1) return sgGrids(sg.games[0], 0);
       drawTiles();
-    }).catch(function (e) { sg.busyFrac = null; sg.busy = ''; sg.games = []; drawTiles(); fail(e); });
+    }).catch(function (e) {
+      if (sg !== state || sg.search !== search) return;
+      sg.busyFrac = null; sg.busy = ''; sg.games = []; drawTiles(); fail(e);
+    });
   }
   function sgGrids(game, page) {
     var k = sg.kind, id = sg.id;
@@ -5223,6 +5237,7 @@
       '<div class="row"><input class="fold-search sg-q" type="search"><button class="sg-go">Search</button></div>';
     var q = box.querySelector('.sg-q');
     q.value = sg.q;
+    q.placeholder = 'Game name or SteamGridDB game link';
     var go = function () { if (q.value.trim()) sgSearch(q.value.trim()); };
     box.querySelector('.sg-go').onclick = go;
     /* SteamGridDB search of the animated pictures only (every format), next to Search */
@@ -5308,7 +5323,9 @@
       }
     } else if (sg.games) {
       if (!sg.games.length) {
-        var n = document.createElement('p'); n.className = 'tip'; n.textContent = 'Nothing found: try another name (in English).'; box.appendChild(n);
+        var n = document.createElement('p'); n.className = 'tip';
+        n.textContent = 'Nothing found. Try the English title or paste the SteamGridDB game page link.';
+        box.appendChild(n);
       }
       sg.games.slice(0, 10).forEach(function (r) {
         var bt = document.createElement('button');

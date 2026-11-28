@@ -45,9 +45,29 @@ async function install(failure, allow = true) {
     scheduled[0](); assert.equal(calls.at(-1), 'reload');
   }
 }
+async function sgdbSearch() {
+  const a = src.indexOf('  function sgGameId('), b = src.indexOf('  function sgGrids(', a);
+  const requests = [], opened = [];
+  const c = vm.createContext({ sg: {}, drawTiles() {}, fail(e) { throw e; },
+    sgFetch: url => new Promise(resolve => requests.push({ url, resolve })),
+    sgGrids: (game, page) => opened.push({ game: { ...game }, page }) });
+  vm.runInContext(src.slice(a, b), c);
+  const old = c.sgSearch('Pragmata');
+  const direct = c.sgSearch('https://www.steamgriddb.com/game/12345/grids?alpha=1');
+  assert.equal(requests[0].url, '/sgdb/search?q=Pragmata');
+  assert.equal(requests[1].url, '/sgdb/search?id=12345');
+  const game = { id: 12345, name: 'Pragmata' };
+  requests[1].resolve(JSON.stringify({ data: game })); await direct;
+  requests[0].resolve(JSON.stringify({ data: [{ id: 9, name: 'Old result' }] })); await old;
+  assert.deepEqual(opened, [{ game, page: 0 }]);
+  assert.equal(c.sgGameId('id:00123'), '123');
+  assert.equal(c.sgGameId('1917'), '');
+  assert.equal(c.sgGameId('https://steamgriddb.com.example/game/12345'), '');
+}
 (async () => {
   await applyDuringEdit(); await applyDuringEdit(true); await applyDuringEdit(false, 'Other');
   for (const failure of ['upload', 'http', null]) await install(failure);
   await install(null, false);
-  console.log('Editor safety tests passed: Apply snapshots, stale-theme guards, server install, upload/HTTP failures and cancellation.');
+  await sgdbSearch();
+  console.log('Editor tests passed: Apply snapshots, install failures, SteamGridDB name/link lookup and stale search responses.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

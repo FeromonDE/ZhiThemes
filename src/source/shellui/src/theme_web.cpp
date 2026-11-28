@@ -756,7 +756,7 @@ void handle(int fd) {
   }
   /*
    * SteamGridDB (Tiles tab), the PS5 asks and answers the editor:
-   *   GET  /sgdb/search?q=<name>            games with that name (API JSON)
+   *   GET  /sgdb/search?q=<name> or id=<id>  find games by name or open a SteamGridDB game
    *   GET  /sgdb/grids?id=<game>&fmt=2x3|1x1|92x43|16x9|logo&page=<n>  pictures (API JSON)
    *   GET  /sgdb/img?kind=preview|download&u=<cdn url>  a thumbnail or a full picture
    *        (download = the picture chosen: a slot of its own, no total timeout)
@@ -891,10 +891,17 @@ void handle(int fd) {
       if (key.empty())
         return reply(fd, 400, "Bad Request", "text/plain", "no SteamGridDB API key on the PS5 (Tiles tab)");
       if (path == "/sgdb/search") {
-        const std::string q = query_value(query, "q");
-        if (q.empty() || q.size() > 120)
-          return reply(fd, 400, "Bad Request", "text/plain", "bad name");
-        url = api + "search/autocomplete/" + url_encode(q);
+        const std::string id = query_value(query, "id");
+        if (!id.empty()) {
+          if (id.size() > 11 || id.find_first_not_of("0123456789") != std::string::npos)
+            return reply(fd, 400, "Bad Request", "text/plain", "bad SteamGridDB game ID");
+          url = api + "games/id/" + id;
+        } else {
+          const std::string q = query_value(query, "q");
+          if (q.empty() || q.size() > 120)
+            return reply(fd, 400, "Bad Request", "text/plain", "bad name");
+          url = api + "search/autocomplete/" + url_encode(q);
+        }
       } else {
         const std::string id = query_value(query, "id"), page = query_value(query, "page");
         bool num = !id.empty() && id.size() < 12;

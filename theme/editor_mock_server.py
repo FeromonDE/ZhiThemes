@@ -241,7 +241,11 @@ class H(http.server.BaseHTTPRequestHandler):
             if method == 'GET' and u.path == '/sgdb/search':
                 if not key:
                     return self._send(400, 'no SteamGridDB API key')
-                code, data = sgdb(API + 'search/autocomplete/' + urllib.parse.quote(q.get('q', ''), safe=''), key)
+                game_id = q.get('id', '')
+                if game_id and not re.fullmatch(r'[0-9]{1,11}', game_id):
+                    return self._send(400, 'bad SteamGridDB game ID')
+                endpoint = 'games/id/' + game_id if game_id else 'search/autocomplete/' + urllib.parse.quote(q.get('q', ''), safe='')
+                code, data = sgdb(API + endpoint, key)
                 return self._bytes(code, data, 'application/json')
             if method == 'GET' and u.path == '/sgdb/grids':
                 if not key:

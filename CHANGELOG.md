@@ -2,6 +2,10 @@
 
 Versions go up (0.1.x, 0.2.0…) until 1.0.0.
 
+## Build 456
+
+- Open a SteamGridDB game by pasting its page link or `id:<game ID>` into the existing search field. Ignore older search responses after a new search starts.
+
 ## Build 455
 
 - Show the system tile's localized title and icon above the Game and App Library while the Home row is hidden.
